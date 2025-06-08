@@ -43,10 +43,10 @@ print_requirements_header() {
 print_requirements_header
 load_env
 
+# Cloudflare
 select_cloudflare_zone_and_domain
+setup_cloudflare_dns_for_blazor
 
 set_timezone_to_vienna
 set_swap
 update_server
-
-setup_cloudflare_dns_for_blazor

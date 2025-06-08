@@ -109,17 +109,19 @@ select_cloudflare_zone_and_domain() {
     printf "✅ Selected Zone: \033[1;34m%s\033[0m\n" "$DOMAIN"
 
     # 🔍 Get all existing A/AAAA records
-    local dns_response
+    local dns_response used_names root_taken=false
     dns_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?per_page=500&type=A&type=AAAA" \
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
       -H "Content-Type: application/json")
 
+    used_names=$(echo "$dns_response" | jq -r '.result[] | .name' | sort -u)
+
     printf "\n📄 \033[1mUsed DNS Records in this zone:\033[0m\n"
     printf "────────────────────────────────────────────────────────────\n"
-    echo "$dns_response" | jq -r '.result[] | select(.type=="A" or .type=="AAAA") | "🔹 \(.name) → \(.content)"'
-
-    local used_names root_taken=false
-    used_names=$(echo "$dns_response" | jq -r '.result[] | .name' | sort -u)
+    echo "$dns_response" | jq -r '.result[] | select(.type=="A" or .type=="AAAA") | "\(.name)\t\(.content)"' | sort -u | while IFS=$'\t' read -r name ip; do
+    printf "🔒 %-35s → \033[36m%s\033[0m\n" "$name" "$ip"
+    done
+    printf "🔒 These hostnames are already in use and \033[31mcannot be selected\033[0m.\n"
 
     if grep -q -Fx "$DOMAIN" <<< "$used_names"; then
       root_taken=true
@@ -132,12 +134,21 @@ select_cloudflare_zone_and_domain() {
       printf " 1) Use a subdomain  (e.g. \033[36mapp.%s\033[0m)\n" "$DOMAIN"
       if [[ "$root_taken" != true ]]; then
         printf " 2) Use root domain  (\033[36m%s\033[0m)\n" "$DOMAIN"
+        printf " 3) ⬅️  Go back to zone selection\n"
+        printf "────────────────────────────────────────────────────────────\n"
+        printf "❓ Your choice [1–3]: "
+      else
+        printf " 2) ⬅️  Go back to zone selection\n"
+        printf "────────────────────────────────────────────────────────────\n"
+        printf "❓ Your choice [1–2]: "
       fi
-      printf " 3) ⬅️  Go back to zone selection\n"
-      printf "────────────────────────────────────────────────────────────\n"
-      printf "❓ Your choice [1–3]: "
+
       IFS= read -rsn1 sub_choice
       printf "\n"
+
+      if [[ "$root_taken" == true && "$sub_choice" == "2" ]]; then
+        sub_choice="3"
+      fi
 
       case "$sub_choice" in
         1)
@@ -154,7 +165,7 @@ select_cloudflare_zone_and_domain() {
             if grep -q -Fx "$full_fqdn" <<< "$used_names"; then
               local ip
               ip=$(echo "$dns_response" | jq -r --arg fqdn "$full_fqdn" '.result[] | select(.name == $fqdn) | .content' | head -n 1)
-              printf "⚠️  \033[33mSubdomain already in use:\033[0m \033[36m%s → %s\033[0m\n" "$full_fqdn" "$ip"
+              printf "⚠️  \033[33mSubdomain already in use:\033[0m \033[36m%s → \033[36m%s\033[0m\n" "$full_fqdn" "$ip"
               printf "   ➤ Please choose another name.\n"
               sleep 1
               continue
@@ -166,11 +177,6 @@ select_cloudflare_zone_and_domain() {
           done
           ;;
         2)
-          if [[ "$root_taken" == true ]]; then
-            printf "❌ Root domain is already used. Please select another option.\n"
-            sleep 1
-            continue
-          fi
           HOSTNAME_FQDN="$DOMAIN"
           export HOSTNAME_FQDN
           printf "\n📌 Your app will be hosted at: \033[1;34mhttps://%s\033[0m\n" "$HOSTNAME_FQDN"
@@ -180,14 +186,13 @@ select_cloudflare_zone_and_domain() {
           break
           ;;
         *)
-          printf "❌ Invalid selection. Please enter 1, 2 or 3.\n"
+          printf "❌ Invalid selection. Please try again.\n"
           sleep 1
           ;;
       esac
     done
   done
 }
-
 
 setup_cloudflare_dns_for_blazor() {
   for var in CLOUDFLARE_API_TOKEN CLOUDFLARE_API_BASE ZONE_ID DOMAIN HOSTNAME_FQDN SERVER_IPv4; do
@@ -241,10 +246,3 @@ setup_cloudflare_dns_for_blazor() {
     printf "↪️  Skipped AAAA-record.\n"
   fi
 }
-
-
-
-
-
-
-
