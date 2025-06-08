@@ -5,7 +5,6 @@ set -e
 # ✨ Funktionen einbinden
 source ./lib/common.sh
 
-# Ask user for domain and subdomain configuration (ShellCheck compliant)
 prompt_domain_and_subdomain() {
   clear
   echo -e "\n\e[1m🌐 Configure domain for your Blazor Server App\e[0m"
@@ -24,7 +23,10 @@ prompt_domain_and_subdomain() {
   echo " 1) Use a subdomain  (e.g. app.$domain_input)"
   echo " 2) Use root domain  ($domain_input)"
   echo -e "────────────────────────────────────────────────────────────"
-  read -rp "❓ Your choice [1–2]: " sub_choice
+  echo -n "❓ Your choice [1–2]: "
+
+  IFS= read -rsn1 sub_choice
+  echo
 
   case "$sub_choice" in
     1)
@@ -32,7 +34,6 @@ prompt_domain_and_subdomain() {
       read -rp "✏️  Enter subdomain (only the sub part, e.g. 'app'): " sub_input
       sub_input="${sub_input,,}"
 
-      # Strip full domain suffix if user enters full FQDN
       if [[ "$sub_input" == *".${domain_input}" ]]; then
         sub_input="${sub_input%."$domain_input"}"
       fi
@@ -60,4 +61,8 @@ prompt_domain_and_subdomain() {
 
 prompt_domain_and_subdomain
 load_env
+get_server_ip
+set_timezone_to_vienna
+set_swap
+update_server
 
