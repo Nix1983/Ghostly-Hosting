@@ -5,29 +5,11 @@ set -e
 # ✨ Funktionen einbinden
 source ./lib/common.sh
 
-_delete_conflicting_records() {
-  local type="$1"
-  local expected_name="$2"
-  local expected_ip="$3"
-
-  local response
-  response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$type" \
-    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-    -H "Content-Type: application/json")
-
-  echo "$response" | jq -c '.result[]' | while read -r record; do
-    local rec_name rec_content rec_id
-    rec_name=$(echo "$record" | jq -r '.name')
-    rec_content=$(echo "$record" | jq -r '.content')
-    rec_id=$(echo "$record" | jq -r '.id')
-
-    if [[ "$rec_content" == "$expected_ip" && "$rec_name" != "$expected_name" ]]; then
-      printf "🧹 Removing duplicate %s-record: \033[33m%s → %s\033[0m\n" "$type" "$rec_name" "$rec_content"
-      curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$rec_id" \
-        -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-        -H "Content-Type: application/json" > /dev/null
-    fi
-  done
+_check_cloudflare_env_vars() {
+  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then
+    echo "❌ CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_BASE is not set."
+    exit 1
+  fi
 }
 
 _upsert_dns_record() {
@@ -75,13 +57,6 @@ _upsert_dns_record() {
   printf "✅ %s-record %s.\n" "$type" "$( [[ -n "$id" ]] && echo "updated" || echo "created" )"
 }
 
-_check_cloudflare_env_vars() {
-  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then
-    echo "❌ CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_BASE is not set."
-    exit 1
-  fi
-}
-
 select_cloudflare_zone_and_domain() {
   _check_cloudflare_env_vars
 
@@ -108,8 +83,8 @@ select_cloudflare_zone_and_domain() {
 
     printf "\n🌐 \033[1mAvailable Cloudflare Zones:\033[0m\n"
     printf "────────────────────────────────────────────────────────────\n"
-    zone_map=()
     local index=1
+    zone_map=()
     while IFS=$'\t' read -r name id; do
       printf " %2d) \033[1;36m%-30s\033[0m\n" "$index" "$name"
       zone_map[$index]="$name:$id"
@@ -133,13 +108,31 @@ select_cloudflare_zone_and_domain() {
     export DOMAIN ZONE_ID
     printf "✅ Selected Zone: \033[1;34m%s\033[0m\n" "$DOMAIN"
 
-    # Innerer Loop für Subdomain-Auswahl
+    # 🔍 Get all existing A/AAAA records
+    local dns_response
+    dns_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?per_page=500&type=A&type=AAAA" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json")
+
+    printf "\n📄 \033[1mUsed DNS Records in this zone:\033[0m\n"
+    printf "────────────────────────────────────────────────────────────\n"
+    echo "$dns_response" | jq -r '.result[] | select(.type=="A" or .type=="AAAA") | "🔹 \(.name) → \(.content)"'
+
+    local used_names root_taken=false
+    used_names=$(echo "$dns_response" | jq -r '.result[] | .name' | sort -u)
+
+    if grep -q -Fx "$DOMAIN" <<< "$used_names"; then
+      root_taken=true
+    fi
+
+    # 🧭 Auswahlmenü
     while true; do
-      clear
       printf "\n🌍 \033[1mHow should your app be accessible?\033[0m\n"
       printf "────────────────────────────────────────────────────────────\n"
       printf " 1) Use a subdomain  (e.g. \033[36mapp.%s\033[0m)\n" "$DOMAIN"
-      printf " 2) Use root domain  (\033[36m%s\033[0m)\n" "$DOMAIN"
+      if [[ "$root_taken" != true ]]; then
+        printf " 2) Use root domain  (\033[36m%s\033[0m)\n" "$DOMAIN"
+      fi
       printf " 3) ⬅️  Go back to zone selection\n"
       printf "────────────────────────────────────────────────────────────\n"
       printf "❓ Your choice [1–3]: "
@@ -148,28 +141,43 @@ select_cloudflare_zone_and_domain() {
 
       case "$sub_choice" in
         1)
-          printf "✏️  Enter subdomain (e.g. \033[36mapp\033[0m): "
-          read -r subname
-          subname=${subname,,}
-          if ! [[ "$subname" =~ ^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?$ ]]; then
-            printf "❌ Invalid subdomain. Only lowercase letters, digits, and hyphens allowed.\n"
-            printf "   ➤ Must start and end with letter or digit. Max 63 characters.\n"
+          while true; do
+            printf "✏️  Enter subdomain (e.g. \033[36mapp\033[0m): "
+            read -r subname
+            subname=${subname,,}
+            if ! [[ "$subname" =~ ^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?$ ]]; then
+              printf "❌ Invalid subdomain. Only lowercase letters, digits, and hyphens allowed.\n"
+              sleep 1
+              continue
+            fi
+            local full_fqdn="$subname.$DOMAIN"
+            if grep -q -Fx "$full_fqdn" <<< "$used_names"; then
+              local ip
+              ip=$(echo "$dns_response" | jq -r --arg fqdn "$full_fqdn" '.result[] | select(.name == $fqdn) | .content' | head -n 1)
+              printf "⚠️  \033[33mSubdomain already in use:\033[0m \033[36m%s → %s\033[0m\n" "$full_fqdn" "$ip"
+              printf "   ➤ Please choose another name.\n"
+              sleep 1
+              continue
+            fi
+            HOSTNAME_FQDN="$full_fqdn"
+            export HOSTNAME_FQDN
+            printf "\n📌 Your app will be hosted at: \033[1;34mhttps://%s\033[0m\n" "$HOSTNAME_FQDN"
+            return 0
+          done
+          ;;
+        2)
+          if [[ "$root_taken" == true ]]; then
+            printf "❌ Root domain is already used. Please select another option.\n"
             sleep 1
             continue
           fi
-          HOSTNAME_FQDN="$subname.$DOMAIN"
-          export HOSTNAME_FQDN
-          printf "\n📌 Your app will be hosted at: \033[1;34mhttps://%s\033[0m\n" "$HOSTNAME_FQDN"
-          return 0
-          ;;
-        2)
           HOSTNAME_FQDN="$DOMAIN"
           export HOSTNAME_FQDN
           printf "\n📌 Your app will be hosted at: \033[1;34mhttps://%s\033[0m\n" "$HOSTNAME_FQDN"
           return 0
           ;;
         3)
-          break # zurück zur Zonen-Auswahl
+          break
           ;;
         *)
           printf "❌ Invalid selection. Please enter 1, 2 or 3.\n"
@@ -179,6 +187,7 @@ select_cloudflare_zone_and_domain() {
     done
   done
 }
+
 
 setup_cloudflare_dns_for_blazor() {
   for var in CLOUDFLARE_API_TOKEN CLOUDFLARE_API_BASE ZONE_ID DOMAIN HOSTNAME_FQDN SERVER_IPv4; do
@@ -214,7 +223,6 @@ setup_cloudflare_dns_for_blazor() {
   [[ "$proxy_choice" =~ ^[Nn]$ ]] && use_proxy=false
 
   # A record
-  _delete_conflicting_records "A" "$HOSTNAME_FQDN" "$SERVER_IPv4"
   _upsert_dns_record "A" "$HOSTNAME_FQDN" "$SERVER_IPv4" "Blazor Hosting A-record" "$use_proxy"
 
   # Ask about IPv6
@@ -228,7 +236,6 @@ setup_cloudflare_dns_for_blazor() {
   printf "\n"
 
   if [[ "$ipv6_choice" =~ ^[Yy]$ && -n "$SERVER_IPv6" ]]; then
-    _delete_conflicting_records "AAAA" "$HOSTNAME_FQDN" "$SERVER_IPv6"
     _upsert_dns_record "AAAA" "$HOSTNAME_FQDN" "$SERVER_IPv6" "Blazor Hosting AAAA-record" "$use_proxy"
   else
     printf "↪️  Skipped AAAA-record.\n"
