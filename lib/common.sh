@@ -30,7 +30,6 @@ load_env() {
   fi
 }
 
-# Detect and show public IPv4 and IPv6 of the server
 get_server_ip() {
   if [[ -z "${SERVER_IPv4:-}" ]]; then
     SERVER_IPv4=$(curl -s -4 https://api.ipify.org)
@@ -40,11 +39,12 @@ get_server_ip() {
     SERVER_IPv6=$(curl -s -6 https://api64.ipify.org)
   fi
 
-  echo "   🌍 IPv4: ${SERVER_IPv4:-Unavailable}"
-  echo "   🌐 IPv6: ${SERVER_IPv6:-Unavailable}"
+  printf "\n🌐 \033[1mServer Public IP Information:\033[0m\n"
+  printf "───────────────────────────────────────────────\n"
+  printf " 🌍 IPv4 Address: \033[1;36m%s\033[0m\n" "${SERVER_IPv4:-Unavailable}"
+  printf " 🌐 IPv6 Address: \033[1;36m%s\033[0m\n" "${SERVER_IPv6:-Unavailable}"
 }
 
-# Set server timezone to Europe/Vienna if not already set
 set_timezone_to_vienna() {
   echo -e "\n🕒 \e[1mConfiguring timezone...\e[0m"
 
@@ -66,7 +66,6 @@ set_timezone_to_vienna() {
   echo -e "🕒 Current system time: \e[36m$(date)\e[0m"
 }
 
-# Create a 2 GB swap file if none is present
 set_swap() {
   if free | grep -q "Swap: *0"; then
     echo "🔧 No swap found – creating 2 GB swap file..."
@@ -81,7 +80,6 @@ set_swap() {
   fi
 }
 
-# Update packages, clean up, and remove unused dependencies
 update_server() {
   echo "📦 Updating system packages (non-interactive)..."
   export DEBIAN_FRONTEND=noninteractive
@@ -97,7 +95,3 @@ update_server() {
   echo "🧼 Cleaning up cached .deb packages..."
   apt -y autoclean
 }
-
-
-
-
