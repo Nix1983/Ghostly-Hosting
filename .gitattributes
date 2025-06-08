@@ -1,0 +1,12 @@
+*.sh text eol=lf
+*.bat text eol=crlf
+* text=auto eol=lf
+
+# Entferne alle gecachten Dateien aus Git
+git rm --cached -r .
+
+# Füge alles wieder hinzu
+git add .
+
+# Committe die Änderung
+git commit -m "Fix line endings to LF"
