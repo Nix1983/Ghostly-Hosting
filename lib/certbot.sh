@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# 🔧 Check if required tools are available
 _check_required_tools() {
   for tool in openssl systemctl grep cut xargs; do
     if ! command -v "$tool" >/dev/null 2>&1; then
@@ -11,7 +10,6 @@ _check_required_tools() {
   done
 }
 
-# 📦 Ensure certbot is installed
 _ensure_certbot_installed() {
   if ! command -v certbot >/dev/null 2>&1; then
     echo "📦 Certbot not found – installing..."
@@ -21,7 +19,6 @@ _ensure_certbot_installed() {
   fi
 }
 
-# ⏹️ Stop nginx if it's running
 _stop_nginx_if_running() {
   if systemctl list-unit-files | grep -q '^nginx\.service'; then
     if systemctl is-active --quiet nginx; then
@@ -32,7 +29,6 @@ _stop_nginx_if_running() {
   fi
 }
 
-# ▶️ Restart nginx if it was stopped
 _start_nginx_if_stopped() {
   if [[ "${NGINX_WAS_RUNNING:-false}" == true ]]; then
     echo "▶️  Restarting nginx service..."
@@ -40,8 +36,6 @@ _start_nginx_if_stopped() {
   fi
 }
 
-
-# 🔍 Check existing certificate validity
 _check_certificate_validity() {
   local path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
   if [[ -f "$path" ]]; then
@@ -60,7 +54,6 @@ _check_certificate_validity() {
   fi
 }
 
-# 🔐 Request or verify certificate
 _obtain_or_verify_certificate() {
   echo "🔒 Checking Let's Encrypt certificate for $HOSTNAME_FQDN..."
 
@@ -88,14 +81,12 @@ _obtain_or_verify_certificate() {
   fi
 }
 
-# 🚀 Run full certbot workflow
 run_certbot_workflow() {
   _ensure_certbot_installed
   _check_required_tools
   _obtain_or_verify_certificate
 }
 
-# 🧪 Check certificate status and renewal
 check_certbot_status() {
   clear
   echo ""
