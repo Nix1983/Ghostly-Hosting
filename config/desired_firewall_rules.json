@@ -1,0 +1,126 @@
+{
+  "firewall_rules": {
+    "firewall_rule": [
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "22",
+        "destination_port_end": "22",
+        "action": "accept",
+        "comment": "SSH access",
+        "family": "IPv4",
+        "position": 1
+      },
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "80",
+        "destination_port_end": "80",
+        "action": "accept",
+        "comment": "HTTP (Let's Encrypt, redirect)",
+        "family": "IPv4",
+        "position": 2
+      },
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "443",
+        "destination_port_end": "443",
+        "action": "accept",
+        "comment": "HTTPS (Blazor App, SignalR)",
+        "family": "IPv4",
+        "position": 3
+      },
+      {
+        "direction": "out",
+        "protocol": "udp",
+        "destination_port_start": "53",
+        "destination_port_end": "53",
+        "action": "accept",
+        "comment": "DNS (resolve domains)",
+        "family": "IPv4",
+        "position": 4
+      },
+      {
+        "direction": "out",
+        "protocol": "tcp",
+        "destination_port_start": "80",
+        "destination_port_end": "80",
+        "action": "accept",
+        "comment": "HTTP (package updates)",
+        "family": "IPv4",
+        "position": 5
+      },
+      {
+        "direction": "out",
+        "protocol": "tcp",
+        "destination_port_start": "443",
+        "destination_port_end": "443",
+        "action": "accept",
+        "comment": "HTTPS (secure updates)",
+        "family": "IPv4",
+        "position": 6
+      },
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "22",
+        "destination_port_end": "22",
+        "action": "accept",
+        "comment": "SSH access",
+        "family": "IPv6",
+        "position": 7
+      },
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "80",
+        "destination_port_end": "80",
+        "action": "accept",
+        "comment": "HTTP (Let's Encrypt, redirect)",
+        "family": "IPv6",
+        "position": 8
+      },
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "443",
+        "destination_port_end": "443",
+        "action": "accept",
+        "comment": "HTTPS (Blazor App, SignalR)",
+        "family": "IPv6",
+        "position": 9
+      },
+      {
+        "direction": "out",
+        "protocol": "udp",
+        "destination_port_start": "53",
+        "destination_port_end": "53",
+        "action": "accept",
+        "comment": "DNS (resolve domains)",
+        "family": "IPv6",
+        "position": 10
+      },
+      {
+        "direction": "out",
+        "protocol": "tcp",
+        "destination_port_start": "80",
+        "destination_port_end": "80",
+        "action": "accept",
+        "comment": "HTTP (package updates)",
+        "family": "IPv6",
+        "position": 11
+      },
+      {
+        "direction": "out",
+        "protocol": "tcp",
+        "destination_port_start": "443",
+        "destination_port_end": "443",
+        "action": "accept",
+        "comment": "HTTPS (secure updates)",
+        "family": "IPv6",
+        "position": 12
+      }
+    ]
+  }
+}

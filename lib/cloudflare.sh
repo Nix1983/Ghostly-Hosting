@@ -242,6 +242,7 @@ setup_cloudflare_dns_for_blazor() {
 
   if [[ "$ipv6_choice" =~ ^[Yy]$ && -n "$SERVER_IPv6" ]]; then
     _upsert_dns_record "AAAA" "$HOSTNAME_FQDN" "$SERVER_IPv6" "Blazor Hosting AAAA-record" "$use_proxy"
+    export CLOUDFLARE_IPV6_ENABLED=true
   else
     printf "↪️  Skipped AAAA-record.\n"
   fi

@@ -95,3 +95,23 @@ update_server() {
   echo "🧼 Cleaning up cached .deb packages..."
   apt -y autoclean
 }
+
+get_project_root() {
+  local i=0
+  local source
+
+  # Durchlaufe BASH_SOURCE-Stack, bis wir aus dem lib-Verzeichnis kommen
+  while source="${BASH_SOURCE[$i]}"; do
+    if [[ "$source" == */lib/common.sh ]]; then
+      break
+    fi
+    ((i++)) || break
+  done
+
+  # Fallback falls nicht gefunden
+  [[ -z "$source" ]] && source="${BASH_SOURCE[0]}"
+
+  local dir
+  dir="$(cd -P "$(dirname "$source")/.." >/dev/null 2>&1 && pwd)"
+  echo "$dir"
+}

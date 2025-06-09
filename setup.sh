@@ -5,6 +5,9 @@ set -e
 # ✨ Funktionen einbinden
 source ./lib/common.sh
 source ./lib/cloudflare.sh
+source ./lib/upcloud.sh
+
+export DISABLE_CLEAR=true
 
 print_requirements_header() {
   clear
@@ -46,6 +49,9 @@ load_env
 # Cloudflare
 select_cloudflare_zone_and_domain
 setup_cloudflare_dns_for_blazor
+
+# Upcloud
+apply_upcloud_firewall_rules
 
 set_timezone_to_vienna
 set_swap
