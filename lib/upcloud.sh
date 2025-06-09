@@ -100,19 +100,24 @@ _print_firewall_rule() {
   [[ -z "$src_port" || "$src_port" == "null" ]] && src_port="Any"
   [[ -z "$dst_port" || "$dst_port" == "null" ]] && dst_port="Any"
   [[ -z "$protocol" || "$protocol" == "null" ]] && protocol="–"
-  [[ -z "$comment" ]] && comment="–"
+  [[ -z "$comment" || "$comment" == "null" ]] && comment="No comment found."
 
-  local action_color="\e[33m" 
+  local action_color="\e[33m"
   local family_color="\e[36m"
 
   case "$action" in
-    accept) action_color="\e[32m" ;; 
-    drop)   action_color="\e[31m" ;; 
+    accept) action_color="\e[32m" ;;
+    drop)   action_color="\e[31m" ;;
   esac
 
-  printf "🔸 ${family_color}%-5s\e[0m │ ${action_color}%-6s\e[0m │ \e[36m%-6s\e[0m │ Src: %-17s Port: %-8s │ Dst: %-17s Port: %-8s │ 📝 %-s\n" \
-    "$family" "$action" "$protocol" "$src_ip" "$src_port" "$dst_ip" "$dst_port" "$comment"
+  # Main rule line without comment
+  printf "🔸 ${family_color}%-5s\e[0m │ ${action_color}%-6s\e[0m │ \e[36m%-6s\e[0m │ Src: %-17s Port: %-8s │ Dst: %-17s Port: %-8s\n" \
+    "$family" "$action" "$protocol" "$src_ip" "$src_port" "$dst_ip" "$dst_port"
+
+  # Separate comment line
+  printf "📝 \e[2m%s\e[0m\n" "$comment"
 }
+
 
 _delete_all_upcloud_firewall_rules() {
   _clear
