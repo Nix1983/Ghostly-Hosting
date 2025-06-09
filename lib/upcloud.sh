@@ -81,6 +81,82 @@ _upcloud_api_put() {
     -X PUT "$UPCLOUD_API_BASE/$endpoint"
 }
 
+_upcloud_firewall_rules_match_desired() {
+  local project_root desired_file desired_json current_json
+  project_root="$(get_project_root)"
+  desired_file="$project_root/config/desired_firewall_rules.json"
+
+  if [[ ! -f "$desired_file" ]]; then
+    printf "❌ Desired firewall rules file not found: %s\n" "$desired_file"
+    return 1
+  fi
+
+  printf "🔍 Comparing current UpCloud rules with desired state...\n"
+
+  # Normalize desired rules
+  desired_json=$(jq -S '
+    .firewall_rules.firewall_rule
+    | map(
+        del(.position)
+        | with_entries(select(.value != null and .value != ""))
+        | with_entries({key: .key, value: .value})
+      )
+    | sort_by(
+        .direction,
+        .family,
+        .protocol,
+        .action,
+        .destination_port_start,
+        .destination_port_end,
+        .comment
+      )
+  ' "$desired_file")
+
+  local current_response
+  current_response=$(_upcloud_api_get "server/$SERVER_UUID/firewall_rule")
+
+  if ! echo "$current_response" | jq -e '.firewall_rules.firewall_rule' >/dev/null 2>&1; then
+    printf "❌ Could not load current firewall rules from API.\n"
+    return 1
+  fi
+
+  current_json=$(echo "$current_response" | jq -S '
+    .firewall_rules.firewall_rule
+    | map(
+        del(.position)
+        | with_entries(select(.value != null and .value != ""))
+        | with_entries({key: .key, value: .value})
+      )
+    | sort_by(
+        .direction,
+        .family,
+        .protocol,
+        .action,
+        .destination_port_start,
+        .destination_port_end,
+        .comment
+      )
+  ')
+
+  local tmp_desired tmp_current
+  tmp_desired=$(mktemp)
+  tmp_current=$(mktemp)
+
+  echo "$desired_json" > "$tmp_desired"
+  echo "$current_json" > "$tmp_current"
+
+  if diff -q "$tmp_desired" "$tmp_current" >/dev/null; then
+    printf "✅ Firewall rules match desired configuration.\n"
+    rm -f "$tmp_desired" "$tmp_current"
+    return 0
+  else
+    printf "❌ Firewall rules differ. Here's the diff:\n"
+    diff -u "$tmp_desired" "$tmp_current" || true
+    rm -f "$tmp_desired" "$tmp_current"
+    return 1
+  fi
+}
+
 _print_firewall_rule() {
   local rule="$1"
 
@@ -252,8 +328,14 @@ apply_upcloud_firewall_rules() {
     return 1
   fi
 
-  if ! _delete_all_upcloud_firewall_rules; then
-    printf "⚠️  Warning: Could not delete existing firewall rules.\n"
+  if _upcloud_firewall_rules_match_desired; then
+  printf "✅ Existing firewall rules already match desired configuration – nothing to do.\n"
+  return 0
+  else
+    printf "🔄 Existing rules do not match desired state – resetting...\n"
+    if ! _delete_all_upcloud_firewall_rules; then
+      printf "⚠️  Warning: Could not delete existing firewall rules.\n"
+    fi
   fi
 
   printf "➕ Loading new rules from: %s\n" "$rules_file"
