@@ -118,7 +118,6 @@ _print_firewall_rule() {
   printf "📝 \e[2m%s\e[0m\n" "$comment"
 }
 
-
 _delete_all_upcloud_firewall_rules() {
   _clear
   printf "\n🧨 Deleting all UpCloud firewall rules\n"
