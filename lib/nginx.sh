@@ -20,7 +20,6 @@ install_nginx_if_missing() {
   fi
 }
 
-# 🔎 Find the next available TCP port (starting at 5000)
 find_free_kestrel_port() {
   local base_port=5000
   local max_port=5099
@@ -45,9 +44,6 @@ find_free_kestrel_port() {
   return 1
 }
 
-
-# 🧾 Create a dedicated Nginx config for the given hostname
-# Returns: assigned kestrel port via stdout
 create_nginx_config() {
   local hostname="$1"
 
@@ -56,7 +52,6 @@ create_nginx_config() {
     return 1
   fi
 
-  # 🔍 Dynamically assign Kestrel port
   local kestrel_port
   kestrel_port=$(find_free_kestrel_port) || return 1
 
@@ -65,55 +60,53 @@ create_nginx_config() {
 
   echo -e "\n⚙️  Creating Nginx config for \033[1;34m$hostname\033[0m → \033[36mlocalhost:$kestrel_port\033[0m"
 
-  cat >"$conf_path" <<EOF
-server {
-    listen 80;
-    listen [::]:80;
+  {
+    printf "server {\n"
+    printf "    listen 80;\n"
+    printf "    listen [::]:80;\n"
+    printf "    server_name %s;\n" "$hostname"
 
-    server_name $hostname;
+    printf "\n    location / {\n"
+    printf "        proxy_pass http://localhost:%s;\n" "$kestrel_port"
+    printf "        proxy_http_version 1.1;\n"
+    printf "        proxy_set_header Upgrade \$http_upgrade;\n"
+    printf "        proxy_set_header Connection keep-alive;\n"
+    printf "        proxy_set_header Host \$host;\n"
+    printf "        proxy_cache_bypass \$http_upgrade;\n"
+    printf "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;\n"
+    printf "        proxy_set_header X-Forwarded-Proto \$scheme;\n"
+    printf "        proxy_set_header Connection \$http_connection;\n"
+    printf "        add_header Cache-Control \"no-store\";\n"
+    printf "        add_header X-Content-Type-Options nosniff;\n"
+    printf "        add_header X-Frame-Options DENY;\n"
+    printf "        add_header Referrer-Policy no-referrer-when-downgrade;\n"
+    printf "        add_header Content-Security-Policy \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';\";\n"
+    printf "    }\n"
 
-    location / {
-        proxy_pass         http://localhost:$kestrel_port;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade \$http_upgrade;
-        proxy_set_header   Connection keep-alive;
-        proxy_set_header   Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto \$scheme;
+    printf "\n    location ~* \\.(" 
+    printf "ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg"
+    printf ")$ {\n"
+    printf "        expires 30d;\n"
+    printf "        access_log off;\n"
+    printf "        add_header Cache-Control \"public\";\n"
+    printf "    }\n"
 
-        # Disable caching for dynamic content
-        add_header Cache-Control "no-store";
-
-        # SEO & security headers
-        add_header X-Content-Type-Options nosniff;
-        add_header X-Frame-Options DENY;
-        add_header Referrer-Policy no-referrer-when-downgrade;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';";
-
-        # WebSocket support
-        proxy_set_header Connection \$http_connection;
-    }
-
-    # Static file caching
-    location ~* \.(?:ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg)$ {
-        expires 30d;
-        access_log off;
-        add_header Cache-Control "public";
-    }
-}
-EOF
+    printf "}\n"
+  } > "$conf_path"
 
   ln -sf "$conf_path" "$conf_link"
 
   echo "🔁 Reloading Nginx..."
-  nginx -t && systemctl reload nginx
-  echo -e "✅ Nginx configuration applied for \033[1;32m$hostname\033[0m"
+  if nginx -t; then
+    systemctl reload nginx
+    echo -e "✅ Nginx configuration applied for \033[1;32m$hostname\033[0m"
+  else
+    echo -e "❌ \033[31mNginx configuration test failed. See above for errors.\033[0m"
+  fi
 
   echo "$kestrel_port"
 }
 
-# 🧠 Setup Nginx for a given Blazor app FQDN (returns port)
 setup_nginx_for_blazor_app() {
   local fqdn="$1"
 
