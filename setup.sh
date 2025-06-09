@@ -6,6 +6,7 @@ set -e
 source ./lib/common.sh
 source ./lib/cloudflare.sh
 source ./lib/upcloud.sh
+source ./lib/nginx.sh
 
 export DISABLE_CLEAR=true
 
@@ -56,3 +57,6 @@ apply_upcloud_firewall_rules
 set_timezone_to_vienna
 set_swap
 update_server
+
+setup_nginx_for_blazor_app "$HOSTNAME_FQDN"
+
