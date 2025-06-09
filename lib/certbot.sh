@@ -34,11 +34,12 @@ _stop_nginx_if_running() {
 
 # ▶️ Restart nginx if it was stopped
 _start_nginx_if_stopped() {
-  if [[ "$NGINX_WAS_RUNNING" == true ]]; then
+  if [[ "${NGINX_WAS_RUNNING:-false}" == true ]]; then
     echo "▶️  Restarting nginx service..."
     systemctl start nginx
   fi
 }
+
 
 # 🔍 Check existing certificate validity
 _check_certificate_validity() {

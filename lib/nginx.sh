@@ -26,16 +26,12 @@ find_free_kestrel_port() {
   local port
 
   for ((port = base_port; port <= max_port; port++)); do
-    # Check if port is already in use
     if ss -tuln | grep -q ":$port\\b"; then
       continue
     fi
-
-    # Check if port is already used in existing Nginx configs
     if grep -r "localhost:$port" /etc/nginx/sites-available/ >/dev/null 2>&1; then
       continue
     fi
-
     echo "$port"
     return 0
   done
@@ -57,14 +53,37 @@ create_nginx_config() {
 
   local conf_path="/etc/nginx/sites-available/$hostname"
   local conf_link="/etc/nginx/sites-enabled/$hostname"
+  local cert_path="/etc/letsencrypt/live/$hostname/fullchain.pem"
+  local key_path="/etc/letsencrypt/live/$hostname/privkey.pem"
 
   echo -e "\n⚙️  Creating Nginx config for \033[1;34m$hostname\033[0m → \033[36mlocalhost:$kestrel_port\033[0m"
 
   {
+    # 🔁 HTTP to HTTPS redirect
     printf "server {\n"
     printf "    listen 80;\n"
     printf "    listen [::]:80;\n"
     printf "    server_name %s;\n" "$hostname"
+    printf "    return 301 https://\$host\$request_uri;\n"
+    printf "}\n\n"
+
+    # 🔐 HTTPS + HTTP/2 server block
+    printf "server {\n"
+    printf "    listen 443 ssl http2;\n"
+    printf "    listen [::]:443 ssl http2;\n"
+    printf "    server_name %s;\n" "$hostname"
+    printf "    ssl_certificate %s;\n" "$cert_path"
+    printf "    ssl_certificate_key %s;\n" "$key_path"
+    printf "    ssl_protocols TLSv1.2 TLSv1.3;\n"
+    printf "    ssl_ciphers HIGH:!aNULL:!MD5;\n"
+    printf "    ssl_prefer_server_ciphers on;\n"
+
+    printf "    add_header Strict-Transport-Security \"max-age=63072000; includeSubDomains; preload\" always;\n"
+    printf "    add_header X-Content-Type-Options nosniff;\n"
+    printf "    add_header X-Frame-Options DENY;\n"
+    printf "    add_header Referrer-Policy no-referrer-when-downgrade;\n"
+    printf "    add_header X-Robots-Tag \"index, follow\";\n"
+    printf "    add_header Content-Security-Policy \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';\";\n"
 
     printf "\n    location / {\n"
     printf "        proxy_pass http://localhost:%s;\n" "$kestrel_port"
@@ -77,15 +96,9 @@ create_nginx_config() {
     printf "        proxy_set_header X-Forwarded-Proto \$scheme;\n"
     printf "        proxy_set_header Connection \$http_connection;\n"
     printf "        add_header Cache-Control \"no-store\";\n"
-    printf "        add_header X-Content-Type-Options nosniff;\n"
-    printf "        add_header X-Frame-Options DENY;\n"
-    printf "        add_header Referrer-Policy no-referrer-when-downgrade;\n"
-    printf "        add_header Content-Security-Policy \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';\";\n"
     printf "    }\n"
 
-    printf "\n    location ~* \\.(" 
-    printf "ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg"
-    printf ")$ {\n"
+    printf "\n    location ~* \\.(ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg)$ {\n"
     printf "        expires 30d;\n"
     printf "        access_log off;\n"
     printf "        add_header Cache-Control \"public\";\n"
