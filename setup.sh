@@ -8,6 +8,7 @@ source ./lib/cloudflare.sh
 source ./lib/upcloud.sh
 source ./lib/nginx.sh
 source ./lib/certbot.sh
+source ./lib/dotnet.sh
 
 export DISABLE_CLEAR=true
 
@@ -61,5 +62,9 @@ update_server
 
 run_certbot_workflow
 
-setup_nginx_for_blazor_app "$HOSTNAME_FQDN"
+setup_nginx_for_blazor_app "$HOSTNAME_FQDN" || exit 1
+
+install_dotnet
+setup_blazor_service
+
 

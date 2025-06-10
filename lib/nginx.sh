@@ -3,6 +3,9 @@
 
 set -e
 
+# Globaler Port für Kestrel
+export KESTREL_PORT=""
+
 # 🌐 Load common utilities
 source ./lib/common.sh
 
@@ -44,19 +47,19 @@ create_nginx_config() {
   local hostname="$1"
 
   if [[ -z "$hostname" ]]; then
-    echo "❌ Missing hostname argument."
+    echo "❌ Missing hostname argument." >&2
     return 1
   fi
 
-  local kestrel_port
-  kestrel_port=$(find_free_kestrel_port) || return 1
+  # Globale Variable setzen
+  KESTREL_PORT=$(find_free_kestrel_port) || return 1
 
   local conf_path="/etc/nginx/sites-available/$hostname"
   local conf_link="/etc/nginx/sites-enabled/$hostname"
   local cert_path="/etc/letsencrypt/live/$hostname/fullchain.pem"
   local key_path="/etc/letsencrypt/live/$hostname/privkey.pem"
 
-  echo -e "\n⚙️  Creating Nginx config for \033[1;34m$hostname\033[0m → \033[36mlocalhost:$kestrel_port\033[0m"
+  echo -e "\n⚙️  Creating Nginx config for \033[1;34m$hostname\033[0m → \033[36mlocalhost:$KESTREL_PORT\033[0m"
 
   {
     # 🔁 HTTP to HTTPS redirect
@@ -86,7 +89,7 @@ create_nginx_config() {
     printf "    add_header Content-Security-Policy \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';\";\n"
 
     printf "\n    location / {\n"
-    printf "        proxy_pass http://localhost:%s;\n" "$kestrel_port"
+    printf "        proxy_pass http://localhost:%s;\n" "$KESTREL_PORT"
     printf "        proxy_http_version 1.1;\n"
     printf "        proxy_set_header Upgrade \$http_upgrade;\n"
     printf "        proxy_set_header Connection keep-alive;\n"
@@ -115,19 +118,18 @@ create_nginx_config() {
     echo -e "✅ Nginx configuration applied for \033[1;32m$hostname\033[0m"
   else
     echo -e "❌ \033[31mNginx configuration test failed. See above for errors.\033[0m"
+    return 1
   fi
-
-  echo "$kestrel_port"
 }
 
 setup_nginx_for_blazor_app() {
   local fqdn="$1"
 
   if [[ -z "$fqdn" ]]; then
-    echo "❌ FQDN (hostname) is required."
+    echo "❌ FQDN (hostname) is required." >&2
     return 1
   fi
 
   install_nginx_if_missing
-  create_nginx_config "$fqdn"
+  create_nginx_config "$fqdn" || return 1
 }
