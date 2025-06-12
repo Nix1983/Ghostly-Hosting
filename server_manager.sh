@@ -7,11 +7,11 @@ source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/fail2ban.sh
 source ./lib/upcloud.sh
+source ./lib/dotnet.sh
 
 export DISABLE_CLEAR=true
 
 # 📦 Dummy-Funktionen
-install_dotnet_versions() { echo -e "\n🧰  Installing .NET SDKs..."; sleep 1; }
 show_all_blazor_apps() { echo -e "\n📦  Listing Blazor apps..."; sleep 1; }
 update_system() { echo -e "\n🔄  Updating system..."; sleep 1; }
 init_server() { echo -e "\n🚀  Initializing server..."; sleep 1; }
@@ -31,7 +31,7 @@ show_server_manager_menu() {
     echo "═════════════════════════════════════════════════════════════"
 
     echo -e "\n 1) 🩺  Show Health        2) 🛡️  Fail2Ban           3) ☁️  UpCloud Admin"
-    echo -e "\n 4) 🧰  Install .NET       5) 📦  List Apps          6) 🔄  Update Server"
+    echo -e "\n 4) 🧰  Show .NET          5) 📦  List Apps          6) 🔄  Update Server"
     echo -e "\n 7) 🚀  Init Server        8) 🧨  Reset Server"
     echo -e "\n q) 🏃💨 \e[1;31mExit Server Control\e[0m"
 
@@ -48,7 +48,7 @@ show_server_manager_menu() {
          ;;
       2) show_f2b_menu ;;
       3) show_upcloud_menu ;;
-      4) install_dotnet_versions ;;
+      4) show_dotnet_version_menu ;;
       5) show_all_blazor_apps ;;
       6) update_system ;;
       7) init_server ;;
