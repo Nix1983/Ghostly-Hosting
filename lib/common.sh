@@ -30,6 +30,18 @@ load_env() {
   fi
 }
 
+is_valid_ipv4() {
+  local ip=$1
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+
+  IFS='.' read -r -a octets <<< "$ip"
+  for octet in "${octets[@]}"; do
+    ((octet >= 0 && octet <= 255)) || return 1
+  done
+
+  return 0
+}
+
 get_server_ip() {
   local silent_mode=false
 
@@ -69,9 +81,27 @@ set_timezone_to_vienna() {
     timedatectl set-timezone "$desired_tz"
     sleep 1
     echo -e "✅ Timezone successfully updated: \e[1;32m$desired_tz\e[0m"
+
+    _restart_timezone_services
   fi
 
   echo -e "🕒 Current system time: \e[36m$(date)\e[0m"
+}
+
+_restart_timezone_services() {
+  echo -e "\n🔄 \e[1mRestarting affected services...\e[0m"
+
+  local services=("rsyslog" "fail2ban" "systemd-journald")
+  for svc in "${services[@]}"; do
+    if systemctl is-active --quiet "$svc"; then
+      echo -e "↻ Restarting \e[36m$svc\e[0m..."
+      systemctl restart "$svc"
+    else
+      echo -e "⚠️  \e[33m$svc is not running – skipping restart.\e[0m"
+    fi
+  done
+
+  echo -e "✅ \e[1;32mAll relevant services refreshed.\e[0m"
 }
 
 set_swap() {

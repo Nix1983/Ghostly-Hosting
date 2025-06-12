@@ -6,6 +6,7 @@ set -e
 source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/upcloud.sh
+source ./lib/fail2ban.sh
 
 show_server_health() {
   clear
@@ -240,6 +241,7 @@ init_server() {
  set_timezone_to_vienna
  set_swap
  apply_upcloud_firewall_rules
+ configure_f2b
 
   echo -e "\n🧩 \e[1mSystemd ready for Blazor apps\e[0m"
   echo -e "   ➤ Blazor Server apps will run as \e[36mblazor-<domain>-<sub>.service\e[0m"
@@ -296,6 +298,10 @@ reset_server() {
   apt-get purge -y nginx nginx-common nginx-core fail2ban certbot ufw >/dev/null 2>&1
   apt-get autoremove -y >/dev/null 2>&1
   echo -e "🗑️ Removed nginx, fail2ban, certbot, ufw."
+
+  # Fail2Ban Konfigurations- und Logdateien löschen
+  rm -rf /etc/fail2ban /var/log/fail2ban* /var/lib/fail2ban
+  echo -e "🗑️ Removed Fail2Ban configuration and log files."
 
   # Blazor systemd units löschen
   find /etc/systemd/system/ -name "blazor-*.service" -exec rm -f {} \;

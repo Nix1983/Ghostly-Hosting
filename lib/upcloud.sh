@@ -475,11 +475,11 @@ show_upcloud_menu() {
   while true; do
     clear
     echo ""
-    echo -e "\n 🌩️  \e[1mUpCloud Firewall & DNS Management:\e[0m"
+    echo -e "\n 🌩️  \e[1mUpCloud Firewall Rules\e[0m"
     echo -e "\e[1m──────────────────────────────────────────────────────\e[0m"
     echo -e "\n 1) 🔐 Enable Firewall              2) 🔓 Disable Firewall"
     echo -e "\n 3) 📊 Show Firewall Status         4) 💣 Delete All Rules"
-    echo -e "\n 5) 📦 Apply Mailserver Rules       $(print_back_to_menu)"
+    echo -e "\n 5) 📦 Apply Server Rules           $(print_back_to_menu)"
     echo -e "\n─────────────────────────────────────────────────────────────"
     print_select_prompt 5
 
