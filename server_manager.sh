@@ -6,10 +6,11 @@ set -e
 source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/fail2ban.sh
+source ./lib/upcloud.sh
 
+export DISABLE_CLEAR=true
 
 # 📦 Dummy-Funktionen
-admin_upcloud() { echo -e "\n☁️  Managing UpCloud..."; sleep 1; }
 install_dotnet_versions() { echo -e "\n🧰  Installing .NET SDKs..."; sleep 1; }
 show_all_blazor_apps() { echo -e "\n📦  Listing Blazor apps..."; sleep 1; }
 update_system() { echo -e "\n🔄  Updating system..."; sleep 1; }
@@ -46,7 +47,7 @@ show_server_manager_menu() {
          read -rsn1 -p "$(print_press_any_key)"
          ;;
       2) show_f2b_menu ;;
-      3) admin_upcloud ;;
+      3) show_upcloud_menu ;;
       4) install_dotnet_versions ;;
       5) show_all_blazor_apps ;;
       6) update_system ;;

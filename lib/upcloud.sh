@@ -5,6 +5,7 @@ set -e
 
 # ✨ Funktionen einbinden
 source ./lib/common.sh
+source ./lib/print.sh
 
 _clear() {
   [[ "${DISABLE_CLEAR}" == "true" ]] || clear
@@ -192,15 +193,16 @@ _print_firewall_rule() {
 
   # Separate comment line
   printf "📝 \e[2m%s\e[0m\n" "$comment"
+  printf "\n"
 }
 
 _delete_all_upcloud_firewall_rules() {
   _clear
-  printf "\n🧨 Deleting all UpCloud firewall rules\n"
+  printf "\n🧨 Deleting All UpCloud Firewall Rules\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   if [[ -z "$UPCLOUD_API_USER" || -z "$UPCLOUD_API_PASS" ]]; then
-    printf "❌ Missing API credentials.\n"
+    printf "❌ Missing UpCloud API credentials.\n"
     return 1
   fi
 
@@ -209,19 +211,17 @@ _delete_all_upcloud_firewall_rules() {
     return 1
   fi
 
-  # Fetch server UUID
   if ! _get_upcloud_server_uuid_by_ip; then
     printf "❌ Could not resolve server UUID – aborting.\n"
     return 1
   fi
 
-  # Check firewall status
   local server_info firewall_enabled
   server_info=$(_upcloud_api_get "server/$SERVER_UUID")
   firewall_enabled=$(echo "$server_info" | jq -r '.server.firewall // ""')
 
   if [[ "$firewall_enabled" != "on" && "$firewall_enabled" != "true" ]]; then
-    printf "⚠️  Firewall is NOT active – enabling now ...\n"
+    printf "⚠️  Firewall is currently disabled – enabling now...\n"
     local enable_response
     enable_response=$(_upcloud_api_put "server/$SERVER_UUID" '{"server": { "firewall": "on" }}')
     firewall_enabled=$(echo "$enable_response" | jq -r '.server.firewall // ""')
@@ -230,17 +230,16 @@ _delete_all_upcloud_firewall_rules() {
       echo "$enable_response" | jq -r '.error.message // "Unknown error"'
       return 1
     fi
-    printf "✅ Firewall successfully enabled.\n"
+    printf "✅ Firewall successfully \e[32menabled\e[0m.\n"
   else
-    printf "✅ Firewall is already active – loading rules ...\n"
+    printf "✅ Firewall is already \e[32menabled\e[0m – loading rules...\n"
   fi
 
-  # Load rules
   local response
   response=$(_upcloud_api_get "server/$SERVER_UUID/firewall_rule")
 
   if ! echo "$response" | jq -e '.firewall_rules.firewall_rule' >/dev/null 2>&1; then
-    printf "ℹ️  No firewall rules found or API error.\n"
+    printf "ℹ️  No firewall rules found or API returned no data.\n"
     return 0
   fi
 
@@ -251,9 +250,8 @@ _delete_all_upcloud_firewall_rules() {
     return 0
   fi
 
-  printf "📋 %d rules found – starting deletion ...\n\n" "${#rules[@]}"
+  printf "📋 %d firewall rules found – starting deletion...\n\n" "${#rules[@]}"
 
-  # Delete rules in reverse order
   for ((i=${#rules[@]}-1; i>=0; i--)); do
     local rule="${rules[$i]}"
     local position
@@ -270,13 +268,15 @@ _delete_all_upcloud_firewall_rules() {
       printf "⚠️  Failed to delete rule:\n"
       echo "$del_response" | jq -r '.error.message // .error // .'
     else
-      printf "✅ Rule successfully deleted.\n"
+      printf "✅ Rule deleted successfully.\n"
       printf "────────────────────────────────────────────────────────────\n"
     fi
   done
 
-  printf "✅ All rules deleted (unless errors occurred).\n"
+  printf "\n✅ All rules deleted (unless errors occurred).\n"
+  printf "═════════════════════════════════════════════════════════════\n"
 }
+
 
 _enable_upcloud_firewall() {
   _clear
@@ -290,7 +290,7 @@ _enable_upcloud_firewall() {
   new_status=$(echo "$response" | jq -r '.server.firewall // ""')
 
   if [[ "$new_status" == "on" || "$new_status" == "true" ]]; then
-    printf "✅ Firewall successfully enabled.\n"
+    printf "✅ Firewall was successfully \e[32menabled\e[0m.\n"
     return 0
   else
     printf "❌ Failed to enable firewall:\n"
@@ -299,10 +299,88 @@ _enable_upcloud_firewall() {
   fi
 }
 
+_disable_upcloud_firewall() {
+  _clear
+  printf "\n🔓 Disabling UpCloud Firewall\n"
+  printf "────────────────────────────────────────────────────────────\n"
+
+  _verify_upcloud_context || return 1
+
+  local response new_status
+  response=$(_upcloud_api_put "server/$SERVER_UUID" '{"server": { "firewall": "off" }}')
+  new_status=$(echo "$response" | jq -r '.server.firewall // ""')
+
+  if [[ "$new_status" == "off" || "$new_status" == "false" ]]; then
+    printf "✅ Firewall was successfully \e[33mdisabled\e[0m.\n"
+    return 0
+  else
+    printf "❌ Failed to disable firewall:\n"
+    echo "$response" | jq -r '.error.message // "Unknown error"'
+    return 1
+  fi
+}
+
+_show_upcloud_firewall_status() {
+  _clear
+  printf "\n🔎 UpCloud Firewall Status Overview\n"
+  printf "────────────────────────────────────────────────────────────\n"
+
+  _verify_upcloud_context || return 1
+
+  local server_info firewall_enabled
+  server_info=$(_upcloud_api_get "server/$SERVER_UUID")
+  firewall_enabled=$(echo "$server_info" | jq -r '.server.firewall // ""')
+
+  if [[ "$firewall_enabled" != "on" && "$firewall_enabled" != "true" ]]; then
+    printf "ℹ️  Firewall is currently \e[33mdisabled\e[0m (Status: '%s')\n" "$firewall_enabled"
+    printf "────────────────────────────────────────────────────────────\n"
+    return 0
+  fi
+
+  printf "✅ Firewall is \e[32menabled\e[0m\n\n"
+
+  local response rules
+  response=$(_upcloud_api_get "server/$SERVER_UUID/firewall_rule")
+
+  if [[ -z "$response" ]]; then
+    echo "❌ No response from API (response is empty)."
+    return 1
+  fi
+
+  if ! echo "$response" | jq -e '.firewall_rules.firewall_rule' >/dev/null 2>&1; then
+    echo "❌ Structure 'firewall_rules.firewall_rule' not found – API format may differ:"
+    echo "$response"
+    return 1
+  fi
+
+  rules=$(echo "$response" | jq -c '.firewall_rules.firewall_rule // [] | .[]')
+  [[ -z "$rules" ]] && {
+    echo "ℹ️  No firewall rules defined."
+    return 0
+  }
+
+  echo "📥 Incoming Rules"
+  echo "────────────────────────────────────────────────────────────"
+  while IFS= read -r rule; do
+    [[ "$(echo "$rule" | jq -r '.direction')" == "in" ]] && _print_firewall_rule "$rule"
+  done <<< "$rules"
+
+  echo ""
+  echo "📤 Outgoing Rules"
+  echo "────────────────────────────────────────────────────────────"
+  while IFS= read -r rule; do
+    [[ "$(echo "$rule" | jq -r '.direction')" == "out" ]] && _print_firewall_rule "$rule"
+  done <<< "$rules"
+
+  echo ""
+  echo "═════════════════════════════════════════════════════════════"
+}
+
+
 apply_upcloud_firewall_rules() {
   set +e  # Handle errors manually
   set -u  # Treat unset variables as errors
-  _clear
+  clear
   printf "\n"
 
   printf "🧱 Applying firewall rules for Blazor Hosting on UpCloud (from config/desired_firewall_rules.json)\n"
@@ -393,4 +471,55 @@ apply_upcloud_firewall_rules() {
   printf "✅ Successfully added: %d\n" "$success_count"
   printf "❌ Failed to add:      %d\n" "$fail_count"
   printf "────────────────────────────────────────────────────────────\n"
+}
+
+show_upcloud_menu() {
+  while true; do
+    clear
+    echo ""
+    echo -e "\n 🌩️  \e[1mUpCloud Firewall & DNS Management:\e[0m"
+    echo -e "\e[1m──────────────────────────────────────────────────────\e[0m"
+    echo -e "\n 1) 🔐 Enable Firewall              2) 🔓 Disable Firewall"
+    echo -e "\n 3) 📊 Show Firewall Status         4) 💣 Delete All Rules"
+    echo -e "\n 5) 📦 Apply Mailserver Rules       $(print_back_to_menu)"
+    echo -e "\n─────────────────────────────────────────────────────────────"
+    print_select_prompt 5
+
+    IFS= read -rsn1 choice
+    echo
+
+    case "$choice" in
+      1)
+        _enable_upcloud_firewall
+        echo ""
+        read -rsn1 -p "$(print_press_any_key)"
+        ;;
+      2)
+        _disable_upcloud_firewall
+        echo ""
+        read -rsn1 -p "$(print_press_any_key)"
+        ;;
+      3)
+        _show_upcloud_firewall_status
+        echo ""
+        read -rsn1 -p "$(print_press_any_key)"
+        ;;
+      4)
+        _delete_all_upcloud_firewall_rules
+        echo ""
+        read -rsn1 -p "$(print_press_any_key)"
+        ;;
+      5)
+        apply_upcloud_firewall_rules
+        echo ""
+        read -rsn1 -p "$(print_press_any_key)"
+        ;;
+      q|Q)
+        break
+        ;;
+      *)
+        print_invalid_selection
+        ;;
+    esac
+  done
 }
