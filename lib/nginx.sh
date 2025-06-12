@@ -51,7 +51,6 @@ create_nginx_config() {
     return 1
   fi
 
-  # Globale Variable setzen
   KESTREL_PORT=$(find_free_kestrel_port) || return 1
 
   local conf_path="/etc/nginx/sites-available/$hostname"
@@ -62,7 +61,6 @@ create_nginx_config() {
   echo -e "\n⚙️  Creating Nginx config for \033[1;34m$hostname\033[0m → \033[36mlocalhost:$KESTREL_PORT\033[0m"
 
   {
-    # 🔁 HTTP to HTTPS redirect
     printf "server {\n"
     printf "    listen 80;\n"
     printf "    listen [::]:80;\n"
@@ -70,7 +68,6 @@ create_nginx_config() {
     printf "    return 301 https://\$host\$request_uri;\n"
     printf "}\n\n"
 
-    # 🔐 HTTPS + HTTP/2 server block
     printf "server {\n"
     printf "    listen 443 ssl http2;\n"
     printf "    listen [::]:443 ssl http2;\n"
@@ -80,47 +77,33 @@ create_nginx_config() {
     printf "    ssl_protocols TLSv1.2 TLSv1.3;\n"
     printf "    ssl_ciphers HIGH:!aNULL:!MD5;\n"
     printf "    ssl_prefer_server_ciphers on;\n"
+    printf "    include /etc/nginx/mime.types;\n"
 
     printf "    add_header Strict-Transport-Security \"max-age=63072000; includeSubDomains; preload\" always;\n"
     printf "    add_header X-Content-Type-Options nosniff;\n"
     printf "    add_header X-Frame-Options DENY;\n"
     printf "    add_header Referrer-Policy no-referrer-when-downgrade;\n"
     printf "    add_header X-Robots-Tag \"index, follow\";\n"
-    printf "    add_header Content-Security-Policy \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';\";\n"
+    printf "    add_header Content-Security-Policy \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:%s wss://localhost:%s;\";\n" "$KESTREL_PORT" "$KESTREL_PORT"
 
-    printf "\n    location / {\n"
+    printf "    location / {\n"
     printf "        proxy_pass http://localhost:%s;\n" "$KESTREL_PORT"
     printf "        proxy_http_version 1.1;\n"
     printf "        proxy_set_header Upgrade \$http_upgrade;\n"
-    printf "        proxy_set_header Connection keep-alive;\n"
+    printf "        proxy_set_header Connection \"upgrade\";\n"
     printf "        proxy_set_header Host \$host;\n"
     printf "        proxy_cache_bypass \$http_upgrade;\n"
     printf "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;\n"
     printf "        proxy_set_header X-Forwarded-Proto \$scheme;\n"
-    printf "        proxy_set_header Connection \$http_connection;\n"
     printf "        add_header Cache-Control \"no-store\";\n"
     printf "    }\n"
-
-    printf "\n    location ~* \\.(ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg)$ {\n"
-    printf "        expires 30d;\n"
-    printf "        access_log off;\n"
-    printf "        add_header Cache-Control \"public\";\n"
-    printf "    }\n"
-
     printf "}\n"
   } > "$conf_path"
 
   ln -sf "$conf_path" "$conf_link"
-
-  echo "🔁 Reloading Nginx..."
-  if nginx -t; then
-    systemctl reload nginx
-    echo -e "✅ Nginx configuration applied for \033[1;32m$hostname\033[0m"
-  else
-    echo -e "❌ \033[31mNginx configuration test failed. See above for errors.\033[0m"
-    return 1
-  fi
+  nginx -t && systemctl reload nginx && echo "✅ Nginx reloaded successfully." || echo "❌ Nginx config test failed."
 }
+
 
 setup_nginx_for_blazor_app() {
   local fqdn="$1"

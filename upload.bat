@@ -34,5 +34,3 @@ echo.
 echo Upload abgeschlossen.
 echo.
 
-echo Stelle Verbindung zum Server her...
-start "" cmd /k ssh %SSH_OPTS% root@%TARGET_IP%

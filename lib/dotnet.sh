@@ -41,7 +41,6 @@ install_dotnet() {
 
   echo -e "\n📦 Selected version: \033[1;32m.NET $version\033[0m"
 
-  # Check if already installed
   if [[ -x "$install_dir/dotnet" ]] && "$install_dir/dotnet" --list-sdks | grep -q "^$version"; then
     echo -e "✅ .NET SDK $version is already installed in \033[36m$install_dir\033[0m"
   else
@@ -52,7 +51,6 @@ install_dotnet() {
     echo -e "✅ Installed .NET SDK $version to $install_dir"
   fi
 
-  # Add to profile if missing
   if ! grep -q "$install_dir" ~/.profile; then
     {
       echo ""
@@ -70,19 +68,78 @@ install_dotnet() {
   echo -e "✅ \033[1m.NET SDK $version is ready to use in this session.\033[0m"
 }
 
+_get_blazor_dll_name_from_config_or_wait() {
+  local app_dir="$1"
+  local config_file="$app_dir/blazor-config.json"
+  local max_attempts=30
+  local attempt=0
+  local dll_name
+
+  if [[ -f "$config_file" ]]; then
+    dll_name=$(jq -r '.dll // empty' "$config_file" 2>/dev/null)
+    if [[ -n "$dll_name" ]]; then
+      echo "$dll_name"
+      return 0
+    fi
+  fi
+
+  echo "⏳ Waiting for publish folder to contain a valid DLL..."
+  while (( attempt++ < max_attempts )); do
+    dll_name=$(find "$app_dir" -maxdepth 1 -type f -name "*.dll" \
+      ! -name "Microsoft.*" ! -name "System.*" ! -name "App.*" ! -name "*framework*" \
+      -exec basename {} .dll \; | head -n1)
+
+    if [[ -n "$dll_name" ]]; then
+      echo "$dll_name"
+      return 0
+    fi
+
+    sleep 2
+  done
+
+  echo "❌ No suitable DLL found in '$app_dir' after waiting. Aborting." >&2
+  return 1
+}
+
+_watch_for_blazor_dll_update() {
+  local app_dir="$1"
+  local service_name="$2"
+  local dotnet_path="$3"
+  local new_dll
+
+  echo "⏳ Watching for new DLL in: $app_dir"
+  while true; do
+    new_dll=$(find "$app_dir" -maxdepth 1 -type f -name "*.dll" \
+      ! -name "Microsoft.*" ! -name "System.*" ! -name "App.*" ! -name "*framework*" \
+      -exec basename {} .dll \; | grep -v "__waiting__" | head -n1)
+
+    if [[ -n "$new_dll" ]]; then
+      echo "✅ Detected real DLL: $new_dll – updating systemd unit..."
+
+      sed -i "s|ExecStart=.*|ExecStart=$dotnet_path/dotnet $new_dll.dll|" "/etc/systemd/system/$service_name"
+      systemctl daemon-reload
+      systemctl restart "$service_name"
+
+      echo "🔁 Service restarted with real DLL: $new_dll.dll"
+      break
+    fi
+
+    sleep 2
+  done
+}
+
 setup_blazor_service() {
   local dotnet_path="/opt/dotnet"
   local hostname="$HOSTNAME_FQDN"
   local port="$KESTREL_PORT"
   local version="$DOTNET_VERSION"
-  local root_domain subdomain domain_dir app_dir dll_name service_name choice appname_base
+  local root_domain subdomain domain_dir app_dir dll_name service_name unit_file
 
   if [[ -z "$hostname" || -z "$version" ]]; then
     echo "❌ Missing required variables: HOSTNAME_FQDN or DOTNET_VERSION."
     return 1
   fi
 
-  # Wenn kein Port gesetzt ist, einen freien Port finden
   if [[ -z "$port" ]]; then
     echo "⚠️ No KESTREL_PORT set, finding free port..."
     port=$(find_free_kestrel_port) || {
@@ -92,51 +149,29 @@ setup_blazor_service() {
     echo "🔹 Using port: $port"
   fi
 
-  # Split FQDN into root domain and subdomain
   root_domain="$DOMAIN"
   if [[ "$hostname" == "$root_domain" ]]; then
     subdomain="root"
-    appname_base="${root_domain%%.*}"
   else
     subdomain="${hostname%%."$root_domain"}"
-    appname_base="$subdomain"
   fi
 
   domain_dir="/var/www/$root_domain"
-  app_dir="$domain_dir/$subdomain/publish"
+  app_dir="$domain_dir/$subdomain"
   mkdir -p "$app_dir"
 
   printf "\n📁 App directory: \033[36m%s\033[0m\n" "$app_dir"
 
-  # Ask for DLL name
-  while true; do
-    echo ""
-    echo "📦 Choose the name of your main DLL file (without .dll)"
-    echo "────────────────────────────────────────────"
-    echo " 1) Enter manually"
-    echo " 2) Use domain-based name → ${appname_base//./-}.dll"
-    echo "────────────────────────────────────────────"
-    read -rp "❓ Your choice [1/2]: " choice
+  dll_name=$(_get_blazor_dll_name_from_config_or_wait "$app_dir")
+  if [[ -z "$dll_name" ]]; then
+    echo "⚠️ No DLL found – setting up dummy placeholder."
+    dll_name="__waiting__"
+  else
+    echo -e "✅ Using detected DLL: \033[1;32m$dll_name.dll\033[0m"
+  fi
 
-    case "$choice" in
-      1)
-        read -rp "✏️  Enter your DLL name (without .dll): " dll_name
-        break
-        ;;
-      2)
-        dll_name="${appname_base//./-}"
-        printf "✅ Using: \033[1;32m%s.dll\033[0m\n" "$dll_name"
-        break
-        ;;
-      *)
-        echo "❌ Invalid selection. Please choose 1 or 2."
-        ;;
-    esac
-  done
-
-  # Generate systemd unit
   service_name="blazor-${root_domain//./-}-${subdomain}.service"
-  local unit_file="/etc/systemd/system/$service_name"
+  unit_file="/etc/systemd/system/$service_name"
 
   printf "\n🛠 Creating systemd service: \033[36m%s\033[0m\n" "$service_name"
 
@@ -147,6 +182,7 @@ setup_blazor_service() {
     echo ""
     echo "[Service]"
     echo "WorkingDirectory=$app_dir"
+    echo "Environment=HOME=$app_dir"
     echo "Environment=ASPNETCORE_URLS=http://localhost:$port"
     echo "ExecStart=$dotnet_path/dotnet $dll_name.dll"
     echo "Restart=always"
@@ -159,6 +195,9 @@ setup_blazor_service() {
     echo "WantedBy=multi-user.target"
   } > "$unit_file"
 
+  chown -R www-data:www-data "$domain_dir"
+  chmod -R u+rwX "$domain_dir"
+
   systemctl daemon-reexec
   systemctl daemon-reload
   systemctl enable "$service_name"
@@ -166,4 +205,10 @@ setup_blazor_service() {
 
   printf "\n✅ Service \033[1;32m%s\033[0m has been enabled and restarted.\n" "$service_name"
   printf "➤ Check status with: \033[36msystemctl status %s\033[0m\n" "$service_name"
+
+  # Start watcher in background if dummy DLL was used
+  if [[ "$dll_name" == "__waiting__" ]]; then
+    watch_for_blazor_dll_update "$app_dir" "$service_name" "$dotnet_path" &
+  fi
 }
+
