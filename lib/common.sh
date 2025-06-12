@@ -74,115 +74,25 @@ set_timezone_to_vienna() {
   echo -e "🕒 Current system time: \e[36m$(date)\e[0m"
 }
 
-show_server_health() {
-  clear
-
-  local tools=(hostname uptime ip curl grep awk sed free df systemctl apt lsb_release)
-  for tool in "${tools[@]}"; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-      echo -e "❌ \e[31mMissing required tool:\e[0m $tool"
-      return 1
-    fi
-  done
-
-  # System Info
-  local kernel os uptime boot time_zone
-  kernel=$(uname -r)
-  os=$(lsb_release -ds 2>/dev/null || grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2- | tr -d '"')
-  uptime=$(uptime -p | sed 's/^/ /')
-  boot=$(who -b | awk '{print $3, $4}')
-  time_zone=$(date +'%Z (UTC %:::z)')
-
-  # Network
-  local ip_local ip_external gateway dns
-  ip_local=$(hostname -I | awk '{print $1}')
-  ip_external=$(curl -s https://api.ipify.org || echo "unavailable")
-  gateway=$(ip route | awk '/default/ {print $3}')
-  dns=$(grep 'nameserver' /etc/resolv.conf | awk '{print $2}' | paste -sd ',' -)
-
-  # Memory (in MB)
-  read -r _ mem_total mem_used mem_free _ mem_cache _ <<< \
-    "$(free -m | awk '/^Mem:/ {print $1, $2, $3, $4, $5, $6, $7}')"
-  local mem_usage_pct=$((100 * mem_used / mem_total))
-
-  read -r _ swap_total swap_used swap_free <<< \
-    "$(free -m | awk '/^Swap:/ {print $1, $2, $3, $4}')"
-  local swap_usage_pct=0
-  [[ "$swap_total" -gt 0 ]] && swap_usage_pct=$((100 * swap_used / swap_total))
-
-  # Disk (in GB)
-  read -r d_total d_used d_free d_perc <<< \
-    "$(df -m / | awk 'NR==2 {print $2, $3, $4, $5}')"
-  d_total=$((d_total / 1024))
-  d_used=$((d_used / 1024))
-  d_free=$((d_free / 1024))
-
-  # CPU Load
-  read -r load1 load5 load15 <<< \
-    "$(uptime | awk -F'load average:' '{print $2}' | sed 's/^[ \t]*//' | tr ',' ' ')"
-
-  # Updates
-  local updates_output updates_count
-  updates_output=$(apt list --upgradable 2>/dev/null || true)
-  updates_count=$(echo "$updates_output" | grep -vc "Listing..." || echo 0)
-
-  # Services
-  local services=(postfix ngnix)
-  local service_line=""
-  for svc in "${services[@]}"; do
-    local icon="❌"
-    if systemctl is-active "$svc" &>/dev/null; then
-      icon="✅"
-    fi
-    service_line+="${svc} ${icon}   "
-  done
-
-  # Output
-  echo -e "\e[1m🩺 Server Health Summary\e[0m"
-  echo "════════════════════════════════════════════════════════════════════════════════════════════"
-  printf "🖥️ %-13s %s\n" "Kernel:"       "$kernel"
-  printf "🧾 %-13s %s\n" "OS:"           "$os"
-  printf "⏳ %-12s %s\n" "Uptime:"       "$uptime"
-  printf "♻️ %-13s %s\n" "Last boot:"    "$boot"
-  printf "🕒 %-13s %s\n" "Time zone:"    "$time_zone"
-
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "📡 %-13s %s\n" "Internal IP:"   "$ip_local"
-  printf "🌍 %-13s %s\n" "External IP:"   "$ip_external"
-  printf "🚪 %-13s %s\n" "Gateway:"       "$gateway"
-  printf "🔎 %-13s %s\n" "DNS servers:"   "$dns"
-
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "🧠 %-13s Total: %4sMB | Used: %4sMB | Free: %4sMB | Cache: %4sMB     Usage: %3s%%\n" \
-    "RAM:" "$mem_total" "$mem_used" "$mem_free" "$mem_cache" "$mem_usage_pct"
-  printf "📥 %-13s Total: %4sMB | Used: %4sMB | Free: %4sMB                     Usage: %3s%%\n" \
-    "SWAP:" "$swap_total" "$swap_used" "$swap_free" "$swap_usage_pct"
-
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "💾 %-13s Total: %2sG    | Used: %2sG    | Free: %2sG                        Usage:  %3s\n" \
-    "Disk (/):" "$d_total" "$d_used" "$d_free" "$d_perc"
-  printf "⚙️ %-13s 1 min: %s   | 5 min: %s  | 15 min: %s\n" \
-    "CPU Load:" "$load1" "$load5" "$load15"
-  printf "📦 %-13s %s\n" "Pending Updates:" "$updates_count"
-
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  echo -e "\e[1m🔌 Services:\e[0m"
-  echo "   $service_line"
-  echo "════════════════════════════════════════════════════════════════════════════════════════════"
-  echo ""
-}
-
 set_swap() {
+  echo -e "\n🧮 \e[1;34mChecking swap space...\e[0m"
+  echo "─────────────────────────────────────────────────────────────"
+
   if free | grep -q "Swap: *0"; then
-    echo "🔧 No swap found – creating 2 GB swap file..."
-    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
-    chmod 600 /swapfile
-    mkswap /swapfile
-    swapon /swapfile
-    echo '/swapfile none swap sw 0 0' >> /etc/fstab
-    echo "✅ Swap file created and activated."
+    echo -e "🔧 \e[33mNo active swap detected.\e[0m"
+    echo -e "📦 Creating 2 GB swap file at \e[36m/swapfile\e[0m ..."
+
+    if fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none; then
+      chmod 600 /swapfile
+      mkswap /swapfile >/dev/null
+      swapon /swapfile
+      echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      echo -e "✅ \e[1;32mSwap file successfully created and activated.\e[0m"
+    else
+      echo -e "❌ \e[1;31mFailed to create swap file.\e[0m"
+    fi
   else
-    echo "✅ Swap is already present. No action required."
+    echo -e "✅ \e[1;32mSwap space is already configured.\e[0m"
   fi
 }
 
@@ -221,3 +131,11 @@ get_project_root() {
   dir="$(cd -P "$(dirname "$source")/.." >/dev/null 2>&1 && pwd)"
   echo "$dir"
 }
+
+
+
+
+
+
+
+

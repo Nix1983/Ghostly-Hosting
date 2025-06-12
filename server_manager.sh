@@ -8,14 +8,12 @@ source ./lib/print.sh
 source ./lib/fail2ban.sh
 source ./lib/upcloud.sh
 source ./lib/dotnet.sh
+source ./lib/server.sh
 
 export DISABLE_CLEAR=true
 
 # 📦 Dummy-Funktionen
 show_all_blazor_apps() { echo -e "\n📦  Listing Blazor apps..."; sleep 1; }
-update_system() { echo -e "\n🔄  Updating system..."; sleep 1; }
-init_server() { echo -e "\n🚀  Initializing server..."; sleep 1; }
-reset_server() { echo -e "\n🧨  Resetting server..."; sleep 1; }
 
 show_server_manager_menu() {
 
@@ -27,12 +25,12 @@ show_server_manager_menu() {
   local choice
   while true; do
     clear
-    echo -e "\n📦 \e[1;34mBlazor Server Control Panel\e[0m | $SERVER_IPv4"
+    echo -e "\n🚀 \e[1;34mBlazor Server Control Panel\e[0m | $SERVER_IPv4"
     echo "═════════════════════════════════════════════════════════════"
 
     echo -e "\n 1) 🩺  Show Health        2) 🛡️  Fail2Ban           3) ☁️  UpCloud Admin"
     echo -e "\n 4) 🧰  Show .NET          5) 📦  List Apps          6) 🔄  Update Server"
-    echo -e "\n 7) 🚀  Init Server        8) 🧨  Reset Server"
+    echo -e "\n 7) 🪛  Init Server        8) 🧨  Reset Server"
     echo -e "\n q) 🏃💨 \e[1;31mExit Server Control\e[0m"
 
     echo -e "\n─────────────────────────────────────────────────────────────"
@@ -50,8 +48,10 @@ show_server_manager_menu() {
       3) show_upcloud_menu ;;
       4) show_dotnet_version_menu ;;
       5) show_all_blazor_apps ;;
-      6) update_system ;;
-      7) init_server ;;
+      6) update_server_and_show_status
+         check_and_offer_reboot;;
+      7) init_server 
+         check_and_offer_reboot;;
       8) reset_server ;;
       q|Q) echo -e "\n🏃‍♂️💨 \e[1;31mExiting Mail Control Panel. Goodbye!\e[0m"; break ;;
       *) print_invalid_selection ;;

@@ -1,0 +1,344 @@
+#!/bin/bash
+# shellcheck disable=SC1091
+set -e
+
+# ✨ Funktionen einbinden
+source ./lib/common.sh
+source ./lib/print.sh
+source ./lib/upcloud.sh
+
+show_server_health() {
+  clear
+
+  local tools=(hostname uptime ip curl grep awk sed free df systemctl apt lsb_release)
+  for tool in "${tools[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo -e "❌ \e[31mMissing required tool:\e[0m $tool"
+      return 1
+    fi
+  done
+
+  # System Info
+  local kernel os uptime boot time_zone
+  kernel=$(uname -r)
+  os=$(lsb_release -ds 2>/dev/null || grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2- | tr -d '"')
+  uptime=$(uptime -p | sed 's/^/ /')
+  boot=$(who -b | awk '{print $3, $4}')
+  time_zone=$(date +'%Z (UTC %:::z)')
+
+  # Network
+  local ip_local ip_external gateway dns
+  ip_local=$(hostname -I | awk '{print $1}')
+  ip_external=$(curl -s https://api.ipify.org || echo "unavailable")
+  gateway=$(ip route | awk '/default/ {print $3}')
+  dns=$(grep 'nameserver' /etc/resolv.conf | awk '{print $2}' | paste -sd ',' -)
+
+  # Memory (in MB)
+  read -r _ mem_total mem_used mem_free _ mem_cache _ <<< \
+    "$(free -m | awk '/^Mem:/ {print $1, $2, $3, $4, $5, $6, $7}')"
+  local mem_usage_pct=$((100 * mem_used / mem_total))
+
+  read -r _ swap_total swap_used swap_free <<< \
+    "$(free -m | awk '/^Swap:/ {print $1, $2, $3, $4}')"
+  local swap_usage_pct=0
+  [[ "$swap_total" -gt 0 ]] && swap_usage_pct=$((100 * swap_used / swap_total))
+
+  # Disk (in GB)
+  read -r d_total d_used d_free d_perc <<< \
+    "$(df -m / | awk 'NR==2 {print $2, $3, $4, $5}')"
+  d_total=$((d_total / 1024))
+  d_used=$((d_used / 1024))
+  d_free=$((d_free / 1024))
+
+  # CPU Load
+  read -r load1 load5 load15 <<< \
+    "$(uptime | awk -F'load average:' '{print $2}' | sed 's/^[ \t]*//' | tr ',' ' ')"
+
+  # Updates
+  local updates_output updates_count
+  updates_output=$(apt list --upgradable 2>/dev/null || true)
+  updates_count=$(echo "$updates_output" | grep -vc "Listing..." || echo 0)
+
+  # Services
+  local services=(fail2ban nginx ssh systemd-timesyncd certbot.timer ufw)
+  local service_line=""
+
+  for svc in "${services[@]}"; do
+    local icon="❌"
+
+    if [[ "$svc" == "ufw" ]]; then
+      if ! command -v ufw >/dev/null 2>&1; then
+        icon="❌"
+      else
+        local ufw_state
+        ufw_state=$(ufw status 2>/dev/null | head -n1)
+        if [[ "$ufw_state" == "Status: active" ]]; then
+          icon="✅"
+        else
+          icon="⚠️"
+        fi
+      fi
+    else
+      if systemctl list-unit-files | grep -q "^$svc"; then
+        if systemctl is-active "$svc" &>/dev/null; then
+          icon="✅"
+        elif systemctl is-enabled "$svc" &>/dev/null; then
+          icon="⚠️"
+        fi
+      fi
+    fi
+
+    service_line+="${svc} ${icon}   "
+  done
+
+
+  # Output
+  echo -e "\e[1m🩺 Server Health Summary\e[0m"
+  echo "════════════════════════════════════════════════════════════════════════════════════════════"
+  printf "🖥️ %-13s %s\n" "Kernel:"       "$kernel"
+  printf "🧾 %-13s %s\n" "OS:"           "$os"
+  printf "⏳ %-12s %s\n" "Uptime:"       "$uptime"
+  printf "♻️ %-13s %s\n" "Last boot:"    "$boot"
+  printf "🕒 %-13s %s\n" "Time zone:"    "$time_zone"
+
+  echo "────────────────────────────────────────────────────────────────────────────────────────────"
+  printf "📡 %-13s %s\n" "Internal IP:"   "$ip_local"
+  printf "🌍 %-13s %s\n" "External IP:"   "$ip_external"
+  printf "🚪 %-13s %s\n" "Gateway:"       "$gateway"
+  printf "🔎 %-13s %s\n" "DNS servers:"   "$dns"
+
+  echo "────────────────────────────────────────────────────────────────────────────────────────────"
+  printf "🧠 %-13s Total: %4sMB | Used: %4sMB | Free: %4sMB | Cache: %4sMB     Usage: %3s%%\n" \
+    "RAM:" "$mem_total" "$mem_used" "$mem_free" "$mem_cache" "$mem_usage_pct"
+  printf "📥 %-13s Total: %4sMB | Used: %4sMB | Free: %4sMB                     Usage: %3s%%\n" \
+    "SWAP:" "$swap_total" "$swap_used" "$swap_free" "$swap_usage_pct"
+
+  echo "────────────────────────────────────────────────────────────────────────────────────────────"
+  printf "💾 %-13s Total: %2sG    | Used: %2sG    | Free: %2sG                        Usage:  %3s\n" \
+    "Disk (/):" "$d_total" "$d_used" "$d_free" "$d_perc"
+  printf "⚙️ %-13s 1 min: %s   | 5 min: %s  | 15 min: %s\n" \
+    "CPU Load:" "$load1" "$load5" "$load15"
+  printf "📦 %-13s %s\n" "Pending Updates:" "$updates_count"
+
+  echo "────────────────────────────────────────────────────────────────────────────────────────────"
+  echo -e "\e[1m🔌 Services:\e[0m"
+  echo "   $service_line"
+  echo "════════════════════════════════════════════════════════════════════════════════════════════"
+  echo ""
+}
+
+check_and_offer_reboot() {
+  if [[ -f /var/run/reboot-required ]]; then
+    echo -e "🔁 Reboot required: \e[1;31mYES\e[0m"
+    echo -e "\n❓ \e[1mDo you want to reboot now?\e[0m"
+    read -rp $'\n🔁 Reboot system now? [y/N]: ' answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+      echo -e "\n♻️ Rebooting system..."
+      sleep 1
+      reboot
+    else
+      echo -e "\n↪️  Reboot skipped. You can run \e[36mreboot\e[0m later manually."
+    fi
+  else
+    echo -e "🔁 Reboot required: \e[1;32mNo\e[0m"
+  fi
+}
+
+update_server_and_show_status() {
+  clear
+  echo -e "\n🔄 \e[1;34mSystem Update – Ubuntu Package Manager (APT)\e[0m"
+  echo "═════════════════════════════════════════════════════════════"
+
+  echo -e "\n🛰️ \e[1mUpdating APT sources ...\e[0m"
+  apt-get update -y >/dev/null 2>&1 && echo "✅ Package list updated." || echo "❌ Failed to update package list."
+
+  echo -e "\n📦 \e[1mUpgrading installed packages ...\e[0m"
+  apt-get -o Dpkg::Options::="--force-confdef" \
+           -o Dpkg::Options::="--force-confold" \
+           -y upgrade | tee /tmp/apt-upgrade.log | grep -E "upgraded|newly installed|removed" || echo "✅ All packages already up-to-date."
+
+  echo -e "\n🧼 \e[1mCleaning up system ...\e[0m"
+  apt-get -y autoremove >/dev/null 2>&1 && echo "✅ Unused packages removed."
+  apt-get -y autoclean >/dev/null 2>&1 && echo "✅ Package cache cleaned."
+
+  echo -e "\n🧠 \e[1mSystem Status\e[0m"
+  echo "─────────────────────────────────────────────────────────────"
+
+  local kernel version
+  kernel=$(uname -r)
+  version=$(lsb_release -ds 2>/dev/null || echo "Unknown")
+
+  echo -e "💻 OS Version:      \e[36m$version\e[0m"
+  echo -e "🧬 Kernel:          \e[36m$kernel\e[0m"
+
+  local pending_updates
+  pending_updates=$(apt list --upgradable 2>/dev/null)
+
+  # Check nginx
+  if dpkg -l | grep -qw nginx; then
+    if echo "$pending_updates" | grep -q "^nginx/"; then
+      echo -e "🌐 Nginx:           \e[33mUpdate available\e[0m"
+    else
+      echo -e "🌐 Nginx:           \e[32mUp to date\e[0m"
+    fi
+  else
+    echo -e "🌐 Nginx:           \e[2mNot installed\e[0m"
+  fi
+
+  # Check fail2ban
+  if dpkg -l | grep -qw fail2ban; then
+    if echo "$pending_updates" | grep -q "^fail2ban/"; then
+      echo -e "🛡️ Fail2Ban:        \e[33mUpdate available\e[0m"
+    else
+      echo -e "🛡️ Fail2Ban:        \e[32mUp to date\e[0m"
+    fi
+  else
+    echo -e "🛡️ Fail2Ban:        \e[2mNot installed\e[0m"
+  fi
+
+  echo -e "\n✅ \e[1mSystem update completed.\e[0m"
+  echo -e "═════════════════════════════════════════════════════════════"
+  read -rsn1 -p $'\nPress any key to return to menu...'
+}
+
+init_server() {
+  clear
+  echo -e "\n🚀 \e[1;34mInitialize Server for Blazor Hosting\e[0m"
+  echo "═════════════════════════════════════════════════════════════"
+
+  echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
+  if ! command -v nginx >/dev/null 2>&1; then
+    apt-get update -y >/dev/null 2>&1
+    apt-get install -y nginx >/dev/null 2>&1 && echo "✅ Nginx installed." || echo "❌ Failed to install Nginx."
+  else
+    echo "✅ Nginx is already installed."
+  fi
+
+  echo -e "\n▶️ \e[1mEnabling and starting Nginx...\e[0m"
+  systemctl enable nginx >/dev/null 2>&1
+  systemctl start nginx >/dev/null 2>&1 && echo "✅ Nginx service is running." || echo "❌ Failed to start Nginx."
+
+  echo -e "\n🛡️ \e[1mInstalling Fail2Ban (security)...\e[0m"
+  if ! command -v fail2ban-client >/dev/null 2>&1; then
+    apt-get install -y fail2ban >/dev/null 2>&1 && echo "✅ Fail2Ban installed." || echo "❌ Failed to install Fail2Ban."
+  else
+    echo "✅ Fail2Ban is already installed."
+  fi
+
+  echo -e "\n🔐 \e[1mEnabling and starting Fail2Ban...\e[0m"
+  systemctl enable fail2ban >/dev/null 2>&1
+  systemctl start fail2ban >/dev/null 2>&1 && echo "✅ Fail2Ban service is running." || echo "❌ Failed to start Fail2Ban."
+
+  echo -e "\n📜 \e[1mInstalling Certbot (for HTTPS)...\e[0m"
+  if ! command -v certbot >/dev/null 2>&1; then
+    apt-get install -y certbot >/dev/null 2>&1 && echo "✅ Certbot installed." || echo "❌ Failed to install Certbot."
+  else
+    echo "✅ Certbot is already installed."
+  fi
+ export DISABLE_CLEAR=true
+ update_server
+ set_timezone_to_vienna
+ set_swap
+ apply_upcloud_firewall_rules
+
+  echo -e "\n🧩 \e[1mSystemd ready for Blazor apps\e[0m"
+  echo -e "   ➤ Blazor Server apps will run as \e[36mblazor-<domain>-<sub>.service\e[0m"
+  echo -e "   ➤ Configured automatically via your deployment script."
+
+  echo -e "\n✅ \e[1mServer initialization completed.\e[0m"
+  echo "═════════════════════════════════════════════════════════════"
+  read -rsn1 -p $'\nPress any key to return to menu...'
+}
+
+reset_server() {
+  clear
+  echo -e "\n🧨 \e[1;31mWARNING: FULL SERVER RESET\e[0m"
+  echo "═════════════════════════════════════════════════════════════"
+  echo -e "\nThis operation will completely wipe all installed services and data:"
+  echo -e "─────────────────────────────────────────────────────────────"
+  echo -e "🔸 Remove \e[36mnginx\e[0m and its configs"
+  echo -e "🔸 Remove \e[36mfail2ban\e[0m and blocklists"
+  echo -e "🔸 Remove \e[36mcertbot\e[0m and all certificates"
+  echo -e "🔸 Remove all Blazor apps in \e[36m/var/www/\e[0m"
+  echo -e "🔸 Remove all systemd services matching \e[36mblazor-*.service\e[0m"
+  echo -e "🔸 Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
+  echo -e "🔸 Reset timezone to \e[36mUTC\e[0m"
+  echo -e "🔸 Remove \e[36m/swapfile\e[0m"
+  echo -e "🔸 Remove \e[36mufw\e[0m and firewall rules"
+  echo -e "🔸 Remove all \e[36mUpCloud firewall rules\e[0m (via API)"
+  echo -e "─────────────────────────────────────────────────────────────"
+  echo -e "⚠️  \e[1mThis cannot be undone.\e[0m"
+
+  local confirm_code=$((RANDOM % 90000 + 10000))
+  echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m"
+  echo -e "(or type \e[36mq\e[0m to cancel)"
+  read -rp $'\n🔐 Enter confirmation code: ' user_input
+
+  if [[ "$user_input" == "q" || "$user_input" == "Q" ]]; then
+    echo -e "\n↩️  \e[36mReturning to main menu...\e[0m"
+    sleep 1
+    return 0
+  fi
+
+  if [[ "$user_input" != "$confirm_code" ]]; then
+    echo -e "\n❌ \e[31mReset aborted – confirmation failed.\e[0m"
+    echo -e "\n↩️  \e[36mReturning to main menu...\e[0m"
+    sleep 1
+    return 1
+  fi
+
+  echo -e "\n🚧 \e[1mResetting server – please wait...\e[0m"
+  echo "─────────────────────────────────────────────────────────────"
+
+  # Dienste stoppen und entfernen
+  systemctl stop nginx fail2ban 2>/dev/null || true
+  systemctl disable nginx fail2ban 2>/dev/null || true
+  apt-get purge -y nginx nginx-common nginx-core fail2ban certbot ufw >/dev/null 2>&1
+  apt-get autoremove -y >/dev/null 2>&1
+  echo -e "🗑️ Removed nginx, fail2ban, certbot, ufw."
+
+  # Blazor systemd units löschen
+  find /etc/systemd/system/ -name "blazor-*.service" -exec rm -f {} \;
+  systemctl daemon-reload
+  echo -e "🗑️ Removed all Blazor systemd services."
+
+  # Apps & Zertifikate löschen
+  rm -rf /var/www/* /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt
+  echo -e "🗑️ Removed Blazor app folders and certificates."
+
+  # Swap entfernen
+  if [[ -f /swapfile ]]; then
+    swapoff /swapfile
+    rm -f /swapfile
+    sed -i '/\/swapfile/d' /etc/fstab
+    echo -e "🗑️ Removed swap file."
+  fi
+
+  # Timezone zurücksetzen
+  timedatectl set-timezone UTC
+  echo -e "🌐 Timezone reset to UTC."
+
+  # .NET SDK entfernen
+  if [[ -d /opt/dotnet ]]; then
+    rm -rf /opt/dotnet
+    sed -i '/DOTNET_ROOT/d' ~/.profile
+    sed -i '/\/opt\/dotnet/d' ~/.profile
+    echo -e "🗑️ Removed .NET SDKs and path configuration."
+  fi
+
+  # 🔥 UpCloud Firewall Regeln löschen (Funktion folgt separat)
+  echo -e "🧱 Deleting UpCloud firewall rules..."
+  export DISABLE_CLEAR=true
+  delete_all_upcloud_firewall_rules
+
+  echo -e "\n✅ \e[1;32mServer reset completed.\e[0m"
+  echo "═════════════════════════════════════════════════════════════"
+  read -rsn1 -p $'\nPress any key to return to menu...'
+}
+
+
+
+
+
+
+

@@ -196,7 +196,7 @@ _print_firewall_rule() {
   printf "\n"
 }
 
-_delete_all_upcloud_firewall_rules() {
+delete_all_upcloud_firewall_rules() {
   _clear
   printf "\n🧨 Deleting All UpCloud Firewall Rules\n"
   printf "────────────────────────────────────────────────────────────\n"
@@ -276,7 +276,6 @@ _delete_all_upcloud_firewall_rules() {
   printf "\n✅ All rules deleted (unless errors occurred).\n"
   printf "═════════════════════════════════════════════════════════════\n"
 }
-
 
 _enable_upcloud_firewall() {
   _clear
@@ -376,11 +375,10 @@ _show_upcloud_firewall_status() {
   echo "═════════════════════════════════════════════════════════════"
 }
 
-
 apply_upcloud_firewall_rules() {
   set +e  # Handle errors manually
   set -u  # Treat unset variables as errors
-  clear
+  _clear
   printf "\n"
 
   printf "🧱 Applying firewall rules for Blazor Hosting on UpCloud (from config/desired_firewall_rules.json)\n"
@@ -411,7 +409,7 @@ apply_upcloud_firewall_rules() {
   return 0
   else
     printf "🔄 Existing rules do not match desired state – resetting...\n"
-    if ! _delete_all_upcloud_firewall_rules; then
+    if ! delete_all_upcloud_firewall_rules; then
       printf "⚠️  Warning: Could not delete existing firewall rules.\n"
     fi
   fi
@@ -505,7 +503,7 @@ show_upcloud_menu() {
         read -rsn1 -p "$(print_press_any_key)"
         ;;
       4)
-        _delete_all_upcloud_firewall_rules
+        delete_all_upcloud_firewall_rules
         echo ""
         read -rsn1 -p "$(print_press_any_key)"
         ;;
