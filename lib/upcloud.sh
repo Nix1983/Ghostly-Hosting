@@ -239,14 +239,14 @@ delete_all_upcloud_firewall_rules() {
   response=$(_upcloud_api_get "server/$SERVER_UUID/firewall_rule")
 
   if ! echo "$response" | jq -e '.firewall_rules.firewall_rule' >/dev/null 2>&1; then
-    printf "ℹ️  No firewall rules found or API returned no data.\n"
+    printf "ℹ️ No firewall rules found or API returned no data.\n"
     return 0
   fi
 
   mapfile -t rules < <(echo "$response" | jq -c '.firewall_rules.firewall_rule[]')
 
   if [[ ${#rules[@]} -eq 0 ]]; then
-    printf "ℹ️  No firewall rules present.\n"
+    printf "ℹ️ No firewall rules present.\n"
     return 0
   fi
 

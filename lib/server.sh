@@ -7,6 +7,7 @@ source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/upcloud.sh
 source ./lib/fail2ban.sh
+source ./lib/github.sh
 
 show_server_health() {
   clear
@@ -176,7 +177,7 @@ update_server_and_show_status() {
   pending_updates=$(apt list --upgradable 2>/dev/null)
 
   # Check nginx
-  if dpkg -l | grep -qw nginx; then
+  if dpkg -l | grep -E "^ii" | grep -qw nginx; then
     if echo "$pending_updates" | grep -q "^nginx/"; then
       echo -e "🌐 Nginx:           \e[33mUpdate available\e[0m"
     else
@@ -187,7 +188,7 @@ update_server_and_show_status() {
   fi
 
   # Check fail2ban
-  if dpkg -l | grep -qw fail2ban; then
+  if dpkg -l | grep -E "^ii" | grep -qw fail2ban; then
     if echo "$pending_updates" | grep -q "^fail2ban/"; then
       echo -e "🛡️ Fail2Ban:        \e[33mUpdate available\e[0m"
     else
@@ -195,6 +196,17 @@ update_server_and_show_status() {
     fi
   else
     echo -e "🛡️ Fail2Ban:        \e[2mNot installed\e[0m"
+  fi
+
+  # Check git (via command -v für echte Funktionsprüfung)
+  if command -v git >/dev/null 2>&1; then
+    if echo "$pending_updates" | grep -q "^git/"; then
+      echo -e "🔧 Git:             \e[33mUpdate available\e[0m"
+    else
+      echo -e "🔧 Git:             \e[32mUp to date\e[0m"
+    fi
+  else
+    echo -e "🔧 Git:             \e[2mNot installed\e[0m"
   fi
 
   echo -e "\n✅ \e[1mSystem update completed.\e[0m"
@@ -236,12 +248,20 @@ init_server() {
   else
     echo "✅ Certbot is already installed."
   fi
- export DISABLE_CLEAR=true
- update_server
- set_timezone_to_vienna
- set_swap
- apply_upcloud_firewall_rules
- configure_f2b
+
+  echo -e "\n🔧 \e[1mInstalling Git (for deployments)...\e[0m"
+  if ! command -v git >/dev/null 2>&1; then
+    apt-get install -y git >/dev/null 2>&1 && echo "✅ Git installed." || echo "❌ Failed to install Git."
+  else
+    echo "✅ Git is already installed."
+  fi
+
+  export DISABLE_CLEAR=true
+  set_timezone_to_vienna
+  set_swap
+  apply_upcloud_firewall_rules
+  configure_f2b
+  update_server
 
   echo -e "\n🧩 \e[1mSystemd ready for Blazor apps\e[0m"
   echo -e "   ➤ Blazor Server apps will run as \e[36mblazor-<domain>-<sub>.service\e[0m"
@@ -261,6 +281,7 @@ reset_server() {
   echo -e "🔸 Remove \e[36mnginx\e[0m and its configs"
   echo -e "🔸 Remove \e[36mfail2ban\e[0m and blocklists"
   echo -e "🔸 Remove \e[36mcertbot\e[0m and all certificates"
+  echo -e "🔸 Remove \e[36mgit\e[0m and config"
   echo -e "🔸 Remove all Blazor apps in \e[36m/var/www/\e[0m"
   echo -e "🔸 Remove all systemd services matching \e[36mblazor-*.service\e[0m"
   echo -e "🔸 Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
@@ -295,9 +316,9 @@ reset_server() {
   # Dienste stoppen und entfernen
   systemctl stop nginx fail2ban 2>/dev/null || true
   systemctl disable nginx fail2ban 2>/dev/null || true
-  apt-get purge -y nginx nginx-common nginx-core fail2ban certbot ufw >/dev/null 2>&1
+  apt-get purge -y nginx nginx-common nginx-core fail2ban certbot ufw git >/dev/null 2>&1
   apt-get autoremove -y >/dev/null 2>&1
-  echo -e "🗑️ Removed nginx, fail2ban, certbot, ufw."
+  echo -e "🗑️ Removed nginx, fail2ban, certbot, git, ufw."
 
   # Fail2Ban Konfigurations- und Logdateien löschen
   rm -rf /etc/fail2ban /var/log/fail2ban* /var/lib/fail2ban
@@ -332,19 +353,12 @@ reset_server() {
     echo -e "🗑️ Removed .NET SDKs and path configuration."
   fi
 
-  # 🔥 UpCloud Firewall Regeln löschen (Funktion folgt separat)
+  # UpCloud Firewall Regeln löschen
   echo -e "🧱 Deleting UpCloud firewall rules..."
   export DISABLE_CLEAR=true
   delete_all_upcloud_firewall_rules
 
   echo -e "\n✅ \e[1;32mServer reset completed.\e[0m"
   echo "═════════════════════════════════════════════════════════════"
-  read -rsn1 -p $'\nPress any key to return to menu...'
+  read -rsn1 -p $'\n↩️  Press any key to return to menu...'
 }
-
-
-
-
-
-
-
