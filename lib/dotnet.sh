@@ -6,17 +6,34 @@ install_dotnet_version() {
   local version="$1"
   local install_dir="/opt/dotnet"
 
-  if [[ -x "$install_dir/dotnet" ]] && "$install_dir/dotnet" --list-sdks | grep -q "^$version"; then
-    echo "✅ .NET SDK $version is already installed."
+  # Normalize netX.Y to SDK version (e.g. net9.0 → 9.0.100)
+  local sdk_version=""
+  if [[ "$version" =~ ^net([0-9]+)\.([0-9]+)$ ]]; then
+    sdk_version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.100"
+  else
+    sdk_version="$version"
+  fi
+
+  if [[ -x "$install_dir/dotnet" ]] && "$install_dir/dotnet" --list-sdks | grep -q "^${sdk_version%.*}"; then
+    echo "✅ .NET SDK ${sdk_version%.*} is already installed."
     return 0
   fi
 
-  echo "⬇️  Installing .NET SDK $version..."
+  echo "⬇️  Installing .NET SDK $sdk_version..."
   curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
   chmod +x /tmp/dotnet-install.sh
-  /tmp/dotnet-install.sh --channel "$version" --install-dir "$install_dir" --no-path
 
-  echo "✅ .NET SDK $version installed to $install_dir"
+  if ! /tmp/dotnet-install.sh --version "$sdk_version" --install-dir "$install_dir" --no-path > /dev/null 2>&1; then
+    echo "❌ Failed to install .NET SDK version: $sdk_version"
+    return 1
+  fi
+
+  if [[ ! -x "$install_dir/dotnet" ]]; then
+    echo "❌ Installation failed – dotnet binary missing in $install_dir"
+    return 1
+  fi
+
+  echo "✅ .NET SDK $sdk_version installed to $install_dir"
 }
 
 delete_dotnet_version() {
@@ -49,6 +66,34 @@ check_apps_using_sdk() {
   local root="/var/www"
   grep -r "\"$version\"" "$root" 2>/dev/null | grep global.json | cut -d: -f1 | uniq
 }
+
+find_dotnet_executable_dll() {
+  local publish_dir="$1"
+
+  if [[ -z "$publish_dir" || ! -d "$publish_dir" ]]; then
+    echo "❌ Invalid or missing publish directory: $publish_dir" >&2
+    return 1
+  fi
+
+  local dll
+  dll=$(find "$publish_dir" -maxdepth 1 -type f -name '*.dll' | while read -r f; do
+    local base="${f%.dll}"
+    if [[ -f "$base.runtimeconfig.json" ]]; then
+      basename "$f"
+      return 0
+    fi
+  done)
+
+  if [[ -z "$dll" ]]; then
+    echo "❌ No executable DLL found in $publish_dir" >&2
+    return 1
+  fi
+
+  echo "$dll"
+  return 0
+}
+
+
 
 show_dotnet_version_menu() {
   local install_dir="/opt/dotnet"
@@ -129,7 +174,7 @@ show_dotnet_version_menu() {
         ;;
       [1-9])
         if (( choice >= 1 && choice <= ${#versions[@]} )); then
-          local version="${versions[$((choice - 1))]}"
+          local version="net${versions[$((choice - 1))]}"
           install_dotnet_version "$version"
           read -rsn1 -p $'\n✅ Done. Press any key to return...' _
         fi

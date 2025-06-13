@@ -2,8 +2,9 @@
 # shellcheck disable=SC1091
 set -e
 
-# Load environment values
 source ./lib/common.sh
+source ./lib/dotnet.sh
+source ./lib/print.sh
 
 check_github_env() {
   local missing=()
@@ -22,118 +23,94 @@ check_github_env() {
   fi
 }
 
-
-analyze_dotnet_project() {
-  clear
+deploy_from_github_repo() {
   local owner="$1"
   local repo="$2"
+  local project_type sdk_type sdk_version tmp_dir publish_dir
 
-  printf "\n📦 \033[1m.NET Web App Analysis for:\033[0m \033[1;34m%s\033[0m\n" "$repo"
-  echo "────────────────────────────────────────────────────────────────────────────"
+  echo -e "\n📦 \e[1mCloning GitHub repo:\e[0m $owner/$repo"
 
-  local result
-  if ! result=$(is_dotnet_web_repo "$owner" "$repo"); then
-    IFS="|" read -r reason sdk framework <<< "$result"
-    printf "❌ \033[1m%s\033[0m is \033[31mnot a supported web project\033[0m\n" "$repo"
+  tmp_dir="/tmp/deploy-$repo"
+  rm -rf "$tmp_dir"
 
-    case "$reason" in
-      unsupported)
-        printf "⚠️  Project uses unsupported .NET version: \033[33m%s\033[0m\n" "$framework"
-        ;;
-      not-hostable)
-        printf "ℹ️  No Web SDK detected in .csproj, or missing Program.cs\n"
-        ;;
-      *)
-        printf "ℹ️  Reason: %s\n" "$reason"
-        ;;
-    esac
-
-    printf "\n✅ \033[1mSupported project types:\033[0m\n"
-    echo   "────────────────────────────────────────────────────────────"
-    printf "   🔹 \033[32mASP.NET Core API\033[0m (SDK: Microsoft.NET.Sdk.Web)\n"
-    printf "   🔹 \033[32mBlazor Server\033[0m     (SDK: Microsoft.NET.Sdk.Web)\n"
-    printf "   🔹 \033[33mBlazor WebAssembly\033[0m (SDK: Microsoft.NET.Sdk.BlazorWebAssembly)\n"
-    printf "   🔸 Supported frameworks: \033[36mnet7.0, net8.0, net9.0\033[0m\n"
-    printf "\n↩️  Press any key to return to selection..."
-    read -rsn1
+  # Clone with authentication (no log output)
+  local clone_url="https://${GITHUB_API_USER}:${GITHUB_API_TOKEN}@github.com/${owner}/${repo}.git"
+  if ! GIT_ASKPASS=true git clone -q "$clone_url" "$tmp_dir" 2>/dev/null; then
+    echo "❌ Failed to clone repository. Please check your token or access rights."
     return 1
-  else
-    IFS="|" read -r type sdk framework <<< "$result"
-    printf "✅ \033[1m%s\033[0m is a supported web project\n" "$repo"
-    printf "📦 Type:      \033[1;32m%s\033[0m\n" "$type"
-    printf "🔧 SDK:       \033[36m%s\033[0m\n" "$sdk"
-    printf "🎯 Framework: \033[35m%s\033[0m\n" "$framework"
-    return 0
-  fi
-}
-
-
-check_github_workflow_valid() {
-  local owner="$1"
-  local repo="$2"
-
-  printf "\n🛠️  \033[1mGitHub Workflow Check for:\033[0m \033[1;34m%s\033[0m\n" "$repo"
-  echo "────────────────────────────────────────────────────────────────────────────"
-
-  local api_url="$GITHUB_API_BASE/repos/$owner/$repo/contents/.github/workflows"
-  local response files file_path content
-
-  response=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" "$api_url")
-
-  if ! jq -e 'type == "array"' <<< "$response" > /dev/null 2>&1; then
-    printf "❌ No \033[33m.github/workflows/\033[0m folder found.\n"
-  else
-    mapfile -t files < <(echo "$response" | jq -r '.[].path')
-    if [[ ${#files[@]} -eq 0 ]]; then
-      printf "❌ No workflow files found in \033[33m.github/workflows/\033[0m\n"
-    else
-      for file_path in "${files[@]}"; do
-        content=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-          "$GITHUB_API_BASE/repos/$owner/$repo/contents/$file_path" \
-          | jq -r '.content' | base64 -d 2>/dev/null)
-
-        if grep -q "runs-on: ubuntu" <<< "$content" &&
-           grep -q "actions/setup-dotnet" <<< "$content" &&
-           grep -E -q "dotnet (build|publish)" <<< "$content"; then
-          printf "✅ Valid deployment workflow found: \033[36m%s\033[0m\n" "$file_path"
-          return 0
-        fi
-      done
-
-      printf "❌ No valid deployment workflow found in \033[33m.github/workflows/\033[0m\n"
-    fi
   fi
 
-  printf "\n📝 Workflow must meet these requirements:\n"
-  echo   "────────────────────────────────────────────────────────────"
-  printf "  • 🐧 runs on: \033[32mubuntu-latest\033[0m (or similar Linux runner)\n"
-  printf "  • ⚙️ uses: \033[36mactions/setup-dotnet\033[0m\n"
-  printf "  • 🚀 runs: \033[33mdotnet build\033[0m or \033[33mdotnet publish\033[0m\n"
-  printf "  • 💡 Suggested path: \033[36m.github/workflows/deploy.yml\033[0m\n"
+  echo "✅ Repo cloned to $tmp_dir"
 
-  printf "\n↩️  Press any key to return to selection..."
-  read -rsn1
-  return 1
+  # Detect .csproj file
+  local csproj
+  csproj=$(find "$tmp_dir" -name '*.csproj' | head -n1)
+  if [[ -z "$csproj" ]]; then
+    echo "❌ No .csproj file found in the repository."
+    return 1
+  fi
+
+  sdk_type=$(grep -oP '(?<=<Project Sdk=")[^"]+' "$csproj")
+  sdk_version=$(grep -oP '(?<=<TargetFramework>)[^<]+' "$csproj" | head -n1)
+
+  case "$sdk_type" in
+    Microsoft.NET.Sdk.Web)
+      project_type="ASP.NET Core or Blazor Server"
+      ;;
+    Microsoft.NET.Sdk.BlazorWebAssembly)
+      project_type="Blazor WebAssembly (WASM)"
+      ;;
+    *)
+      echo "❌ Unsupported SDK type: $sdk_type"
+      return 1
+      ;;
+  esac
+
+  echo -e "\n🧪 \e[1mProject Detected:\e[0m"
+  echo "────────────────────────────────────────────"
+  echo "🔧 SDK:       $sdk_type"
+  echo "🎯 Framework: $sdk_version"
+  echo "📦 Type:      $project_type"
+
+  echo -e "\n🔍 Checking required .NET SDK..."
+  if ! install_dotnet_version "$sdk_version"; then
+    echo "❌ Aborting due to SDK installation failure."
+    return 1
+  fi
+
+  if ! [[ -x /opt/dotnet/dotnet ]]; then
+    echo "❌ .NET binary not found after installation. Aborting."
+    return 1
+  fi
+
+  echo -e "\n🚀 Publishing project..."
+  publish_dir="/tmp/publish-$repo"
+  rm -rf "$publish_dir"
+  if ! /opt/dotnet/dotnet publish "$csproj" -c Release -o "$publish_dir" > /dev/null 2>&1; then
+    echo "❌ dotnet publish failed. Please check project build state."
+    return 1
+  fi
+
+  echo -e "\n✅ Project successfully published to: \e[36m$publish_dir\e[0m"
 }
-
 
 select_github_repository() {
   load_env
   if ! check_github_env; then return 1; fi
+
   clear
+  local response total i index1 index2 name1 name2
+  response=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/user/repos?per_page=100&affiliation=owner")
+
+  mapfile -t repos < <(echo "$response" | jq -c '.[]')
+  total=${#repos[@]}
+  ((total == 0)) && printf "❌ No repositories found.\n" && return 1
 
   while true; do
     clear
-    printf "\n🐙 \033[1;34mSelect a GitHub Repository\033[0m – for: \033[36m%s\033[0m\n" "$GITHUB_API_USER"
-    echo "────────────────────────────────────────────────────────────────────────────"
-
-    local response total i index1 index2 name1 name2
-    response=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-      "$GITHUB_API_BASE/user/repos?per_page=100&affiliation=owner")
-
-    mapfile -t repos < <(echo "$response" | jq -c '.[]')
-    total=${#repos[@]}
-    ((total == 0)) && printf "❌ No repositories found.\n" && return 1
+    echo -e "\n🐙 \e[1;34mSelect a GitHub Repository\033[0m – for: \e[36m$GITHUB_API_USER\e[0m"
+    echo "────────────────────────────────────────────────────────────"
 
     i=0
     while [[ $i -lt $total ]]; do
@@ -150,12 +127,13 @@ select_github_repository() {
       ((i+=2))
     done
 
-    printf "\n🔢 Total: \033[1m%d\033[0m repositories\n" "$total"
-    printf "\n📌 Select a repository [1–%d, q]: " "$total"
+    echo -e "\n─────────────────────────────────────────────────────────────"
+    print_select_prompt "$total"
     read -r choice
-
     [[ "$choice" =~ ^[Qq]$ ]] && return 0
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > total )); then
+      print_invalid_selection
+      sleep 1
       continue
     fi
 
@@ -164,95 +142,21 @@ select_github_repository() {
     repo_name=$(echo "$repo" | jq -r '.name')
     repo_owner=$(echo "$repo" | jq -r '.owner.login')
 
-    if analyze_dotnet_project "$repo_owner" "$repo_name"; then
-      if check_github_workflow_valid "$repo_owner" "$repo_name"; then
-        break
+    if deploy_from_github_repo "$repo_owner" "$repo_name"; then
+      local publish_dir="/tmp/publish-$repo_name"
+      if dll_name=$(find_dotnet_executable_dll "$publish_dir"); then
+        echo -e "\n🔍 \e[1mExecutable DLL found:\e[0m \e[36m$dll_name\e[0m"
+        echo "📂 Located in: $publish_dir"
       else
-        printf "\n↩️  Press any key to return to selection..."
-        read -rsn1
-        continue
+        echo "⚠️  Could not determine executable DLL."
       fi
     else
-      continue
+      echo "❌ Deployment failed."
     fi
 
+    print_press_any_key
+    read -rsn1
+    return 0
   done
 }
-
-
-is_dotnet_web_repo() {
-  local owner="$1"
-  local repo="$2"
-  local contents sdk_type sdk_version framework files project_type
-
-  contents=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-    "$GITHUB_API_BASE/repos/$owner/$repo/git/trees/HEAD?recursive=1")
-
-  mapfile -t files < <(echo "$contents" | jq -r '.tree[].path')
-
-  for f in "${files[@]}"; do
-    if [[ "$f" == *.csproj ]]; then
-      local csproj
-      csproj=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-        "$GITHUB_API_BASE/repos/$owner/$repo/contents/$f" \
-        | jq -r '.content' | base64 -d 2>/dev/null)
-
-      sdk_type=$(grep -oP '(?<=<Project Sdk=")[^"]+' <<< "$csproj")
-      framework=$(grep -oP '(?<=<TargetFramework>)[^<]+' <<< "$csproj" | head -n1)
-
-      if [[ "$framework" =~ net[0-9]+ ]]; then
-        sdk_version="$framework"
-      else
-        sdk_version="unknown"
-      fi
-
-      if [[ "$sdk_version" =~ net[1-6]\. ]]; then
-        echo "unsupported|$sdk_type|$sdk_version"
-        return 1
-      fi
-
-      case "$sdk_type" in
-        Microsoft.NET.Sdk.Web)
-          project_type="ASP.NET Core or Blazor Server"
-          ;;
-        Microsoft.NET.Sdk.BlazorWebAssembly)
-          project_type="Blazor WebAssembly (WASM)"
-          ;;
-        *)
-          continue
-          ;;
-      esac
-
-      # Zusätzliche Analyse von Program.cs (wenn existiert)
-      for file in "${files[@]}"; do
-        if [[ "$file" == *Program.cs ]]; then
-          program_file=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-            "$GITHUB_API_BASE/repos/$owner/$repo/contents/$file" \
-            | jq -r '.content' | base64 -d 2>/dev/null)
-
-          if grep -q "AddServerSideBlazor" <<< "$program_file"; then
-            project_type="Blazor Server"
-          elif grep -q "MapControllers" <<< "$program_file"; then
-            project_type="ASP.NET Core API"
-          elif grep -q "RootComponents" <<< "$program_file"; then
-            project_type="Blazor WebAssembly (WASM)"
-          fi
-        fi
-      done
-
-      echo "$project_type|$sdk_type|$sdk_version"
-      return 0
-    fi
-  done
-
-  echo "not-hostable|unknown|unknown"
-  return 1
-}
-
-
-
-
-
-
-
 
