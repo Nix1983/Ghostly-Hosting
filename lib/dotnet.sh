@@ -44,8 +44,6 @@ delete_dotnet_version() {
   echo "✅ .NET SDK $version removed successfully."
 }
 
-
-
 check_apps_using_sdk() {
   local version="$1"
   local root="/var/www"
