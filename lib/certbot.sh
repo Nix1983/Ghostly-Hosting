@@ -63,11 +63,16 @@ _obtain_or_verify_certificate() {
 
   echo "🔄 Requesting new Let's Encrypt certificate..."
   _stop_nginx_if_running
-
+  sleep 2
   if ! certbot certonly --standalone -d "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
-    echo "❌ Certificate request failed. Aborting."
-    _start_nginx_if_stopped
-    exit 1
+    echo "⚠️  First attempt failed. Retrying in 10 seconds..."
+    sleep 10
+
+    if ! certbot certonly --standalone -d "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
+      echo "❌ Certificate request failed after retry. Aborting."
+      _start_nginx_if_stopped
+      exit 1
+    fi
   fi
 
   _start_nginx_if_stopped
@@ -80,6 +85,7 @@ _obtain_or_verify_certificate() {
     exit 1
   fi
 }
+
 
 run_certbot_workflow() {
   _ensure_certbot_installed

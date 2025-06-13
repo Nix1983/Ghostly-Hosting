@@ -5,6 +5,7 @@ set -e
 source ./lib/common.sh
 source ./lib/dotnet.sh
 source ./lib/print.sh
+source ./lib/cloudflare.sh
 
 check_github_env() {
   local missing=()
@@ -26,14 +27,13 @@ check_github_env() {
 deploy_from_github_repo() {
   local owner="$1"
   local repo="$2"
-  local project_type sdk_type sdk_version tmp_dir publish_dir
+  local tmp_dir publish_dir csproj sdk_type raw_framework sdk_channel project_type
 
   echo -e "\n📦 \e[1mCloning GitHub repo:\e[0m $owner/$repo"
 
   tmp_dir="/tmp/deploy-$repo"
   rm -rf "$tmp_dir"
 
-  # Clone with authentication (no log output)
   local clone_url="https://${GITHUB_API_USER}:${GITHUB_API_TOKEN}@github.com/${owner}/${repo}.git"
   if ! GIT_ASKPASS=true git clone -q "$clone_url" "$tmp_dir" 2>/dev/null; then
     echo "❌ Failed to clone repository. Please check your token or access rights."
@@ -42,8 +42,6 @@ deploy_from_github_repo() {
 
   echo "✅ Repo cloned to $tmp_dir"
 
-  # Detect .csproj file
-  local csproj
   csproj=$(find "$tmp_dir" -name '*.csproj' | head -n1)
   if [[ -z "$csproj" ]]; then
     echo "❌ No .csproj file found in the repository."
@@ -51,7 +49,12 @@ deploy_from_github_repo() {
   fi
 
   sdk_type=$(grep -oP '(?<=<Project Sdk=")[^"]+' "$csproj")
-  sdk_version=$(grep -oP '(?<=<TargetFramework>)[^<]+' "$csproj" | head -n1)
+  raw_framework=$(grep -oP '(?<=<TargetFramework>)[^<]+' "$csproj" | head -n1)
+
+  if ! sdk_channel=$(resolve_dotnet_channel "$raw_framework"); then
+    echo "❌ Could not resolve .NET channel for TargetFramework: $raw_framework"
+    return 1
+  fi
 
   case "$sdk_type" in
     Microsoft.NET.Sdk.Web)
@@ -69,11 +72,11 @@ deploy_from_github_repo() {
   echo -e "\n🧪 \e[1mProject Detected:\e[0m"
   echo "────────────────────────────────────────────"
   echo "🔧 SDK:       $sdk_type"
-  echo "🎯 Framework: $sdk_version"
+  echo "🎯 Framework: $raw_framework"
   echo "📦 Type:      $project_type"
 
   echo -e "\n🔍 Checking required .NET SDK..."
-  if ! install_dotnet_version "$sdk_version"; then
+  if ! install_dotnet_version "$sdk_channel"; then
     echo "❌ Aborting due to SDK installation failure."
     return 1
   fi
@@ -86,12 +89,42 @@ deploy_from_github_repo() {
   echo -e "\n🚀 Publishing project..."
   publish_dir="/tmp/publish-$repo"
   rm -rf "$publish_dir"
-  if ! /opt/dotnet/dotnet publish "$csproj" -c Release -o "$publish_dir" > /dev/null 2>&1; then
+  if ! /opt/dotnet/dotnet publish "$csproj" -c Release -o "$publish_dir"; then
     echo "❌ dotnet publish failed. Please check project build state."
     return 1
   fi
 
   echo -e "\n✅ Project successfully published to: \e[36m$publish_dir\e[0m"
+
+  export TMP_PUBLISH_DIR="$publish_dir"
+  return 0
+}
+
+
+resolve_dotnet_channel() {
+  local framework="$1"
+
+  if [[ -z "$framework" ]]; then
+    echo "❌ No framework provided." >&2
+    return 1
+  fi
+
+  if [[ "$framework" =~ ^net([0-9]+)\.([0-9]+)$ ]]; then
+    # net6.0 → 6.0
+    echo "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+    return 0
+  elif [[ "$framework" =~ ^net([0-9]+)$ ]]; then
+    # net8 → 8.0
+    echo "${BASH_REMATCH[1]}.0"
+    return 0
+  elif [[ "$framework" =~ ^net([0-9]{2,})$ ]]; then
+    # net472 → 472 (e.g. legacy .NET Framework – not supported)
+    echo "❌ Legacy .NET Framework version detected: $framework" >&2
+    return 1
+  else
+    echo "❌ Unknown framework format: $framework" >&2
+    return 1
+  fi
 }
 
 select_github_repository() {
@@ -147,6 +180,7 @@ select_github_repository() {
       if dll_name=$(find_dotnet_executable_dll "$publish_dir"); then
         echo -e "\n🔍 \e[1mExecutable DLL found:\e[0m \e[36m$dll_name\e[0m"
         echo "📂 Located in: $publish_dir"
+        export TMP_PUBLISH_DIR="/tmp/publish-$repo_name"
       else
         echo "⚠️  Could not determine executable DLL."
       fi
@@ -154,8 +188,8 @@ select_github_repository() {
       echo "❌ Deployment failed."
     fi
 
-    print_press_any_key
-    read -rsn1
+    export TMP_PUBLISH_DIR="/tmp/publish-$repo_name"
+    export SELECTED_REPO_NAME="$repo_name"
     return 0
   done
 }

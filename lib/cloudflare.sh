@@ -171,14 +171,14 @@ select_cloudflare_zone_and_domain() {
               continue
             fi
             HOSTNAME_FQDN="$full_fqdn"
-            export HOSTNAME_FQDN
+            export HOSTNAME_FQDN DOMAIN
             printf "\n📌 Your app will be hosted at: \033[1;34mhttps://%s\033[0m\n" "$HOSTNAME_FQDN"
             return 0
           done
           ;;
         2)
           HOSTNAME_FQDN="$DOMAIN"
-          export HOSTNAME_FQDN
+          export HOSTNAME_FQDN DOMAIN
           printf "\n📌 Your app will be hosted at: \033[1;34mhttps://%s\033[0m\n" "$HOSTNAME_FQDN"
           return 0
           ;;

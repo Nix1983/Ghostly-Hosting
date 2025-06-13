@@ -15,6 +15,8 @@ export DISABLE_CLEAR=true
 # 📦 Dummy-Funktionen
 show_all_blazor_apps() { echo -e "\n📦  Listing Blazor apps..."; sleep 1; }
 
+
+
 show_server_manager_menu() {
 
   if [[ -z "$SERVER_IPv4" ]]; then
