@@ -293,8 +293,7 @@ reset_server() {
   echo -e "⚠️  \e[1mThis cannot be undone.\e[0m"
 
   local confirm_code=$((RANDOM % 90000 + 10000))
-  echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m"
-  echo -e "(or type \e[36mq\e[0m to cancel)"
+  echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m (or type \e[36mq\e[0m to cancel)"
   read -rp $'\n🔐 Enter confirmation code: ' user_input
 
   if [[ "$user_input" == "q" || "$user_input" == "Q" ]]; then
@@ -312,7 +311,7 @@ reset_server() {
 
   echo -e "\n🚧 \e[1mResetting server – please wait...\e[0m"
   echo "─────────────────────────────────────────────────────────────"
-
+ 
   # Dienste stoppen und entfernen
   systemctl stop nginx fail2ban 2>/dev/null || true
   systemctl disable nginx fail2ban 2>/dev/null || true
