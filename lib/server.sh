@@ -307,7 +307,7 @@ reset_server() {
     echo -e "\n❌ \e[31mReset aborted – confirmation failed.\e[0m"
     echo -e "\n↩️  \e[36mReturning to main menu...\e[0m"
     sleep 1
-    return 1
+    return 0
   fi
 
   echo -e "\n🚧 \e[1mResetting server – please wait...\e[0m"
