@@ -7,52 +7,96 @@ install_dotnet_version() {
   local install_dir="/opt/dotnet"
 
   if [[ -x "$install_dir/dotnet" ]] && "$install_dir/dotnet" --list-sdks | grep -q "^$version"; then
-    echo "✅ .NET SDK $version is already installed."
+    echo -e "\n✅ .NET SDK $version is already installed."
     return 0
   fi
 
-  echo "⬇️  Installing .NET SDK $version..."
+  echo -e "\n🧩 Installing .NET SDK $version..."
   curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
   chmod +x /tmp/dotnet-install.sh
 
   if ! /tmp/dotnet-install.sh --channel "$version" --install-dir "$install_dir" --no-path; then
-    echo "❌ Failed to install .NET SDK version: $version" >&2
+    echo -e "❌ Failed to install .NET SDK version: $version" >&2
     return 1
   fi
 
-  echo "✅ .NET SDK $version installed to $install_dir"
+  echo -e "\n✅ .NET SDK $version installed to $install_dir"
 }
 
 delete_dotnet_version() {
-  local version="$1"
   local install_dir="/opt/dotnet/sdk"
+  local selected
 
-  # Prevent deletion if version is in use
-  if check_apps_using_sdk "$version"; then
-    echo -e "\n⚠️ \e[1;31mCannot delete .NET SDK $version – it is currently used by one or more apps.\e[0m"
-    echo -e "🔍 Please update or remove those apps before uninstalling this SDK."
-    return 1
-  fi
+  while true; do
+    local index=1
+    declare -A deletable
 
-  mapfile -t matching_versions < <(find "$install_dir" -maxdepth 1 -type d -printf "%f\n" | grep -E "^$version")
-  if (( ${#matching_versions[@]} == 0 )); then
-    echo "⚠️  No SDKs matching version $version found."
-    return 1
-  fi
+    clear
+    echo -e "\n🗑️  \e[1;31mDelete installed .NET SDK\e[0m"
+    echo "═════════════════════════════════════════════════════════════"
 
-  echo ""
-  echo "🗑️  The following .NET SDK versions will be removed:"
-  echo "──────────────────────────────────────────────────────"
-  for ver in "${matching_versions[@]}"; do
-    printf " • .NET %s\n" "$ver"
+    for dir in "$install_dir"/*; do
+      [[ -d "$dir" ]] || continue
+      local name
+      name=$(basename "$dir")
+      local basever
+      basever=$(echo "$name" | cut -d'.' -f1,2)
+      local used=""
+
+      if check_apps_using_sdk "$basever"; then
+        used=" (🚫 in use – cannot be deleted)"
+      else
+        deletable[$index]="$basever"
+      fi
+
+      printf " %d) .NET %s%s\n" "$index" "$name" "$used"
+      ((index++))
+    done
+
+    if [[ "${#deletable[@]}" -eq 0 ]]; then
+      echo -e "\n⚠️  No deletable SDK versions found."
+      read -rsn1 -p $'\n↩️  Press any key to return...'
+      return
+    fi
+
+    echo -e "\n q) 🔙 Cancel"
+    echo "─────────────────────────────────────────────────────────────"
+    printf "Select version number to delete: "
+    IFS= read -rsn1 selected
+    echo ""
+
+    if [[ "$selected" == "q" || "$selected" == "Q" ]]; then
+      return
+    elif [[ "$selected" =~ ^[0-9]+$ ]] && [[ -n "${deletable[$selected]}" ]]; then
+      local version="${deletable[$selected]}"
+
+      mapfile -t matching_versions < <(find "$install_dir" -maxdepth 1 -type d -printf "%f\n" | grep -E "^$version")
+      if (( ${#matching_versions[@]} == 0 )); then
+        echo "⚠️  No SDKs matching version $version found."
+        return 1
+      fi
+
+      echo ""
+      echo "🗑️  The following .NET SDK versions will be removed:"
+      echo "──────────────────────────────────────────────────────"
+      for ver in "${matching_versions[@]}"; do
+        printf "🧩 .NET %s\n" "$ver"
+      done
+      echo "──────────────────────────────────────────────────────"
+
+      for ver in "${matching_versions[@]}"; do
+        rm -rf -- "$install_dir/${ver:?}"
+      done
+
+      echo "✅ .NET SDK $version removed successfully."
+      read -rsn1 -p $'\n↩️  Press any key to return...'
+      return
+    else
+      echo "❌ Invalid selection. Please try again..."
+      sleep 1
+      continue
+    fi
   done
-  echo "──────────────────────────────────────────────────────"
-
-  for ver in "${matching_versions[@]}"; do
-    rm -rf -- "$install_dir/${ver:?}"
-  done
-
-  echo "✅ .NET SDK $version removed successfully."
 }
 
 find_dotnet_executable_dll() {
@@ -139,48 +183,7 @@ show_dotnet_version_menu() {
 
     case "$choice" in
       q|Q) return ;;
-      d|D)
-        while true; do
-          clear
-          echo -e "\n🗑️  \e[1;31mDelete installed .NET SDK\e[0m"
-          echo "═════════════════════════════════════════════════════════════"
-          local index=1
-          declare -A deletable
-          for dir in "$install_dir/sdk"/*; do
-            [[ -d "$dir" ]] || continue
-            local name
-            name=$(basename "$dir")
-            local basever=${name%%.*}.${name#*.}
-            printf " %d) .NET %s\n" "$index" "$name"
-            deletable[$index]="$basever"
-            ((index++))
-          done
-
-          if [[ "${#deletable[@]}" -eq 0 ]]; then
-            echo "⚠️  No installed SDKs found."
-            read -rsn1 -p $'\nPress any key to return...' _
-            break
-          fi
-
-          echo -e " q) 🔙 Cancel"
-          echo "─────────────────────────────────────────────────────────────"
-          printf "Select version number to delete: "
-          IFS= read -rsn1 delsel
-          echo ""
-
-          if [[ "$delsel" == "q" || "$delsel" == "Q" ]]; then
-            break
-          elif [[ "$delsel" =~ ^[0-9]+$ ]] && [[ -n "${deletable[$delsel]}" ]]; then
-            delete_dotnet_version "${deletable[$delsel]}"
-            read -rsn1 -p $'\n✅ Deleted. Press any key to return...' _
-            break
-          else
-            echo "❌ Invalid selection. Returning..."
-            sleep 1
-            break
-          fi
-        done
-        ;;
+      d|D) delete_dotnet_version ;;
       [1-9])
         if (( choice >= 1 && choice <= ${#versions[@]} )); then
           local version="${versions[$((choice - 1))]}"

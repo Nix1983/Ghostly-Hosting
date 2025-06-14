@@ -55,7 +55,7 @@ show_server_manager_menu() {
       7) init_server 
          check_and_offer_reboot;;
       8) reset_server ;;
-      q|Q) echo -e "\n🏃‍♂️💨 \e[1;31mExiting Mail Control Panel. Goodbye!\e[0m"; break ;;
+      q|Q) echo -e "\n🏃‍♂️💨 \e[1;31mExiting Server Control Panel. Goodbye!\e[0m"; break ;;
       *) print_invalid_selection ;;
     esac
   done
