@@ -23,10 +23,16 @@ install_dotnet_version() {
   echo "✅ .NET SDK $version installed to $install_dir"
 }
 
-
 delete_dotnet_version() {
   local version="$1"
   local install_dir="/opt/dotnet/sdk"
+
+  # Prevent deletion if version is in use
+  if check_apps_using_sdk "$version"; then
+    echo -e "\n⚠️ \e[1;31mCannot delete .NET SDK $version – it is currently used by one or more apps.\e[0m"
+    echo -e "🔍 Please update or remove those apps before uninstalling this SDK."
+    return 1
+  fi
 
   mapfile -t matching_versions < <(find "$install_dir" -maxdepth 1 -type d -printf "%f\n" | grep -E "^$version")
   if (( ${#matching_versions[@]} == 0 )); then
@@ -47,12 +53,6 @@ delete_dotnet_version() {
   done
 
   echo "✅ .NET SDK $version removed successfully."
-}
-
-check_apps_using_sdk() {
-  local version="$1"
-  local root="/var/www"
-  grep -r "\"$version\"" "$root" 2>/dev/null | grep global.json | cut -d: -f1 | uniq
 }
 
 find_dotnet_executable_dll() {
@@ -81,9 +81,29 @@ find_dotnet_executable_dll() {
   return 0
 }
 
+check_apps_using_sdk() {
+  local version="$1"
+  local root="/var/www"
+  local file
+  local matched=""
+
+  while IFS= read -r file; do
+    while IFS= read -r full; do
+      local short
+      short=$(echo "$full" | cut -d'.' -f1,2)
+      if [[ "$short" == "$version" ]]; then
+        matched="yes"
+        break 2
+      fi
+    done < <(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]\+"' "$file" | cut -d'"' -f4)
+  done < <(find "$root" -type f -name "*.runtimeconfig.json" 2>/dev/null)
+
+  [[ "$matched" == "yes" ]]
+}
+
 show_dotnet_version_menu() {
   local install_dir="/opt/dotnet"
-  local versions=("5.0" "6.0" "7.0" "8.0" "9.0")
+  local versions=("6.0" "7.0" "8.0" "9.0")
 
   while true; do
     clear
@@ -93,19 +113,22 @@ show_dotnet_version_menu() {
     for i in "${!versions[@]}"; do
       local ver="${versions[$i]}"
       local status="➕  Not installed"
-      local usage="0"
+      local used="➕ Not used"
       local disk="–       "
       local realver="–"
 
       if [[ -x "$install_dir/dotnet" ]] && "$install_dir/dotnet" --list-sdks | grep -q "^$ver"; then
         status="✅  Installed"
         realver=$("$install_dir/dotnet" --list-sdks | grep "^$ver" | awk '{print $1}')
-        usage=$(check_apps_using_sdk "$ver" | wc -l)
         disk=$(du -sh "$install_dir/sdk"/* 2>/dev/null | grep "$ver" | awk '{sum+=$1} END{print sum " MB"}')
       fi
 
-      printf " %d) .NET %-4s │ %-20s │ 📦 Apps: %-4s │ 💾 Size: %-8s │ 🔢 Version: %-15s\n" \
-        $((i + 1)) "$ver" "$status" "$usage" "$disk" "$realver"
+      if check_apps_using_sdk "$ver"; then
+        used="✅ Used"
+      fi
+
+      printf " %d) .NET %-4s │ %-20s │ %-12s │ 💾 Size: %-8s │ 🔢 Version: %-15s\n" \
+        $((i + 1)) "$ver" "$status" "$used" "$disk" "$realver"
     done
 
     echo -e "\n d) 🗑️  Delete version     q) 🔙 Back to main menu"
@@ -160,7 +183,7 @@ show_dotnet_version_menu() {
         ;;
       [1-9])
         if (( choice >= 1 && choice <= ${#versions[@]} )); then
-          local version="net${versions[$((choice - 1))]}"
+          local version="${versions[$((choice - 1))]}"
           install_dotnet_version "$version"
           read -rsn1 -p $'\n✅ Done. Press any key to return...' _
         fi

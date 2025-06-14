@@ -45,12 +45,12 @@ show_server_health() {
   local swap_usage_pct=0
   [[ "$swap_total" -gt 0 ]] && swap_usage_pct=$((100 * swap_used / swap_total))
 
-  # Disk (in GB)
-  read -r d_total d_used d_free d_perc <<< \
-    "$(df -m / | awk 'NR==2 {print $2, $3, $4, $5}')"
-  d_total=$((d_total / 1024))
-  d_used=$((d_used / 1024))
-  d_free=$((d_free / 1024))
+  # Disk (in GB mit 2 Nachkommastellen)
+  read -r d_total_kb d_used_kb d_free_kb d_perc <<< \
+    "$(df -k / | awk 'NR==2 {print $2, $3, $4, $5}')"
+  d_total=$(awk "BEGIN {printf \"%.2f\", $d_total_kb / 1024 / 1024}")
+  d_used=$(awk "BEGIN {printf \"%.2f\", $d_used_kb / 1024 / 1024}")
+  d_free=$(awk "BEGIN {printf \"%.2f\", $d_free_kb / 1024 / 1024}")
 
   # CPU Load
   read -r load1 load5 load15 <<< \
@@ -93,7 +93,6 @@ show_server_health() {
     service_line+="${svc} ${icon}   "
   done
 
-
   # Output
   echo -e "\e[1m🩺 Server Health Summary\e[0m"
   echo "════════════════════════════════════════════════════════════════════════════════════════════"
@@ -116,7 +115,7 @@ show_server_health() {
     "SWAP:" "$swap_total" "$swap_used" "$swap_free" "$swap_usage_pct"
 
   echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "💾 %-13s Total: %2sG    | Used: %2sG    | Free: %2sG                        Usage:  %3s\n" \
+  printf "💾 %-13s Total: %5sG | Used: %5sG | Free: %5sG                    Usage:  %3s\n" \
     "Disk (/):" "$d_total" "$d_used" "$d_free" "$d_perc"
   printf "⚙️ %-13s 1 min: %s   | 5 min: %s  | 15 min: %s\n" \
     "CPU Load:" "$load1" "$load5" "$load15"
@@ -128,6 +127,7 @@ show_server_health() {
   echo "════════════════════════════════════════════════════════════════════════════════════════════"
   echo ""
 }
+
 
 check_and_offer_reboot() {
   if [[ -f /var/run/reboot-required ]]; then
