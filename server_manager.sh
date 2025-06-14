@@ -15,8 +15,6 @@ export DISABLE_CLEAR=true
 # 📦 Dummy-Funktionen
 show_all_blazor_apps() { echo -e "\n📦  Listing Blazor apps..."; sleep 1; }
 
-
-
 show_server_manager_menu() {
 
   if [[ -z "$SERVER_IPv4" ]]; then
@@ -30,9 +28,9 @@ show_server_manager_menu() {
     echo -e "\n🚀 \e[1;34mBlazor Server Control Panel\e[0m | $SERVER_IPv4"
     echo "═════════════════════════════════════════════════════════════"
 
-    echo -e "\n 1) 🩺  Show Health        2) 🛡️  Fail2Ban           3) ☁️  UpCloud Admin"
-    echo -e "\n 4) 🧰  Show .NET          5) 📦  List Apps          6) 🔄  Update Server"
-    echo -e "\n 7) 🪛  Init Server        8) 🧨  Reset Server"
+    echo -e "\n 1) 🩺  Show Server Health   2) 🛡️  Fail2Ban Admin     3) ☁️  UpCloud Admin"
+    echo -e "\n 4) 🧰  Show .NET Versions   5) 📦  List Apps          6) 🔄  Update Server"
+    echo -e "\n 7) 🪛  Init Server          8) 🧨  Reset Server"
     echo -e "\n q) 🏃💨 \e[1;31mExit Server Control\e[0m"
 
     echo -e "\n─────────────────────────────────────────────────────────────"
