@@ -115,7 +115,7 @@ show_server_health() {
     "SWAP:" "$swap_total" "$swap_used" "$swap_free" "$swap_usage_pct"
 
   echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "💾 %-13s Total: %5sG | Used: %5sG | Free: %5sG                    Usage:  %3s\n" \
+  printf "💾 %-13s Total: %5sG | Used: %5sG | Free: %5sG                     Usage:  %3s\n" \
     "Disk (/):" "$d_total" "$d_used" "$d_free" "$d_perc"
   printf "⚙️ %-13s 1 min: %s   | 5 min: %s  | 15 min: %s\n" \
     "CPU Load:" "$load1" "$load5" "$load15"
