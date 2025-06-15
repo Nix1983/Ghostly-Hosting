@@ -5,16 +5,15 @@ set -e
 source ./lib/common.sh
 source ./lib/dotnet.sh
 source ./lib/print.sh
-source ./lib/cloudflare.sh
 
-check_github_env() {
+check_github_env_vars() {
   local missing=()
 
   [[ -z "$GITHUB_API_TOKEN" ]] && missing+=("GITHUB_API_TOKEN")
   [[ -z "$GITHUB_API_USER" ]]  && missing+=("GITHUB_API_USER")
   [[ -z "$GITHUB_API_BASE" ]]  && missing+=("GITHUB_API_BASE")
 
-  if [[ ${#missing[@]} -gt 0 ]]; then
+  if (( ${#missing[@]} > 0 )); then
     echo -e "\n❌ \e[1;31mMissing GitHub environment variables:\e[0m"
     for var in "${missing[@]}"; do
       echo -e "   ⛔ \e[33m$var\e[0m"
@@ -22,123 +21,22 @@ check_github_env() {
     echo -e "\n💡 Please ensure these are set in your .env file and reload with 'load_env'."
     return 1
   fi
-}
-
-deploy_from_github_repo() {
-  local owner="$1"
-  local repo="$2"
-  local tmp_dir publish_dir csproj sdk_type raw_framework sdk_channel project_type
-
-  echo -e "\n📦 \e[1mCloning GitHub repo:\e[0m $owner/$repo"
-
-  tmp_dir="/tmp/deploy-$repo"
-  rm -rf "$tmp_dir"
-
-  local clone_url="https://${GITHUB_API_USER}:${GITHUB_API_TOKEN}@github.com/${owner}/${repo}.git"
-  if ! GIT_ASKPASS=true git clone -q "$clone_url" "$tmp_dir" 2>/dev/null; then
-    echo "❌ Failed to clone repository. Please check your token or access rights."
-    return 1
-  fi
-
-  echo "✅ Repo cloned to $tmp_dir"
-
-  csproj=$(find "$tmp_dir" -name '*.csproj' | head -n1)
-  if [[ -z "$csproj" ]]; then
-    echo "❌ No .csproj file found in the repository."
-    return 1
-  fi
-
-  sdk_type=$(grep -oP '(?<=<Project Sdk=")[^"]+' "$csproj")
-  raw_framework=$(grep -oP '(?<=<TargetFramework>)[^<]+' "$csproj" | head -n1)
-
-  if ! sdk_channel=$(resolve_dotnet_channel "$raw_framework"); then
-    echo "❌ Could not resolve .NET channel for TargetFramework: $raw_framework"
-    return 1
-  fi
-
-  case "$sdk_type" in
-    Microsoft.NET.Sdk.Web)
-      project_type="ASP.NET Core or Blazor Server"
-      ;;
-    Microsoft.NET.Sdk.BlazorWebAssembly)
-      project_type="Blazor WebAssembly (WASM)"
-      ;;
-    *)
-      echo "❌ Unsupported SDK type: $sdk_type"
-      return 1
-      ;;
-  esac
-
-  echo -e "\n🧪 \e[1mProject Detected:\e[0m"
-  echo "────────────────────────────────────────────"
-  echo "🔧 SDK:       $sdk_type"
-  echo "🎯 Framework: $raw_framework"
-  echo "📦 Type:      $project_type"
-
-  echo -e "\n🔍 Checking required .NET SDK..."
-  if ! install_dotnet_version "$sdk_channel"; then
-    echo "❌ Aborting due to SDK installation failure."
-    return 1
-  fi
-
-  if ! [[ -x /opt/dotnet/dotnet ]]; then
-    echo "❌ .NET binary not found after installation. Aborting."
-    return 1
-  fi
-
-  echo -e "\n🚀 Publishing project..."
-  publish_dir="/tmp/publish-$repo"
-  rm -rf "$publish_dir"
-  if ! /opt/dotnet/dotnet publish "$csproj" -c Release -o "$publish_dir"; then
-    echo "❌ dotnet publish failed. Please check project build state."
-    return 1
-  fi
-
-  echo -e "\n✅ Project successfully published to: \e[36m$publish_dir\e[0m"
-
-  export TMP_PUBLISH_DIR="$publish_dir"
   return 0
 }
 
-
-resolve_dotnet_channel() {
-  local framework="$1"
-
-  if [[ -z "$framework" ]]; then
-    echo "❌ No framework provided." >&2
-    return 1
-  fi
-
-  if [[ "$framework" =~ ^net([0-9]+)\.([0-9]+)$ ]]; then
-    # net6.0 → 6.0
-    echo "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
-    return 0
-  elif [[ "$framework" =~ ^net([0-9]+)$ ]]; then
-    # net8 → 8.0
-    echo "${BASH_REMATCH[1]}.0"
-    return 0
-  elif [[ "$framework" =~ ^net([0-9]{2,})$ ]]; then
-    # net472 → 472 (e.g. legacy .NET Framework – not supported)
-    echo "❌ Legacy .NET Framework version detected: $framework" >&2
-    return 1
-  else
-    echo "❌ Unknown framework format: $framework" >&2
-    return 1
-  fi
-}
-
-select_github_repository() {
-  load_env
-  if ! check_github_env; then return 1; fi
-
-  clear
-  local response total i index1 index2 name1 name2
+load_github_repositories() {
+  local response
   response=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
     "$GITHUB_API_BASE/user/repos?per_page=100&affiliation=owner")
 
-  mapfile -t repos < <(echo "$response" | jq -c '.[]')
-  total=${#repos[@]}
-  ((total == 0)) && printf "❌ No repositories found.\n" && return 1
+  mapfile -t REPOS < <(echo "$response" | jq -c '.[]')
+  REPO_TOTAL=${#REPOS[@]}
+  return 0
+}
+
+# 🧭 Show repo selection menu
+select_repo_from_list() {
+  local choice i index1 index2 name1 name2
 
   while true; do
     clear
@@ -146,51 +44,109 @@ select_github_repository() {
     echo "────────────────────────────────────────────────────────────"
 
     i=0
-    while [[ $i -lt $total ]]; do
-      index1=$((i+1))
-      name1=$(echo "${repos[$i]}" | jq -r '.name')
+    while [[ $i -lt $REPO_TOTAL ]]; do
+      index1=$((i + 1))
+      name1=$(echo "${REPOS[$i]}" | jq -r '.name')
 
-      index2=$((i+2))
-      if [[ $index2 -le $total ]]; then
-        name2=$(echo "${repos[$i+1]}" | jq -r '.name')
+      index2=$((i + 2))
+      if [[ $index2 -le $REPO_TOTAL ]]; then
+        name2=$(echo "${REPOS[$i+1]}" | jq -r '.name')
         printf "%2d) 📁 \033[36m%-35s\033[0m    %2d) 📁 \033[36m%-35s\033[0m\n" "$index1" "$name1" "$index2" "$name2"
       else
         printf "%2d) 📁 \033[36m%-35s\033[0m\n" "$index1" "$name1"
       fi
-      ((i+=2))
+      ((i += 2))
     done
 
     echo -e "\n─────────────────────────────────────────────────────────────"
-    print_select_prompt "$total"
+    print_select_prompt "$REPO_TOTAL"
     read -r choice
-    [[ "$choice" =~ ^[Qq]$ ]] && return 0
-    if ! [[ "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > total )); then
+    [[ "$choice" =~ ^[Qq]$ ]] && return 1
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > REPO_TOTAL )); then
       print_invalid_selection
       sleep 1
       continue
     fi
 
-    local repo repo_name repo_owner
-    repo="${repos[$((choice-1))]}"
-    repo_name=$(echo "$repo" | jq -r '.name')
-    repo_owner=$(echo "$repo" | jq -r '.owner.login')
-
-    if deploy_from_github_repo "$repo_owner" "$repo_name"; then
-      local publish_dir="/tmp/publish-$repo_name"
-      if dll_name=$(find_dotnet_executable_dll "$publish_dir"); then
-        echo -e "\n🔍 \e[1mExecutable DLL found:\e[0m \e[36m$dll_name\e[0m"
-        echo "📂 Located in: $publish_dir"
-        export TMP_PUBLISH_DIR="/tmp/publish-$repo_name"
-      else
-        echo "⚠️  Could not determine executable DLL."
-      fi
-    else
-      echo "❌ Deployment failed."
-    fi
-
-    export TMP_PUBLISH_DIR="/tmp/publish-$repo_name"
-    export SELECTED_REPO_NAME="$repo_name"
+    SELECTED_REPO_JSON="${REPOS[$((choice - 1))]}"
+    SELECTED_REPO_NAME=$(echo "$SELECTED_REPO_JSON" | jq -r '.name')
+    SELECTED_REPO_OWNER=$(echo "$SELECTED_REPO_JSON" | jq -r '.owner.login')
+    export SELECTED_REPO_NAME SELECTED_REPO_OWNER
     return 0
   done
 }
 
+# 🔄 Clone selected GitHub repo into TMP_CLONE_DIR
+clone_selected_repo() {
+  TMP_CLONE_DIR="/tmp/deploy-${SELECTED_REPO_NAME}"
+  export TMP_CLONE_DIR
+
+  rm -rf "$TMP_CLONE_DIR"
+
+  echo -e "\n📦 Cloning GitHub repo: $SELECTED_REPO_OWNER/$SELECTED_REPO_NAME"
+  local clone_url="https://${GITHUB_API_USER}:${GITHUB_API_TOKEN}@github.com/${SELECTED_REPO_OWNER}/${SELECTED_REPO_NAME}.git"
+  if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR"; then
+    echo "❌ Failed to clone repository. Please check your access/token."
+    return 1
+  fi
+  echo "✅ Repo cloned to $TMP_CLONE_DIR"
+  return 0
+}
+
+publish_selected_repo() {
+  TMP_PUBLISH_DIR="/tmp/publish-${SELECTED_REPO_NAME}"
+  export TMP_PUBLISH_DIR
+
+  rm -rf "$TMP_PUBLISH_DIR"
+
+  local csproj raw_framework
+  csproj=$(find "$TMP_CLONE_DIR" -name '*.csproj' | head -n1)
+  [[ -z "$csproj" ]] && echo "❌ No .csproj file found." && return 1
+
+  raw_framework=$(grep -oP '(?<=<TargetFramework>)[^<]+' "$csproj" | head -n1)
+  DOTNET_Version=$(resolve_dotnet_channel "$raw_framework") || return 1
+  export DOTNET_Version
+
+  echo -e "\n🔧 Detected Target Framework: $raw_framework → Channel: $DOTNET_Version"
+  install_dotnet_version "$DOTNET_Version" || return 1
+
+  echo -e "\n🚀 Publishing project..."
+  if ! /opt/dotnet/dotnet publish "$csproj" -c Release -o "$TMP_PUBLISH_DIR"; then
+    echo "❌ Publish failed."
+    return 1
+  fi
+  echo "✅ Published to $TMP_PUBLISH_DIR"
+  return 0
+}
+
+# 🔍 Find DLL in published folder and export
+find_and_set_executable_dll() {
+  if dll_name=$(find_dotnet_executable_dll "$TMP_PUBLISH_DIR"); then
+    DLL_NAME="$dll_name"
+    export DLL_NAME
+    echo -e "\n🔍 Executable DLL found: \e[36m$DLL_NAME\e[0m"
+    return 0
+  else
+    echo "⚠️  Could not determine executable DLL."
+    return 1
+  fi
+}
+
+# 🌐 Entry point for full GitHub repo selection + publish
+select_github_repository_and_clone() {
+  load_env
+  check_github_env_vars || return 1
+  load_github_repositories
+
+  if (( REPO_TOTAL == 0 )); then
+    echo -e "\n❌ No repositories found for user: \e[36m$GITHUB_API_USER\e[0m"
+    echo -e "\n↩️  Press any key to return..."
+    read -r
+    return 1
+  fi
+
+  if ! select_repo_from_list; then return 1; fi
+  if ! clone_selected_repo; then return 1; fi
+  if ! publish_selected_repo; then return 1; fi
+  find_and_set_executable_dll || return 1
+}

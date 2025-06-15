@@ -2,7 +2,6 @@
 # shellcheck disable=SC1091
 set -e
 
-# ✨ Funktionen einbinden
 source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/github.sh
@@ -11,9 +10,23 @@ source ./lib/certbot.sh
 source ./lib/dotnet.sh
 source ./lib/nginx.sh
 
+# Global variables used during app deployment
+export SELECTED_REPO_NAME=""   
+export TMP_CLONE_DIR=""          
+export TMP_PUBLISH_DIR=""        
+export DOTNET_Version=""         
+export DLL_NAME=""               
+export KESTREL_PORT=""           
+export DOMAIN=""                 
+export HOSTNAME_FQDN=""          
+export ZONE_ID=""                
+export SERVER_IPv4=""
+export SERVER_IPv6=""
+export PUBLISH_DIR=""            
+
 
 add_new_app() {
-  select_github_repository || return 1
+  select_github_repository_and_clone || return 1
 
   echo -e "\n↩️  Press Enter to continue with Cloudflare setup..."
   read -r
