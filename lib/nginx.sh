@@ -23,26 +23,6 @@ install_nginx_if_missing() {
   fi
 }
 
-find_free_kestrel_port() {
-  local base_port=5000
-  local max_port=5099
-  local port
-
-  for ((port = base_port; port <= max_port; port++)); do
-    if ss -tuln | grep -q ":$port\\b"; then
-      continue
-    fi
-    if grep -r "localhost:$port" /etc/nginx/sites-available/ >/dev/null 2>&1; then
-      continue
-    fi
-    echo "$port"
-    return 0
-  done
-
-  echo "❌ No free port found between $base_port and $max_port" >&2
-  return 1
-}
-
 create_nginx_config() {
   local hostname="$1"
 
@@ -51,7 +31,7 @@ create_nginx_config() {
     return 1
   fi
 
-  KESTREL_PORT=$(find_free_kestrel_port) || return 1
+  KESTREL_PORT=$(find_free_port) || return 1
 
   local conf_path="/etc/nginx/sites-available/$hostname"
   local conf_link="/etc/nginx/sites-enabled/$hostname"
@@ -103,7 +83,6 @@ create_nginx_config() {
   ln -sf "$conf_path" "$conf_link"
   nginx -t && systemctl reload nginx && echo "✅ Nginx reloaded successfully." || echo "❌ Nginx config test failed."
 }
-
 
 setup_nginx_for_blazor_app() {
   local fqdn="$1"

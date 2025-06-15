@@ -29,55 +29,62 @@ add_new_app() {
 list_blazor_apps_clean() {
   local index=1
   local -A app_map=()
-
+  local -A seen_services=()
+  clear
   echo -e "\n📋 \e[1mDeployed Blazor Apps\e[0m"
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "%3s │ %-30s │ %-15s │ %-8s │ %-10s │ %s\n" "#" "Domain" "App Name" ".NET" "Status" "Size"
-  echo "────┼────────────────────────────────┼─────────────────┼──────────┼────────────┼────────────"
+  echo "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
 
   while IFS= read -r -d '' service_path; do
-    local service_name appname domain dll_name version size status exec_dir
-
+    local service_name raw domain exec_dir status ram_kb ram_mb disk_mb
     service_name="$(basename "$service_path")"
-    appname="${service_name#blazor-}"
-    appname="${appname%.service}"
+    [[ -n "${seen_services[$service_name]}" ]] && continue
+    seen_services["$service_name"]=1
 
-    # Reverse domain-like (z. B. app-ghostlypick-com)
-    domain="$(echo "$appname" | awk -F'-' '{for(i=NF;i>=2;i--) printf "%s.", $i; print $1}')"
-    appname="$(systemctl show -p ExecStart "$service_name" 2>/dev/null | cut -d= -f2 | sed -E 's|.*/([^/]+)\.dll.*|\1|' | xargs)"
+    # ➤ Domain-Korrektur
+    raw="${service_name#blazor-}"
+    raw="${raw%.service}"
+    domain="$(echo "$raw" | awk -F'-' '{for(i=1;i<NF-1;i++) printf "%s.", $i; print $(NF-1) "." $NF}')"
 
-    exec_dir="$(systemctl show -p WorkingDirectory "$service_name" | cut -d= -f2)"
+    # Working directory
+    exec_dir=$(systemctl show -p WorkingDirectory "$service_name" 2>/dev/null | cut -d= -f2)
 
-    dll_name=$(find "$exec_dir" -maxdepth 1 -name "*.dll" | head -n1)
-    if [[ -n "$dll_name" ]]; then
-      local runtimeconfig="${dll_name%.dll}.runtimeconfig.json"
-      if [[ -f "$runtimeconfig" ]]; then
-        version=$(jq -r '.runtimeOptions.framework.version // empty' "$runtimeconfig")
-      fi
-    fi
-    [[ -z "$version" ]] && version="–"
-
+    # Status
     if systemctl is-active --quiet "$service_name"; then
       status="🟢 running"
     else
       status="🔴 stopped"
     fi
 
-    size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
-    [[ -z "$size" ]] && size="–"
+    # RAM
+    ram_mb="–"
+    ram_kb=$(systemctl show "$service_name" -p MemoryCurrent | cut -d= -f2)
+    if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
+      ram_mb="$((ram_kb / 1024 / 1024)) MB"
+    fi
 
-    printf "%3d │ %-30s │ %-15s │ %-8s │ %-10s │ %s\n" "$index" "$domain" "$appname" "$version" "$status" "$size"
+    # Disk
+    disk_mb="–"
+    if [[ -n "$exec_dir" && -d "$exec_dir" ]]; then
+      disk_mb="$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')"
+    fi
+
+    [[ "$ram_mb" == "–" ]] && ram_mb="  –   "
+    [[ "$disk_mb" == "–" ]] && disk_mb="  –   "
+    # Ausgabe
+    printf "\n %2d) 🌐 \e]8;;https://%s\e\\%-50s\e]8;;\e\\ │ %s │ 🧠 RAM: \e[36m%6s\e[0m │ 💾 Disk: \e[2m%6s\e[0m\n" \
+      "$index" "$domain" "$domain" "$status" "$ram_mb" "$disk_mb"
+
     app_map["$index"]="$service_name"
     ((index++))
   done < <(find /etc/systemd/system -name "blazor-*.service" -print0 | sort -z)
 
   if (( index == 1 )); then
-    echo "⚠️  No Blazor apps found."
+    echo -e "\n⚠️  No Blazor apps found."
     return 1
   fi
 
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  echo -n "❓ Select an app [1–$((index-1)), q]: "
+  echo -e "\n────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  print_select_prompt "$((index-1))"
   read -r selection
 
   if [[ "$selection" =~ ^[Qq]$ ]]; then
@@ -86,12 +93,10 @@ list_blazor_apps_clean() {
     export SELECTED_SERVICE="${app_map[$selection]}"
     echo "📂 Selected: $SELECTED_SERVICE"
   else
-    echo "❌ Invalid selection."
+    print_invalid_selection
     return 1
   fi
 }
-
-
 
 
 

@@ -162,6 +162,30 @@ get_project_root() {
   echo "$dir"
 }
 
+find_free_port() {
+  local base_port=5000
+  local max_port=5099
+  local port
+
+  for ((port = base_port; port <= max_port; port++)); do
+    if ss -tuln | grep -q ":$port\\b"; then
+      continue
+    fi
+
+    if [[ -d /etc/nginx/sites-available ]] && \
+       grep -r "localhost:$port" /etc/nginx/sites-available/ >/dev/null 2>&1; then
+      continue
+    fi
+
+    echo "$port"
+    return 0
+  done
+
+  echo "❌ No free port found between $base_port and $max_port" >&2
+  return 1
+}
+
+
 
 
 
