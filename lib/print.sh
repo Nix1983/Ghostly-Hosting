@@ -6,7 +6,7 @@ print_cancel(){
 }
 
 print_press_any_key() {
-   echo "↩️  Press any key to continue..."
+   echo "↩️ Press any key to continue..."
 }
 
 print_invalid_selection() {

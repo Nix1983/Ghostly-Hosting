@@ -3,14 +3,30 @@
 set -e
 
 source ./lib/common.sh
-source ./lib/dotnet.sh
 source ./lib/print.sh
+source ./lib/dotnet.sh
 
+# Default GitHub API base URL
+GITHUB_API_BASE=${GITHUB_API_BASE:-https://api.github.com}
+
+# Global variables to be accessed in other modules
+declare -g SELECTED_REPO_NAME=""
+declare -g SELECTED_REPO_OWNER=""
+declare -g TMP_CLONE_DIR=""
+
+# Resolves the GitHub username from the token using the GitHub API
+resolve_github_user_from_token() {
+  if [[ -n "$GITHUB_API_TOKEN" ]]; then
+    local user_response
+    user_response=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" "$GITHUB_API_BASE/user")
+    GITHUB_API_USER=$(echo "$user_response" | jq -r '.login // empty')
+  fi
+}
+
+# Validates required GitHub environment variables and resolves username
 check_github_env_vars() {
   local missing=()
-
   [[ -z "$GITHUB_API_TOKEN" ]] && missing+=("GITHUB_API_TOKEN")
-  [[ -z "$GITHUB_API_USER" ]]  && missing+=("GITHUB_API_USER")
   [[ -z "$GITHUB_API_BASE" ]]  && missing+=("GITHUB_API_BASE")
 
   if (( ${#missing[@]} > 0 )); then
@@ -21,26 +37,74 @@ check_github_env_vars() {
     echo -e "\n💡 Please ensure these are set in your .env file and reload with 'load_env'."
     return 1
   fi
+
+  resolve_github_user_from_token
+  if [[ -z "$GITHUB_API_USER" ]]; then
+    echo -e "\n❌ \e[31mInvalid GitHub token – could not determine username.\e[0m"
+    return 1
+  fi
+
   return 0
 }
 
+# Loads repositories and fills REPOS array
 load_github_repositories() {
   local response
   response=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
     "$GITHUB_API_BASE/user/repos?per_page=100&affiliation=owner")
+
+  if ! echo "$response" | jq -e '.[0]' >/dev/null 2>&1; then
+    echo -e "\n❌ \e[31mFailed to load repositories.\e[0m"
+    echo -e "🔍 Possible reason: invalid token, rate limit or API error."
+    read -r
+    return 1
+  fi
 
   mapfile -t REPOS < <(echo "$response" | jq -c '.[]')
   REPO_TOTAL=${#REPOS[@]}
   return 0
 }
 
-# 🧭 Show repo selection menu
-select_repo_from_list() {
+# Clones the selected GitHub repository into a temporary folder
+clone_repository() {
+  TMP_CLONE_DIR="/tmp/clone-${SELECTED_REPO_NAME}"
+  export TMP_CLONE_DIR
+
+  # Remove existing clone directory if it exists
+  if [[ -d "$TMP_CLONE_DIR" ]]; then
+    echo -e "\n♻️ Removing existing clone directory: \e[2m$TMP_CLONE_DIR\e[0m"
+    rm -rf "$TMP_CLONE_DIR"
+  fi
+
+  echo -e "\n📦 Cloning GitHub repo: \e[36m$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME\e[0m"
+
+  local clone_url="https://${SELECTED_REPO_OWNER}:${GITHUB_API_TOKEN}@github.com/${SELECTED_REPO_OWNER}/${SELECTED_REPO_NAME}.git"
+
+  if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR"; then
+    echo -e "\n❌ \e[31mFailed to clone repository.\e[0m"
+    echo -e "🔍 Please check your token, access rights, or repository visibility."
+    return 1
+  fi
+
+  echo -e "✅ Repo cloned to \e[2m$TMP_CLONE_DIR\e[0m"
+  return 0
+}
+
+# Displays a list of repositories and lets the user select one
+select_github_repository() {
+  if ! check_github_env_vars; then return 1; fi
+  if ! load_github_repositories; then return 1; fi
+
+  if (( REPO_TOTAL == 0 )); then
+    echo -e "\n❌ No repositories found for user: \e[36m$GITHUB_API_USER\e[0m"
+    return 1
+  fi
+
   local choice i index1 index2 name1 name2
 
   while true; do
     clear
-    echo -e "\n🐙 \e[1;34mSelect a GitHub Repository\033[0m – for: \e[36m$GITHUB_API_USER\e[0m"
+    echo -e "\n🐙 \e[1;34mSelect a GitHub Repository\033[0m – for: \e[36m$GITHUB_API_USER\e[0m \e[2m($REPO_TOTAL repositories)\e[0m"
     echo "────────────────────────────────────────────────────────────"
 
     i=0
@@ -61,92 +125,19 @@ select_repo_from_list() {
     echo -e "\n─────────────────────────────────────────────────────────────"
     print_select_prompt "$REPO_TOTAL"
     read -r choice
-    [[ "$choice" =~ ^[Qq]$ ]] && return 1
+    [[ "$choice" =~ ^[Qq]$ ]] && return 0
+
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > REPO_TOTAL )); then
       print_invalid_selection
       sleep 1
       continue
     fi
 
-    SELECTED_REPO_JSON="${REPOS[$((choice - 1))]}"
-    SELECTED_REPO_NAME=$(echo "$SELECTED_REPO_JSON" | jq -r '.name')
-    SELECTED_REPO_OWNER=$(echo "$SELECTED_REPO_JSON" | jq -r '.owner.login')
-    export SELECTED_REPO_NAME SELECTED_REPO_OWNER
+    local selected_repo_json="${REPOS[$((choice - 1))]}"
+    SELECTED_REPO_NAME=$(echo "$selected_repo_json" | jq -r '.name')
+    SELECTED_REPO_OWNER=$(echo "$selected_repo_json" | jq -r '.owner.login')
+
+    echo -e "\n✅ Selected repository: \e[36m$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME\e[0m"
     return 0
   done
-}
-
-# 🔄 Clone selected GitHub repo into TMP_CLONE_DIR
-clone_selected_repo() {
-  TMP_CLONE_DIR="/tmp/deploy-${SELECTED_REPO_NAME}"
-  export TMP_CLONE_DIR
-
-  rm -rf "$TMP_CLONE_DIR"
-
-  echo -e "\n📦 Cloning GitHub repo: $SELECTED_REPO_OWNER/$SELECTED_REPO_NAME"
-  local clone_url="https://${GITHUB_API_USER}:${GITHUB_API_TOKEN}@github.com/${SELECTED_REPO_OWNER}/${SELECTED_REPO_NAME}.git"
-  if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR"; then
-    echo "❌ Failed to clone repository. Please check your access/token."
-    return 1
-  fi
-  echo "✅ Repo cloned to $TMP_CLONE_DIR"
-  return 0
-}
-
-publish_selected_repo() {
-  TMP_PUBLISH_DIR="/tmp/publish-${SELECTED_REPO_NAME}"
-  export TMP_PUBLISH_DIR
-
-  rm -rf "$TMP_PUBLISH_DIR"
-
-  local csproj raw_framework
-  csproj=$(find "$TMP_CLONE_DIR" -name '*.csproj' | head -n1)
-  [[ -z "$csproj" ]] && echo "❌ No .csproj file found." && return 1
-
-  raw_framework=$(grep -oP '(?<=<TargetFramework>)[^<]+' "$csproj" | head -n1)
-  DOTNET_Version=$(resolve_dotnet_channel "$raw_framework") || return 1
-  export DOTNET_Version
-
-  echo -e "\n🔧 Detected Target Framework: $raw_framework → Channel: $DOTNET_Version"
-  install_dotnet_version "$DOTNET_Version" || return 1
-
-  echo -e "\n🚀 Publishing project..."
-  if ! /opt/dotnet/dotnet publish "$csproj" -c Release -o "$TMP_PUBLISH_DIR"; then
-    echo "❌ Publish failed."
-    return 1
-  fi
-  echo "✅ Published to $TMP_PUBLISH_DIR"
-  return 0
-}
-
-# 🔍 Find DLL in published folder and export
-find_and_set_executable_dll() {
-  if dll_name=$(find_dotnet_executable_dll "$TMP_PUBLISH_DIR"); then
-    DLL_NAME="$dll_name"
-    export DLL_NAME
-    echo -e "\n🔍 Executable DLL found: \e[36m$DLL_NAME\e[0m"
-    return 0
-  else
-    echo "⚠️  Could not determine executable DLL."
-    return 1
-  fi
-}
-
-# 🌐 Entry point for full GitHub repo selection + publish
-select_github_repository_and_clone() {
-  load_env
-  check_github_env_vars || return 1
-  load_github_repositories
-
-  if (( REPO_TOTAL == 0 )); then
-    echo -e "\n❌ No repositories found for user: \e[36m$GITHUB_API_USER\e[0m"
-    echo -e "\n↩️  Press any key to return..."
-    read -r
-    return 1
-  fi
-
-  if ! select_repo_from_list; then return 1; fi
-  if ! clone_selected_repo; then return 1; fi
-  if ! publish_selected_repo; then return 1; fi
-  find_and_set_executable_dll || return 1
 }

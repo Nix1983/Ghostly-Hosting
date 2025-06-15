@@ -2,6 +2,7 @@
 # shellcheck disable=SC1091
 set -e
 
+# Module einbinden
 source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/github.sh
@@ -10,34 +11,20 @@ source ./lib/certbot.sh
 source ./lib/dotnet.sh
 source ./lib/nginx.sh
 
-# Global variables used during app deployment
-export SELECTED_REPO_NAME=""   
-export TMP_CLONE_DIR=""          
-export TMP_PUBLISH_DIR=""        
-export DOTNET_Version=""         
-export DLL_NAME=""               
-export KESTREL_PORT=""           
-export DOMAIN=""                 
-export HOSTNAME_FQDN=""          
-export ZONE_ID=""                
-export SERVER_IPv4=""
-export SERVER_IPv6=""
-export PUBLISH_DIR=""            
+# ...
 
 
 add_new_app() {
-  select_github_repository_and_clone || return 1
+  load_env || return 1
+  check_github_env_vars || return 1
+  load_github_repositories || return 1
+  select_github_repository || return 1
+  clone_repository || return 1
 
-  echo -e "\n↩️  Press Enter to continue with Cloudflare setup..."
-  read -r
-
-  select_cloudflare_zone_and_domain || return 1
-  setup_cloudflare_dns_for_blazor || return 1
-  run_certbot_workflow || return 1
-  setup_nginx_for_blazor_app "$HOSTNAME_FQDN" || return 1
-  finalize_blazor_deployment || return 1
-  create_and_start_blazor_service || return 1
+  # Weitere Schritte hier...
 }
+
+
 
 list_blazor_apps_clean() {
   local index=1
@@ -132,9 +119,11 @@ show_app_manager_menu() {
 
     case "$choice" in
       1)
-        add_new_app
+        if ! add_new_app; then
+          echo -e "\n❌ App deployment aborted."
+          read -rsn1 -p "$(print_press_any_key)"
+        fi
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
         ;;
       2)
         list_blazor_apps_clean
