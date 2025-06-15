@@ -65,28 +65,73 @@ load_github_repositories() {
   return 0
 }
 
-# Clones the selected GitHub repository into a temporary folder
+# Clones the selected GitHub repository including all nested submodules (with token)
 clone_repository() {
   TMP_CLONE_DIR="/tmp/clone-${SELECTED_REPO_NAME}"
   export TMP_CLONE_DIR
 
-  # Remove existing clone directory if it exists
   if [[ -d "$TMP_CLONE_DIR" ]]; then
     echo -e "\n♻️ Removing existing clone directory: \e[2m$TMP_CLONE_DIR\e[0m"
     rm -rf "$TMP_CLONE_DIR"
   fi
 
   echo -e "\n📦 Cloning GitHub repo: \e[36m$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME\e[0m"
-
   local clone_url="https://${SELECTED_REPO_OWNER}:${GITHUB_API_TOKEN}@github.com/${SELECTED_REPO_OWNER}/${SELECTED_REPO_NAME}.git"
 
   if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR"; then
-    echo -e "\n❌ \e[31mFailed to clone repository.\e[0m"
-    echo -e "🔍 Please check your token, access rights, or repository visibility."
+    echo -e "\n❌ \e[31mFailed to clone main repository.\e[0m"
     return 1
   fi
 
-  echo -e "✅ Repo cloned to \e[2m$TMP_CLONE_DIR\e[0m"
+  # Track successful submodules
+  local -a success_modules=()
+  local -a failed_modules=()
+
+  # Rewrite all .gitmodules (recursive)
+  echo -e "\n🔄 Rewriting all submodule URLs for token access..."
+  find "$TMP_CLONE_DIR" -type f -name ".gitmodules" | while read -r modfile; do
+    local moddir
+    moddir=$(dirname "$modfile")
+    sed -i -E "s#https://github.com/#https://${SELECTED_REPO_OWNER}:${GITHUB_API_TOKEN}@github.com/#g" "$modfile" 2>/dev/null
+    git -C "$moddir" submodule sync >/dev/null 2>&1
+  done
+
+  echo -e "🔽 Initializing submodules...\n"
+
+  # Perform recursive init manually and track each module
+  if ! git -C "$TMP_CLONE_DIR" submodule update --init --recursive --quiet; then
+    # Check which modules failed
+    while IFS= read -r path; do
+      if [[ -d "$TMP_CLONE_DIR/$path" ]]; then
+        success_modules+=("$path")
+      else
+        failed_modules+=("$path")
+      fi
+    done < <(git -C "$TMP_CLONE_DIR" config --file "$TMP_CLONE_DIR/.gitmodules" --get-regexp path | awk '{print $2}')
+  else
+    # All succeeded (recursive)
+    while IFS= read -r path; do
+      success_modules+=("$path")
+    done < <(git -C "$TMP_CLONE_DIR" config --file "$TMP_CLONE_DIR/.gitmodules" --get-regexp path | awk '{print $2}')
+  fi
+
+  # Print results
+  if (( ${#success_modules[@]} > 0 )); then
+    echo -e "✅ \e[1mSuccessfully cloned submodules:\e[0m"
+    for m in "${success_modules[@]}"; do
+      echo -e "   ✔️  \e[36m$m\e[0m"
+    done
+  fi
+
+  if (( ${#failed_modules[@]} > 0 )); then
+    echo -e "\n❌ \e[1;31mFailed to clone submodules:\e[0m"
+    for m in "${failed_modules[@]}"; do
+      echo -e "   ❌ \e[33m$m\e[0m"
+    done
+    return 1
+  fi
+
+  echo -e "\n✅ Repo cloned to \e[2m$TMP_CLONE_DIR\e[0m (including all submodules)"
   return 0
 }
 
