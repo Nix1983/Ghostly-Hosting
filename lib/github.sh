@@ -67,7 +67,7 @@ load_github_repositories() {
 
 # Clones the selected GitHub repository including all nested submodules (with token)
 clone_repository() {
-  TMP_CLONE_DIR="/tmp/clone-${SELECTED_REPO_NAME}"
+  TMP_CLONE_DIR="/tmp-clone/${SELECTED_REPO_NAME}"
   export TMP_CLONE_DIR
 
   if [[ -d "$TMP_CLONE_DIR" ]]; then

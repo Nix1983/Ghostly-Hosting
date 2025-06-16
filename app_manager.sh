@@ -21,6 +21,14 @@ add_new_app() {
   select_github_repository || return 1
   clone_repository || return 1
 
+  detect_required_dotnet_versions || return 1
+  install_dotnet_version || return 1
+  publish_dotnet_project || return 1
+
+  deploy_to_nodomain_folder || return 1
+  cleanup_temp_folders || return 1
+
+  read -rsn1 -p "$(print_press_any_key)"
   # Weitere Schritte hier...
 }
 
@@ -121,6 +129,7 @@ show_app_manager_menu() {
       1)
         if ! add_new_app; then
           echo -e "\n❌ App deployment aborted."
+          cleanup_temp_folders
           read -rsn1 -p "$(print_press_any_key)"
         fi
         echo ""
