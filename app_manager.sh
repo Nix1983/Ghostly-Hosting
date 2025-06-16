@@ -15,7 +15,15 @@ source ./lib/nginx.sh
 
 
 add_new_app() {
+  show_app_deployment_requirements || return 1
+
+  get_server_ip
   load_env || return 1
+
+  select_cloudflare_zone_and_domain || return 1
+  setup_cloudflare_dns_for_blazor || return 1
+  run_certbot_workflow || return 1
+
   check_github_env_vars || return 1
   load_github_repositories || return 1
   select_github_repository || return 1
@@ -25,8 +33,12 @@ add_new_app() {
   install_dotnet_version || return 1
   publish_dotnet_project || return 1
 
-  deploy_to_nodomain_folder || return 1
+  deploy_to_domain_folder || return 1
   cleanup_temp_folders || return 1
+
+  create_kestrel_service || return 1
+
+  setup_nginx_for_blazor_app || return 1
 
   read -rsn1 -p "$(print_press_any_key)"
   # Weitere Schritte hier...
@@ -105,8 +117,6 @@ list_blazor_apps_clean() {
     return 1
   fi
 }
-
-
 
 show_app_manager_menu() {
   local choice

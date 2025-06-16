@@ -34,6 +34,49 @@ install_dotnet_version() {
   return 0
 }
 
+show_app_deployment_requirements() {
+  clear
+  echo -e "\n📋 \e[1;34mRequirements for Deploying a New App\e[0m"
+  echo "═════════════════════════════════════════════════════════════════════════════"
+
+  echo -e "🔐 \e[1mGitHub Access\e[0m"
+  echo -e "   • GitHub repository with your app source code"
+  echo -e "   • GitHub Personal Access Token with at least:"
+  echo -e "     → \e[36mrepo\e[0m (to read the repository)"
+  echo
+
+  echo -e "🌐 \e[1mDomain & DNS (Cloudflare)\e[0m"
+  echo -e "   • Domain managed by Cloudflare"
+  echo -e "   • Cloudflare Zone ID and API Token with:"
+  echo -e "     → \e[36mZone:DNS:Edit\e[0m (for DNS automation)"
+  echo
+
+  echo -e "🛠️ \e[1mSupported Frameworks\e[0m"
+  echo -e "   • .NET SDK installed (6.0, 7.0, 8.0, 9.0)"
+  echo -e "   • Supported project types:"
+  echo -e "     → \e[32mBlazor Server\e[0m"
+  echo -e "     → \e[32mASP.NET Core Web App\e[0m (MVC / Razor Pages)"
+  echo
+
+  echo -e "📁 \e[1mStructure Expectations\e[0m"
+  echo -e "   • Must include a valid \e[36m.csproj\e[0m file"
+  echo -e "   • Must compile using: \e[36mdotnet publish\e[0m"
+  echo -e "   • Must produce an executable DLL file"
+  echo
+
+  echo "═════════════════════════════════════════════════════════════════════════════"
+  echo -e "❓ Would you like to continue with deployment?\n"
+  echo -e "1) ✅ Yes, proceed to app selection        2) 🔙 No, return to main menu"
+
+  read -n1 -r -p $'\nSelect [1–2]: ' choice
+  echo  # for clean line break after key press
+  case "$choice" in
+    1) return 0 ;;
+    2) return 1 ;;
+    *) return 1 ;;
+  esac
+}
+
 detect_required_dotnet_versions() {
   local dir="${TMP_CLONE_DIR:-.}"
   local main_project=""
@@ -240,35 +283,57 @@ publish_dotnet_project() {
   return 0
 }
 
-deploy_to_nodomain_folder() {
-  local base_dir="/var/www/nodomain"
-  local target_dir="$base_dir/$SELECTED_REPO_NAME"
+deploy_to_domain_folder() {
+  local folder_name
+  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
+    folder_name="$DOMAIN/root"
+  else
+    local subdomain="${HOSTNAME_FQDN%%.$DOMAIN}"
+    folder_name="$DOMAIN/$subdomain"
+  fi
+
+  local base_dir="/var/www"
+  local target_dir="$base_dir/$folder_name"
   export PUBLISH_DIR="$target_dir"
 
   mkdir -p "$base_dir"
 
-  # Check if target already exists
   if [[ -d "$target_dir" ]]; then
-    echo -e "\n⚠️  Deployment folder already exists: \e[2m$target_dir\e[0m"
-    echo -e "  This may overwrite a currently running app.\n"
-    echo -e " 1) 🛑 Stop service and overwrite"
-    echo -e " 2) 🚫 Cancel deployment"
-    echo -ne "\n❓ Your choice [1–2]: "
-    read -r choice
+    echo -e "\n⚠️  \e[33mDeployment folder already exists:\e[0m \e[2m$target_dir\e[0m"
+    echo -e "   This may overwrite an existing app and its services.\n"
+    echo -e "1) 🗑️  Delete and redeploy"
+    echo -e "2) 🔙 Cancel deployment"
+
+    read -rsn1 -p $'\n❓ Your choice [1–2]: ' choice
+    echo
 
     if [[ "$choice" != "1" ]]; then
       echo -e "\n↩️  Deployment cancelled by user."
       return 1
     fi
 
-    # Stop systemd service if it exists
-    local service="blazor-${SELECTED_REPO_NAME}.service"
-    if systemctl list-units --type=service | grep -q "$service"; then
-      echo -e "\n🛑 Stopping service: \e[36m$service\e[0m"
-      systemctl stop "$service"
+    echo -e "\n🛑 \e[1mStopping and removing related services...\e[0m"
+    local escaped_folder
+    escaped_folder=$(echo "$folder_name" | sed 's/\//-/g')
+    local service_name="blazor-${escaped_folder}.service"
+    local service_path="/etc/systemd/system/$service_name"
+
+    if systemctl list-units --type=service | grep -q "$service_name"; then
+      echo -e "   ⏹️  Stopping: \e[36m$service_name\e[0m"
+      systemctl stop "$service_name"
     fi
 
-    echo -e "\n♻️  Removing existing directory: \e[2m$target_dir\e[0m"
+    if systemctl is-enabled "$service_name" &>/dev/null; then
+      echo -e "   ❌ Disabling: \e[36m$service_name\e[0m"
+      systemctl disable "$service_name" &>/dev/null
+    fi
+
+    if [[ -f "$service_path" ]]; then
+      echo -e "   🧹 Removing: \e[36m$service_path\e[0m"
+      rm -f "$service_path"
+    fi
+
+    echo -e "\n♻️  Removing old deployment folder: \e[2m$target_dir\e[0m"
     rm -rf "$target_dir"
   fi
 
@@ -281,14 +346,6 @@ deploy_to_nodomain_folder() {
   fi
 
   echo -e "✅ Files successfully copied to: \e[2m$target_dir\e[0m"
-
-  # Restart service if it was previously installed
-  local service="blazor-${SELECTED_REPO_NAME}.service"
-  if systemctl list-unit-files | grep -q "$service"; then
-    echo -e "🔁 Restarting service: \e[36m$service\e[0m"
-    systemctl start "$service"
-  fi
-
   return 0
 }
 
@@ -313,7 +370,6 @@ cleanup_temp_folders() {
 
   echo -e "✅ Temporary files cleaned up."
 }
-
 
 find_dotnet_executable_dll() {
   local publish_dir="$1"
@@ -416,102 +472,85 @@ show_dotnet_version_menu() {
   done
 }
 
-finalize_blazor_deployment() {
-  if [[ -z "$HOSTNAME_FQDN" || -z "$DOMAIN" || -z "$TMP_PUBLISH_DIR" ]]; then
-    echo "❌ Required environment variables missing (HOSTNAME_FQDN, DOMAIN, TMP_PUBLISH_DIR)." >&2
+create_kestrel_service() {
+  # 🌍 Globale Variablen für spätere Verwendung (z. B. nginx)
+  declare -g KESTREL_PORT=""
+  declare -g SERVICE_NAME=""
+  declare -g SERVICE_PATH=""
+  declare -g DOTNET_DLL=""
+
+  # 🔢 Freien Port suchen
+  for port in {5000..5099}; do
+    if ! lsof -i:"$port" &>/dev/null; then
+      KESTREL_PORT="$port"
+      break
+    fi
+  done
+
+  if [[ -z "$KESTREL_PORT" ]]; then
+    echo -e "\n❌ \033[31mNo available port in range 5000–5099.\033[0m"
     return 1
   fi
 
-  local domain="$DOMAIN"
-  local subfolder service_name target_path
-  service_name="blazor-${HOSTNAME_FQDN//./-}.service"
+  # 🆔 Servicename generieren
+  local escaped_folder
+  escaped_folder=$(echo "$DOMAIN/${HOSTNAME_FQDN/#$DOMAIN/root}" | sed 's/\//-/g')
+  SERVICE_NAME="blazor-${escaped_folder}.service"
+  SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
 
-  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
-    subfolder="root"
-  else
-    subfolder="${HOSTNAME_FQDN%%.*}"
-  fi
+  # 🛑 Vorhandenen Dienst prüfen/löschen
+  if systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
+    echo -e "\n♻️  \033[33mReplacing existing service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
-  target_path="/var/www/$domain/$subfolder"
-  export PUBLISH_DIR="$target_path"
+    echo -e "   ⏹️  Stopping service..."
+    systemctl stop "$SERVICE_NAME" || true
 
-  echo "📁 Target path: $target_path"
+    echo -e "   ❌ Disabling service..."
+    systemctl disable "$SERVICE_NAME" &>/dev/null || true
 
-  if systemctl list-unit-files | grep -q "^$service_name"; then
-    if systemctl is-active --quiet "$service_name"; then
-      echo "⏹️ Stopping existing service: $service_name"
-      systemctl stop "$service_name"
+    if [[ -f "$SERVICE_PATH" ]]; then
+      echo -e "   🧹 Removing: \033[2m$SERVICE_PATH\033[0m"
+      rm -f "$SERVICE_PATH"
     fi
   fi
 
-  if [[ -d "$target_path" ]]; then
-    echo "🧹 Removing existing app folder..."
-    rm -rf "$target_path"
-  fi
-
-  echo "📂 Copying app to $target_path"
-  mkdir -p "$target_path"
-  cp -r "$TMP_PUBLISH_DIR"/* "$target_path"/ || {
-    echo "❌ Failed to copy files to $target_path" >&2
-    return 1
-  }
-
-  DLL_NAME=$(find_dotnet_executable_dll "$target_path") || return 1
-  export DLL_NAME
-
-  echo "✅ App copied and DLL detected: $DLL_NAME"
-}
-
-create_and_start_blazor_service() {
-  local fqdn="$HOSTNAME_FQDN"
-  local port="$KESTREL_PORT"
-  local publish_dir="$PUBLISH_DIR"
-  local dll_name="$DLL_NAME"
-  local service_name="blazor-${fqdn//./-}.service"
-  local service_path="/etc/systemd/system/$service_name"
-
-  if [[ -z "$fqdn" || -z "$port" || -z "$publish_dir" || -z "$dll_name" ]]; then
-    echo "❌ Missing required values (fqdn, port, publish_dir, dll_name)" >&2
+  # 🧪 Executable DLL finden
+  DOTNET_DLL=$(find_dotnet_executable_dll "$PUBLISH_DIR")
+  if [[ -z "$DOTNET_DLL" ]]; then
+    echo -e "\n❌ \033[31mCould not detect main .dll in: $PUBLISH_DIR\033[0m"
     return 1
   fi
 
-  echo -e "\n⚙️  Creating systemd service: \033[1;36m$service_name\033[0m"
+  # ⚙️ Service erstellen
+  echo -e "\n⚙️  \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
   {
     echo "[Unit]"
-    echo "Description=Blazor App for $fqdn"
+    echo "Description=Blazor App for $HOSTNAME_FQDN"
     echo "After=network.target"
-    echo ""
+    echo
     echo "[Service]"
-    echo "WorkingDirectory=$publish_dir"
-    echo "ExecStart=/opt/dotnet/dotnet $publish_dir/$dll_name"
+    echo "WorkingDirectory=$PUBLISH_DIR"
+    echo "ExecStart=/opt/dotnet/dotnet $PUBLISH_DIR/$DOTNET_DLL --urls=http://0.0.0.0:$KESTREL_PORT"
     echo "Restart=always"
     echo "RestartSec=10"
-    echo "KillSignal=SIGINT"
-    echo "SyslogIdentifier=blazor-$fqdn"
-    echo "Environment=ASPNETCORE_URLS=http://localhost:$port"
-    echo "Environment=DOTNET_RUNNING_IN_CONTAINER=false"
-    echo "Environment=DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false"
-    echo ""
+    echo "SyslogIdentifier=blazor-$HOSTNAME_FQDN"
+    echo "User=www-data"
+    echo "Environment=ASPNETCORE_URLS=http://0.0.0.0:$KESTREL_PORT"
+    echo "Environment=DOTNET_ENVIRONMENT=Production"
+    echo
     echo "[Install]"
     echo "WantedBy=multi-user.target"
-  } | tee "$service_path" >/dev/null
+  } > "$SERVICE_PATH"
 
-  echo "🔄 Reloading systemd daemon..."
+  chmod 644 "$SERVICE_PATH"
   systemctl daemon-reexec
   systemctl daemon-reload
+  systemctl enable "$SERVICE_NAME"
+  systemctl start "$SERVICE_NAME"
 
-  echo "🔒 Enabling and starting $service_name..."
-  systemctl enable "$service_name"
-  systemctl start "$service_name"
-
-  if systemctl is-active --quiet "$service_name"; then
-    echo "✅ Service $service_name started successfully."
-  else
-    echo "❌ Failed to start service $service_name." >&2
-    journalctl -u "$service_name" --no-pager -n 20
-    return 1
-  fi
+  echo -e "✅ \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
 }
+
 
 

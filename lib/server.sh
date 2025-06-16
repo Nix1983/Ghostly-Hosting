@@ -128,7 +128,6 @@ show_server_health() {
   echo ""
 }
 
-
 check_and_offer_reboot() {
   if [[ -f /var/run/reboot-required ]]; then
     echo -e "🔁 Reboot required: \e[1;31mYES\e[0m"
