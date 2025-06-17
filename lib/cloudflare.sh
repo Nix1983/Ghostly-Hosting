@@ -202,24 +202,13 @@ setup_cloudflare_dns_for_blazor() {
     fi
   done
 
-  if [[ -z "$SERVER_IPv4" ]]; then
-    SERVER_IPv4=$(curl -s -4 https://api.ipify.org)
-    [[ -n "$SERVER_IPv4" ]] && printf "📡 Detected IPv4: \033[36m%s\033[0m\n" "$SERVER_IPv4"
-  fi
-
-  if [[ -z "$SERVER_IPv6" ]]; then
-    SERVER_IPv6=$(curl -s -6 https://api64.ipify.org)
-    [[ -n "$SERVER_IPv6" ]] && printf "📡 Detected IPv6: \033[35m%s\033[0m\n" "$SERVER_IPv6"
-  fi
-
-
   printf "\n☁️  \033[1mCloudflare DNS Setup for Blazor Hosting\033[0m\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   # Ask about proxy usage
   printf "\n🌐 \033[1mCloudflare Proxy-Modus\033[0m\n"
-  printf "   ➤ \033[32mEnabled\033[0m: Traffic is routed via Cloudflare (faster, safer, hides server IP)\n"
-  printf "   ➤ \033[33mDisabled\033[0m: Direct traffic to your server (better for debugging or testing)\n"
+  printf "   ➤   \033[32mEnabled\033[0m: Traffic is routed via Cloudflare (faster, safer, hides server IP)\n"
+  printf "   ➤   \033[33mDisabled\033[0m: Direct traffic to your server (better for debugging or testing)\n"
   printf "   ℹ️  For development, it's recommended to \033[33mdisable\033[0m the proxy.\n"
   printf "❓ Enable Cloudflare proxy for A/AAAA records? [Y/n]: "
   IFS= read -rsn1 proxy_choice
@@ -227,23 +216,46 @@ setup_cloudflare_dns_for_blazor() {
   local use_proxy=true
   [[ "$proxy_choice" =~ ^[Nn]$ ]] && use_proxy=false
 
+  echo ""
+  echo "📤 Setting DNS records for \033[36m$HOSTNAME_FQDN\033[0m"
+
   # A record
   _upsert_dns_record "A" "$HOSTNAME_FQDN" "$SERVER_IPv4" "Blazor Hosting A-record" "$use_proxy"
 
-  # Ask about IPv6
-  printf "\n🌍 \033[1mOptional IPv6 Support (AAAA record)\033[0m\n"
-  printf "   ➤ Enables visitors from IPv6-only networks (common in mobile and Asia)\n"
-  printf "   ➤ Makes your app more globally reachable and future-proof\n"
-  printf "   ➤ Needs working public IPv6 on your server\n"
-  printf "   Detected IPv6: \033[35m%s\033[0m\n" "${SERVER_IPv6:-Unavailable}"
-  printf "❓ Add AAAA record with this address? [y/N]: "
-  IFS= read -rsn1 ipv6_choice
-  printf "\n"
-
-  if [[ "$ipv6_choice" =~ ^[Yy]$ && -n "$SERVER_IPv6" ]]; then
+  # AAAA record (optional)
+  if [[ -n "$SERVER_IPv6" ]]; then
     _upsert_dns_record "AAAA" "$HOSTNAME_FQDN" "$SERVER_IPv6" "Blazor Hosting AAAA-record" "$use_proxy"
     export CLOUDFLARE_IPV6_ENABLED=true
   else
-    printf "↪️  Skipped AAAA-record.\n"
+    echo -e "↪️  \033[2mNo IPv6 detected – skipping AAAA record.\033[0m"
   fi
+
+  # DNS Result Übersicht
+  printf "\n🔎 \033[1mVerifying DNS records...\033[0m\n"
+  local response name type content proxied proxy_icon
+
+  for record_type in A AAAA; do
+    response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$HOSTNAME_FQDN" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json")
+
+    if [[ -z "$response" || "$response" == "null" ]]; then
+      printf "❌ \033[31mCould not fetch %s record for %s\033[0m\n" "$record_type" "$HOSTNAME_FQDN"
+      continue
+    fi
+
+    if ! echo "$response" | jq -e '.result | length > 0' >/dev/null; then
+      printf "❌ \033[31mNo %s record found for %s\033[0m\n" "$record_type" "$HOSTNAME_FQDN"
+      continue
+    fi
+
+    echo "$response" | jq -c '.result[]' | while read -r record; do
+      name=$(echo "$record" | jq -r '.name')
+      content=$(echo "$record" | jq -r '.content')
+      proxied=$(echo "$record" | jq -r '.proxied')
+      [[ "$proxied" == "true" ]] && proxy_icon="🔒 via CF" || proxy_icon="➡️ direct"
+      printf "✅ %-5s %-35s → \033[36m%-39s\033[0m [%s]\n" "$record_type" "$name" "$content" "$proxy_icon"
+    done
+  done
 }
+

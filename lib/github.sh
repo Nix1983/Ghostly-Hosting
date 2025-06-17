@@ -148,7 +148,6 @@ select_github_repository() {
   local choice i index1 index2 name1 name2
 
   while true; do
-    clear
     echo -e "\n🐙 \e[1;34mSelect a GitHub Repository\033[0m – for: \e[36m$GITHUB_API_USER\e[0m \e[2m($REPO_TOTAL repositories)\e[0m"
     echo "────────────────────────────────────────────────────────────"
 
