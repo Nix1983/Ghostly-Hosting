@@ -169,7 +169,7 @@ select_github_repository() {
     echo -e "\n─────────────────────────────────────────────────────────────"
     print_select_prompt "$REPO_TOTAL"
     read -r choice
-    [[ "$choice" =~ ^[Qq]$ ]] && return 0
+    [[ "$choice" =~ ^[Qq]$ ]] && return 1
 
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > REPO_TOTAL )); then
       print_invalid_selection
