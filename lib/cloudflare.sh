@@ -57,6 +57,61 @@ _upsert_dns_record() {
   printf "✅ %s-record %s.\n" "$type" "$( [[ -n "$id" ]] && echo "updated" || echo "created" )"
 }
 
+delete_cloudflare_dns_records() {
+  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$ZONE_ID" || -z "$HOSTNAME_FQDN" ]]; then
+    echo -e "❌ \e[31mCannot delete DNS records – required variables missing (CLOUDFLARE_API_TOKEN, ZONE_ID, HOSTNAME_FQDN).\e[0m"
+    return 1
+  fi
+
+  echo -e "\n🧹 \e[1;31mCleaning up Cloudflare DNS entries:\e[0m \e[36m$HOSTNAME_FQDN\e[0m"
+
+  local types=("A" "AAAA")
+  local found_any=false
+
+  for record_type in "${types[@]}"; do
+    local dns_response
+    dns_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$HOSTNAME_FQDN" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json")
+
+    if [[ -z "$dns_response" || "$dns_response" == "null" ]]; then
+      echo -e "❌ \e[31mFailed to fetch $record_type records for $HOSTNAME_FQDN\033[0m"
+      continue
+    fi
+
+    local count; count=$(echo "$dns_response" | jq '.result | length')
+    if [[ "$count" == "0" ]]; then
+      continue
+    fi
+
+    found_any=true
+
+    echo "$dns_response" | jq -c '.result[]' | while read -r record; do
+      local record_id record_content
+      record_id=$(echo "$record" | jq -r '.id')
+      record_content=$(echo "$record" | jq -r '.content')
+
+      printf "❌ Deleting %-4s → \033[36m%-39s\033[0m ... " "$record_type" "$record_content"
+
+      curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
+        -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        -H "Content-Type: application/json" > /dev/null
+
+      if [[ $? -eq 0 ]]; then
+        echo -e "\e[32m✅ done\e[0m"
+      else
+        echo -e "\e[31m❌ failed\e[0m"
+      fi
+    done
+  done
+
+  if [[ "$found_any" == false ]]; then
+    echo -e "ℹ️  No A/AAAA DNS records found for \e[2m$HOSTNAME_FQDN\e[0m — skipping."
+  else
+    echo -e "✅ \e[1;32mCloudflare DNS cleanup completed.\e[0m"
+  fi
+}
+
 select_cloudflare_zone_and_domain() {
   _check_cloudflare_env_vars
 

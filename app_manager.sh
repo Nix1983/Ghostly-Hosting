@@ -11,8 +11,6 @@ source ./lib/certbot.sh
 source ./lib/dotnet.sh
 source ./lib/nginx.sh
 
-# ...
-
 
 add_new_app() {
   show_app_deployment_requirements || return 1
@@ -41,7 +39,6 @@ add_new_app() {
   setup_nginx_for_blazor_app || return 1
 
   read -rsn1 -p "$(print_press_any_key)"
-  # Weitere Schritte hier...
 }
 
 
@@ -140,6 +137,8 @@ show_app_manager_menu() {
         if ! add_new_app; then
           echo -e "\n❌ App deployment aborted."
           cleanup_temp_folders
+          delete_certbot_certificate
+          delete_cloudflare_dns_records
           read -rsn1 -p "$(print_press_any_key)"
         fi
         echo ""

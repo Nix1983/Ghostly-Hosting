@@ -86,6 +86,36 @@ _obtain_or_verify_certificate() {
   fi
 }
 
+delete_certbot_certificate() {
+  if [[ -z "$HOSTNAME_FQDN" ]]; then
+    echo -e "❌ \e[31mCannot delete certificate – HOSTNAME_FQDN is not set.\e[0m"
+    return 1
+  fi
+
+  if ! command -v certbot >/dev/null 2>&1; then
+    echo -e "❌ \e[31mCertbot is not installed.\e[0m"
+    return 1
+  fi
+
+  local cert_name="$HOSTNAME_FQDN"
+  local cert_path="/etc/letsencrypt/live/$cert_name"
+
+  if [[ ! -d "$cert_path" ]]; then
+    echo -e "ℹ️  No certificate found for: \e[2m$cert_name\e[0m — skipping."
+    return 0
+  fi
+
+  echo -e "\n🧹 \e[1;31mDeleting Let's Encrypt certificate:\e[0m \e[36m$cert_name\e[0m"
+
+  if certbot delete --cert-name "$cert_name" --non-interactive --quiet; then
+    echo -e "✅ \e[32mCertificate successfully deleted.\e[0m"
+  else
+    echo -e "❌ \e[31mFailed to delete certificate.\e[0m"
+    return 1
+  fi
+}
+
+
 
 run_certbot_workflow() {
   _ensure_certbot_installed
@@ -178,3 +208,4 @@ check_certbot_status() {
   echo -e "💡 \e[2mTip:\e[0m Use: \e[2mopenssl x509 -in cert.pem -noout -dates\e[0m"
   echo ""
 }
+
