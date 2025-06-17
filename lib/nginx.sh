@@ -87,6 +87,5 @@ setup_nginx_for_blazor_app() {
   install_nginx_if_missing
   create_nginx_config || return 1
 
-  echo -e "\n🌐 \033[1mBlazor App is now accessible at:\033[0m"
-  echo -e "🔗 \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
+  echo -e "\n🌐 \033[1mBlazor App is now accessible at:\033[0m 🔗 \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
 }

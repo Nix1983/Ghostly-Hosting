@@ -473,13 +473,11 @@ show_dotnet_version_menu() {
 }
 
 create_kestrel_service() {
-  # 🌍 Globale Variablen für spätere Verwendung (z. B. nginx)
   declare -g KESTREL_PORT=""
   declare -g SERVICE_NAME=""
   declare -g SERVICE_PATH=""
   declare -g DOTNET_DLL=""
 
-  # 🔢 Freien Port suchen
   for port in {5000..5099}; do
     if ! lsof -i:"$port" &>/dev/null; then
       KESTREL_PORT="$port"
@@ -492,13 +490,16 @@ create_kestrel_service() {
     return 1
   fi
 
-  # 🆔 Servicename generieren
-  local escaped_folder
-  escaped_folder=$(echo "$DOMAIN/${HOSTNAME_FQDN/#$DOMAIN/root}" | sed 's/\//-/g')
-  SERVICE_NAME="blazor-${escaped_folder}.service"
+  local name_base
+  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
+    name_base="${DOMAIN//./-}"
+  else
+    local sub="${HOSTNAME_FQDN%.$DOMAIN}"
+    name_base="${sub//./-}-${DOMAIN//./-}"
+  fi
+  SERVICE_NAME="${name_base}-$KESTREL_PORT.service"
   SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
 
-  # 🛑 Vorhandenen Dienst prüfen/löschen
   if systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
     echo -e "\n♻️  \033[33mReplacing existing service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
@@ -514,14 +515,12 @@ create_kestrel_service() {
     fi
   fi
 
-  # 🧪 Executable DLL finden
   DOTNET_DLL=$(find_dotnet_executable_dll "$PUBLISH_DIR")
   if [[ -z "$DOTNET_DLL" ]]; then
     echo -e "\n❌ \033[31mCould not detect main .dll in: $PUBLISH_DIR\033[0m"
     return 1
   fi
 
-  # ⚙️ Service erstellen
   echo -e "\n⚙️  \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
   {
@@ -534,7 +533,7 @@ create_kestrel_service() {
     echo "ExecStart=/opt/dotnet/dotnet $PUBLISH_DIR/$DOTNET_DLL --urls=http://0.0.0.0:$KESTREL_PORT"
     echo "Restart=always"
     echo "RestartSec=10"
-    echo "SyslogIdentifier=blazor-$HOSTNAME_FQDN"
+    echo "SyslogIdentifier=${name_base}"
     echo "User=www-data"
     echo "Environment=ASPNETCORE_URLS=http://0.0.0.0:$KESTREL_PORT"
     echo "Environment=DOTNET_ENVIRONMENT=Production"
@@ -551,6 +550,7 @@ create_kestrel_service() {
 
   echo -e "✅ \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
 }
+
 
 
 
