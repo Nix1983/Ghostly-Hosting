@@ -130,19 +130,33 @@ show_server_health() {
 
 check_and_offer_reboot() {
   if [[ -f /var/run/reboot-required ]]; then
-    echo -e "🔁 Reboot required: \e[1;31mYES\e[0m"
-    echo -e "\n❓ \e[1mDo you want to reboot now?\e[0m"
-    read -rp $'\n🔁 Reboot system now? [y/N]: ' answer
-    if [[ "$answer" =~ ^[Yy]$ ]]; then
-      echo -e "\n⚠️  \e[33mImportant:\e[0m You will lose the SSH connection during reboot."
-      echo -e "⏳ Please wait about \e[36m60 seconds\e[0m and reconnect manually if needed."
-      echo -e "\n♻️ Rebooting system..."
-      sleep 2
-      reboot
-      exit 0
-    else
-      echo -e "\n↪️  Reboot skipped. You can run \e[36mreboot\e[0m later manually."
-    fi
+    echo -e "\n🔁 \e[1;31mReboot required\e[0m"
+    echo -e "\n⚠️  \e[1mYour system requires a reboot to complete updates.\e[0m"
+    echo -e "   🔌 SSH connection will be lost temporarily during reboot."
+    echo -e "   ⏳ Wait ~\e[36m60 seconds\e[0m and reconnect manually after reboot."
+
+    echo -e "\n❓ \e[1mWhat do you want to do?\e[0m"
+    echo "────────────────────────────────────────────────────────────"
+    echo -e " 1) ♻️  Reboot now    2) ⏭️  Skip reboot (you can run \e[36mreboot\e[0m manually later)"
+    echo "────────────────────────────────────────────────────────────"
+    echo -n "Select [1–2]: "
+    IFS= read -rsn1 answer
+    echo ""
+
+    case "$answer" in
+      1)
+        echo -e "\n♻️  Rebooting system..."
+        sleep 2
+        reboot
+        exit 0
+        ;;
+      2)
+        echo -e "\n↪️  Reboot skipped. You can run \e[36mreboot\e[0m manually at any time."
+        ;;
+      *)
+        echo -e "\n❌ Invalid selection. Reboot skipped."
+        ;;
+    esac
   else
     echo -e "🔁 Reboot required: \e[1;32mNo\e[0m"
   fi
@@ -421,5 +435,3 @@ ensure_server_initialized() {
       ;;
   esac
 }
-
-

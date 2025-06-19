@@ -151,12 +151,13 @@ select_cloudflare_zone_and_domain() {
     read -r selection
     printf "\n"
 
-    local selected="${zone_map[$selection]}"
-    if [[ -z "$selected" ]]; then
+    if ! [[ "$selection" =~ ^[0-9]+$ ]] || [[ -z "${zone_map[$selection]+x}" ]]; then
       printf "⚠️  \033[33mInvalid selection.\033[0m Please try again.\n"
       sleep 1
       continue
     fi
+
+    local selected="${zone_map[$selection]}"
 
     DOMAIN="${selected%%:*}"
     ZONE_ID="${selected##*:}"

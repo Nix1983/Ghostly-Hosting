@@ -6,6 +6,9 @@ set -e
 declare -g DOTNET_Version=""
 declare -g TMP_PUBLISH_DIR=""
 
+# Supported major versions (must match the beginning of TargetFramework)
+declare -ag SUPPORTED_DOTNET_VERSIONS=("6.0" "7.0" "8.0" "9.0")
+
 install_dotnet_version() {
   local install_dir="/opt/dotnet"
 
@@ -52,7 +55,7 @@ show_app_deployment_requirements() {
   echo
 
   echo -e "🛠️ \e[1mSupported Frameworks\e[0m"
-  echo -e "   • .NET SDK (6.0, 7.0, 8.0, 9.0)"
+  echo -e "   • .NET SDK (${SUPPORTED_DOTNET_VERSIONS[*]})"
   echo -e "   • Supported project types:"
   echo -e "     → \e[32mBlazor Server\e[0m"
   echo -e "     → \e[32mASP.NET Core Web App\e[0m (MVC / Razor Pages)"
@@ -87,32 +90,30 @@ detect_required_dotnet_versions() {
     return 1
   fi
 
-  # Step 1: Check for .sln and try to extract first project
+  # Step 1: Check for .sln and try to extract first .csproj
   local sln
   sln=$(find "$dir" -maxdepth 1 -name "*.sln" | head -n 1)
 
   if [[ -n "$sln" ]]; then
     echo -e "\n📘 Found solution file: \e[2m${sln##*/}\e[0m"
-
     main_project=$(grep -oE '[^"]+\.csproj' "$sln" | head -n 1)
     main_project="$dir/$main_project"
   fi
 
-  # Step 2: If no .sln or no .csproj found, fallback to first .csproj in root
+  # Step 2: If no .csproj from solution, fallback to first .csproj in repo
   if [[ ! -f "$main_project" ]]; then
     main_project=$(find "$dir" -maxdepth 2 -name "*.csproj" | head -n 1)
   fi
-  
+
   if [[ ! -f "$main_project" ]]; then
     echo -e "\n❌ \e[31mNo project file (.csproj) found in the repository.\e[0m"
-    echo -e "⚠️ This does not appear to be a .NET project and is currently not supported."
+    echo -e "⚠️  This does not appear to be a valid .NET project."
     return 1
   fi
 
-
   echo -e "📄 Main project: \e[36m${main_project#"$dir"/}\e[0m"
 
-  # Extract TargetFramework(s)
+  # Step 3: Extract TargetFramework(s)
   local tf_raw
   tf_raw=$(grep -oE '<TargetFrameworks?>[^<]+' "$main_project" | sed -E 's/<[^>]+>//g' | tr ';' '\n')
 
@@ -121,11 +122,16 @@ detect_required_dotnet_versions() {
     return 1
   fi
 
-  # Pick highest version
+  # Step 4: Parse usable versions
   local candidates=()
-  while IFS= read -r v; do
+  while IFS= read -r line; do
+    local tf="$line"
+    # Accept formats like net8, net8.0, net7.0-windows etc.
     local basever
-    basever=$(echo "$v" | grep -oE '[0-9]+\.[0-9]+' || true)
+    basever=$(echo "$tf" | grep -oE 'net([0-9]+)(\.0)?' | sed -E 's/^net//;s/\.0$//')
+    case "$basever" in
+      [6-9]) basever="$basever.0" ;;
+    esac
     [[ -n "$basever" ]] && candidates+=("$basever")
   done <<< "$tf_raw"
 
@@ -134,11 +140,27 @@ detect_required_dotnet_versions() {
     return 1
   fi
 
-  # Sort and pick highest
   mapfile -t candidates < <(printf "%s\n" "${candidates[@]}" | sort -Vu)
   version="${candidates[-1]}"
 
-  # Output + export
+  # Step 5: Validate against supported versions
+  local is_supported=false
+  for supported in "${SUPPORTED_DOTNET_VERSIONS[@]:-6.0 7.0 8.0 9.0}"; do
+    if [[ "$version" == "$supported" ]]; then
+      is_supported=true
+      break
+    fi
+  done
+
+  if [[ "$is_supported" == false ]]; then
+    echo -e "\n❌ \e[1;31mUnsupported .NET version detected:\e[0m \e[36m$version\e[0m"
+    echo -e "✅ Supported versions are:"
+    for ver in "${SUPPORTED_DOTNET_VERSIONS[@]:-6.0 7.0 8.0 9.0}"; do
+      echo -e "   • \e[32m$ver\e[0m"
+    done
+    return 1
+  fi
+
   echo -e "\n🔍 Required .NET SDK version: \e[36m$version\e[0m"
   DOTNET_Version="$version"
   export DOTNET_Version
@@ -146,6 +168,7 @@ detect_required_dotnet_versions() {
   export MAIN_PROJECT_FILE
   return 0
 }
+
 
 delete_dotnet_version() {
   local install_dir="/opt/dotnet/sdk"
@@ -419,15 +442,14 @@ check_apps_using_sdk() {
 
 show_dotnet_version_menu() {
   local install_dir="/opt/dotnet"
-  local versions=("6.0" "7.0" "8.0" "9.0")
 
   while true; do
     clear
     echo -e "\n🧰 \e[1;34m.NET SDK Management\e[0m"
     echo "═════════════════════════════════════════════════════════════════════════════════"
 
-    for i in "${!versions[@]}"; do
-      local ver="${versions[$i]}"
+    for i in "${!SUPPORTED_DOTNET_VERSIONS[@]}"; do
+      local ver="${SUPPORTED_DOTNET_VERSIONS[$i]}"
       local status="➕  Not installed"
       local used="➕ Not used"
       local disk="–       "
@@ -449,7 +471,7 @@ show_dotnet_version_menu() {
 
     echo -e "\n d) 🗑️  Delete version     q) 🔙 Back to main menu"
     echo "───────────────────────────────────────────────────────────────────────────────"
-    printf "Install version [1–%d], delete [d], or quit [q]: " "${#versions[@]}"
+    printf "Install version [1–%d], delete [d], or quit [q]: " "${#SUPPORTED_DOTNET_VERSIONS[@]}"
     IFS= read -rsn1 choice
     echo ""
 
@@ -457,8 +479,8 @@ show_dotnet_version_menu() {
       q|Q) return ;;
       d|D) delete_dotnet_version ;;
       [1-9])
-        if (( choice >= 1 && choice <= ${#versions[@]} )); then
-          DOTNET_Version="${versions[$((choice - 1))]}"
+        if (( choice >= 1 && choice <= ${#SUPPORTED_DOTNET_VERSIONS[@]} )); then
+          DOTNET_Version="${SUPPORTED_DOTNET_VERSIONS[$((choice - 1))]}"
           export DOTNET_Version
           install_dotnet_version
           read -rsn1 -p $'\n✅ Done. Press any key to return...' _
@@ -550,7 +572,3 @@ create_kestrel_service() {
 
   echo -e "✅ \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
 }
-
-
-
-

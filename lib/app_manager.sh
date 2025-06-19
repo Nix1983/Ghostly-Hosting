@@ -12,35 +12,42 @@ source ./lib/dotnet.sh
 source ./lib/nginx.sh
 
 
-add_new_app() {
+rollback_app_deployment() {
+  cleanup_temp_folders
+  delete_certbot_certificate
+  delete_cloudflare_dns_records
+}
 
+add_new_app() {
   ensure_server_initialized || return 2
   show_app_deployment_requirements || return 2
+
   get_server_ip
   load_env || return 1
 
-  select_cloudflare_zone_and_domain || return 1
-  setup_cloudflare_dns_for_blazor || return 1
-  run_certbot_workflow || return 1
+  select_cloudflare_zone_and_domain || return 2
 
-  check_github_env_vars || return 1
-  load_github_repositories || return 1
-  select_github_repository || return 1
+  check_github_env_vars || return 2
+  load_github_repositories || return 2
+  select_github_repository || return 2
   clone_repository || return 1
 
   detect_required_dotnet_versions || return 1
   install_dotnet_version || return 1
   publish_dotnet_project || return 1
 
+  setup_cloudflare_dns_for_blazor || return 1
+  run_certbot_workflow || return 1
+
   deploy_to_domain_folder || return 1
   cleanup_temp_folders || return 1
 
   create_kestrel_service || return 1
-
   setup_nginx_for_blazor_app || return 1
 
   read -rsn1 -p "$(print_press_any_key)"
 }
+
 
 list_hosted_apps() {
   local index=1
@@ -139,19 +146,14 @@ show_app_manager_menu() {
 
     case "$choice" in
       1)
-        if ! add_new_app; then
-          local exit_code=$?
+        add_new_app
+        local exit_code=$?
 
+        if [[ "$exit_code" -ne 0 ]]; then
           echo -e "\n❌ App deployment aborted."
-          if [[ "$exit_code" -eq 1 ]]; then
-            cleanup_temp_folders
-            delete_certbot_certificate
-            delete_cloudflare_dns_records
-          fi
-
+          [[ "$exit_code" -eq 1 ]] && rollback_app_deployment
           read -rsn1 -p "$(print_press_any_key)"
         fi
-        echo ""
         ;;
       2)
         list_hosted_apps
