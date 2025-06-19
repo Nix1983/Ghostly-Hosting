@@ -229,7 +229,7 @@ init_server() {
     echo "✅ Nginx is already installed."
   fi
 
-  echo -e "\n▶️ \e[1mEnabling and starting Nginx...\e[0m"
+  echo -e "\n🔌 \e[1mEnabling and starting Nginx...\e[0m"
   systemctl enable nginx >/dev/null 2>&1
   systemctl start nginx >/dev/null 2>&1 && echo "✅ Nginx service is running." || echo "❌ Failed to start Nginx."
 
@@ -364,3 +364,62 @@ reset_server() {
   echo "═════════════════════════════════════════════════════════════"
   read -rsn1 -p $'\n↩️  Press any key to return to menu...'
 }
+
+ensure_server_initialized() {
+  local missing=()
+
+  # 🔍 Check for required system components
+  command -v nginx >/dev/null 2>&1            || missing+=("🌐 Nginx (Reverse Proxy)")
+  command -v fail2ban-client >/dev/null 2>&1  || missing+=("🛡️ Fail2Ban (SSH protection)")
+  command -v certbot >/dev/null 2>&1          || missing+=("🔒 Certbot (HTTPS / Let's Encrypt)")
+  command -v git >/dev/null 2>&1              || missing+=("🔧 Git (for deployments)")
+  [[ -f /swapfile ]]                          || missing+=("📦 Swap file")
+
+  if (( ${#missing[@]} == 0 )); then
+    return 0
+  fi
+
+  clear
+  echo -e "\n⚠️  \e[1;31mServer is not yet initialized for .NET App Hosting.\e[0m"
+  echo -e "\nThe following components are missing:"
+  echo "────────────────────────────────────────────"
+  for item in "${missing[@]}"; do
+    echo " ❌ $item"
+  done
+  echo "────────────────────────────────────────────"
+
+  echo -e "\n🔧 \e[1mThe following will be configured by 'Init Server':\e[0m"
+  echo -e "   • Nginx (Reverse Proxy)"
+  echo -e "   • Fail2Ban (SSH Security)"
+  echo -e "   • Certbot (Let's Encrypt)"
+  echo -e "   • Git (deployment)"
+  echo -e "   • Swap space"
+  echo -e "   • Timezone + Firewall Setup"
+
+  echo -e "\n❓ \e[1mHow do you want to proceed?\e[0m"
+  echo "────────────────────────────────────────────"
+  echo -e " 1) 🛠️  Run init_server now     2) 🔙 Cancel and return to menu"
+  echo "────────────────────────────────────────────"
+  print_select_prompt 2
+
+  IFS= read -rsn1 choice
+  echo ""
+
+  case "$choice" in
+    1)
+      init_server
+      return 0
+      ;;
+    2|q|Q)
+      echo -e "\nℹ️  \e[2mYou must run \e[36minit_server\e[0m before adding an app.\e[0m"
+      return 1
+      ;;
+    *)
+      print_invalid_selection
+      sleep 1
+      return 1
+      ;;
+  esac
+}
+
+

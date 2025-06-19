@@ -52,7 +52,7 @@ show_app_deployment_requirements() {
   echo
 
   echo -e "🛠️ \e[1mSupported Frameworks\e[0m"
-  echo -e "   • .NET SDK installed (6.0, 7.0, 8.0, 9.0)"
+  echo -e "   • .NET SDK (6.0, 7.0, 8.0, 9.0)"
   echo -e "   • Supported project types:"
   echo -e "     → \e[32mBlazor Server\e[0m"
   echo -e "     → \e[32mASP.NET Core Web App\e[0m (MVC / Razor Pages)"
@@ -419,7 +419,7 @@ check_apps_using_sdk() {
 
 show_dotnet_version_menu() {
   local install_dir="/opt/dotnet"
-  local versions=("5.0" "6.0" "7.0" "8.0" "9.0")
+  local versions=("6.0" "7.0" "8.0" "9.0")
 
   while true; do
     clear

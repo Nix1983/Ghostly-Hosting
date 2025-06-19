@@ -13,8 +13,9 @@ source ./lib/nginx.sh
 
 
 add_new_app() {
-  show_app_deployment_requirements || return 1
 
+  ensure_server_initialized || return 2
+  show_app_deployment_requirements || return 2
   get_server_ip
   load_env || return 1
 
@@ -139,10 +140,15 @@ show_app_manager_menu() {
     case "$choice" in
       1)
         if ! add_new_app; then
+          local exit_code=$?
+
           echo -e "\n❌ App deployment aborted."
-          cleanup_temp_folders
-          delete_certbot_certificate
-          delete_cloudflare_dns_records
+          if [[ "$exit_code" -eq 1 ]]; then
+            cleanup_temp_folders
+            delete_certbot_certificate
+            delete_cloudflare_dns_records
+          fi
+
           read -rsn1 -p "$(print_press_any_key)"
         fi
         echo ""

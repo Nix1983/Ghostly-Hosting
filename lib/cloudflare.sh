@@ -272,7 +272,7 @@ setup_cloudflare_dns_for_blazor() {
   [[ "$proxy_choice" =~ ^[Nn]$ ]] && use_proxy=false
 
   echo ""
-  echo "📤 Setting DNS records for \033[36m$HOSTNAME_FQDN\033[0m"
+  echo -e "📤 Setting DNS records for \e[36m$HOSTNAME_FQDN\e[0m"
 
   # A record
   _upsert_dns_record "A" "$HOSTNAME_FQDN" "$SERVER_IPv4" "Blazor Hosting A-record" "$use_proxy"
