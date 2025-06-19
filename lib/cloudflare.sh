@@ -93,15 +93,13 @@ delete_cloudflare_dns_records() {
 
       printf "❌ Deleting %-4s → \033[36m%-39s\033[0m ... " "$record_type" "$record_content"
 
-      curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
-        -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-        -H "Content-Type: application/json" > /dev/null
-
-      if [[ $? -eq 0 ]]; then
-        echo -e "\e[32m✅ done\e[0m"
-      else
-        echo -e "\e[31m❌ failed\e[0m"
-      fi
+     if curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
+       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+       -H "Content-Type: application/json" > /dev/null; then
+       echo -e "\e[32m✅ done\e[0m"
+     else
+       echo -e "\e[31m❌ failed\e[0m"
+     fi
     done
   done
 
@@ -114,13 +112,12 @@ delete_cloudflare_dns_records() {
 
 select_cloudflare_zone_and_domain() {
   _check_cloudflare_env_vars
-
   local response zones
   local -A zone_map=()
 
   while true; do
     clear
-    get_server_ip
+    get_server_ip "$@"
     printf "\n☁️  \033[1mRetrieving Cloudflare zones...\033[0m\n"
     printf "────────────────────────────────────────────────────────────\n"
 
@@ -276,7 +273,12 @@ setup_cloudflare_dns_for_blazor() {
   echo -e "📤 Setting DNS records for \e[36m$HOSTNAME_FQDN\e[0m"
 
   # A record
-  _upsert_dns_record "A" "$HOSTNAME_FQDN" "$SERVER_IPv4" "Blazor Hosting A-record" "$use_proxy"
+  if [[ -n "${SERVER_IPv4:-}" ]]; then
+    _upsert_dns_record "A" "$HOSTNAME_FQDN" "$SERVER_IPv4" "Blazor Hosting A-record" "$use_proxy"
+  else
+    echo -e "❌ \e[31mSERVER_IPv4 is not set – skipping A record creation.\e[0m"
+  fi
+
 
   # AAAA record (optional)
   if [[ -n "$SERVER_IPv6" ]]; then

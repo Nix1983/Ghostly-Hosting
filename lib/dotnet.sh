@@ -311,7 +311,7 @@ deploy_to_domain_folder() {
   if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
     folder_name="$DOMAIN/root"
   else
-    local subdomain="${HOSTNAME_FQDN%%.$DOMAIN}"
+    local subdomain="${HOSTNAME_FQDN%%."$DOMAIN"}"
     folder_name="$DOMAIN/$subdomain"
   fi
 
@@ -516,7 +516,7 @@ create_kestrel_service() {
   if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
     name_base="${DOMAIN//./-}"
   else
-    local sub="${HOSTNAME_FQDN%.$DOMAIN}"
+    local sub="${HOSTNAME_FQDN%."$DOMAIN"}"
     name_base="${sub//./-}-${DOMAIN//./-}"
   fi
   SERVICE_NAME="${name_base}-$KESTREL_PORT.service"

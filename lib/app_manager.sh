@@ -22,10 +22,10 @@ add_new_app() {
   ensure_server_initialized || return 2
   show_app_deployment_requirements || return 2
 
-  get_server_ip
+  get_server_ip --silent
   load_env || return 1
 
-  select_cloudflare_zone_and_domain || return 2
+  select_cloudflare_zone_and_domain  || return 2
 
   check_github_env_vars || return 2
   load_github_repositories || return 2
@@ -128,10 +128,13 @@ list_hosted_apps() {
 
 show_app_manager_menu() {
   local choice
-
   while true; do
     clear
-    echo -e "\n📦 \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4"
+    if [[ -n "${SERVER_IPv4:-}" ]]; then
+      echo -e "\n📦 \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4"
+    else
+      echo -e "\n📦 \e[1;34mApp Control Panel\e[0m"
+    fi
     echo "═════════════════════════════════════════════════════════════"
 
     echo -e "\n 1) ➕  Add new App         2) 🔍  Show deployed Apps      3) 🚀  Deploy update"

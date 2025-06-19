@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC1091
 
 source ./lib/common.sh
 source ./lib/server_manager.sh
