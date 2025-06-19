@@ -45,7 +45,7 @@ is_valid_ipv4() {
 get_server_ip() {
   local silent_mode=false
 
-  if [[ "$1" == "--silent" ]]; then
+  if [[ "${1:-}" == "--silent" ]]; then
     silent_mode=true
   fi
 
