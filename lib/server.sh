@@ -148,7 +148,6 @@ check_and_offer_reboot() {
   fi
 }
 
-
 update_server_and_show_status() {
   clear
   echo -e "\n🔄 \e[1;34mSystem Update – Ubuntu Package Manager (APT)\e[0m"
@@ -266,9 +265,10 @@ init_server() {
   configure_f2b
   update_server
 
-  echo -e "\n🧩 \e[1mSystemd ready for Blazor apps\e[0m"
-  echo -e "   ➤ Blazor Server apps will run as \e[36mblazor-<domain>-<sub>.service\e[0m"
-  echo -e "   ➤ Configured automatically via your deployment script."
+  echo -e "\n🧩 \e[1mSystemd ready for .NET apps\e[0m"
+  echo -e "   ➤ Apps will run as: \e[36m<sub>-<domain>-<port>.service\e[0m (e.g. blog-ghostlypick-com-5001.service)"
+  echo -e "   ➤ You can add new apps anytime via:"
+  echo -e "      📦 \e[1mApp Manager → Add new App\e[0m"
 
   echo -e "\n✅ \e[1mServer initialization completed.\e[0m"
   echo "═════════════════════════════════════════════════════════════"
