@@ -134,9 +134,12 @@ check_and_offer_reboot() {
     echo -e "\n❓ \e[1mDo you want to reboot now?\e[0m"
     read -rp $'\n🔁 Reboot system now? [y/N]: ' answer
     if [[ "$answer" =~ ^[Yy]$ ]]; then
+      echo -e "\n⚠️  \e[33mImportant:\e[0m You will lose the SSH connection during reboot."
+      echo -e "⏳ Please wait about \e[36m60 seconds\e[0m and reconnect manually if needed."
       echo -e "\n♻️ Rebooting system..."
-      sleep 1
+      sleep 2
       reboot
+      exit 0
     else
       echo -e "\n↪️  Reboot skipped. You can run \e[36mreboot\e[0m later manually."
     fi
@@ -144,6 +147,7 @@ check_and_offer_reboot() {
     echo -e "🔁 Reboot required: \e[1;32mNo\e[0m"
   fi
 }
+
 
 update_server_and_show_status() {
   clear
