@@ -123,14 +123,15 @@ show_app_manager_menu() {
 
   while true; do
     clear
-    echo -e "\n📦 \e[1;34mBlazor App Manager\e[0m"
+    echo -e "\n📦 \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4"
     echo "═════════════════════════════════════════════════════════════"
 
     echo -e "\n 1) ➕  Add new App         2) 🔍  Show deployed Apps      3) 🚀  Deploy update"
-    echo -e "\n 4) 📤  Backup App          5) ❌  Remove App              q) 🔙  Back to Menu"
+    echo -e "\n 4) 📤  Backup App          5) ❌  Remove App              6) 🖥️  Server Control Panel"
+    echo -e "\n q) 🏃💨 \e[1;31mExit Server Control\e[0m"
 
     echo -e "\n─────────────────────────────────────────────────────────────"
-    print_select_prompt 5
+    print_select_prompt 6
 
     IFS= read -rsn1 choice
     echo ""
@@ -166,9 +167,9 @@ show_app_manager_menu() {
         sleep 1
         read -rsn1 -p "$(print_press_any_key)"
         ;;
-      q|Q)
-        break
-        ;;
+      6)
+        return ;;
+      q|Q) echo -e "\n🏃‍♂️💨 \e[1;31mExiting App Control Panel. Goodbye!\e[0m"; exit 0 ;;
       *)
         print_invalid_selection
         sleep 0.5
@@ -177,4 +178,3 @@ show_app_manager_menu() {
   done
 }
 
-show_app_manager_menu
