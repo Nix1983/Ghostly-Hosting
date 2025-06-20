@@ -78,9 +78,16 @@ clone_repository() {
   echo -e "\n📦 Cloning GitHub repo: \e[36m$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME\e[0m"
   local clone_url="https://${SELECTED_REPO_OWNER}:${GITHUB_API_TOKEN}@github.com/${SELECTED_REPO_OWNER}/${SELECTED_REPO_NAME}.git"
 
-  if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR"; then
-    echo -e "\n❌ \e[31mFailed to clone main repository.\e[0m"
-    return 1
+  if [[ "$SELECTED_REF_TYPE" == "branch" || "$SELECTED_REF_TYPE" == "tag" ]]; then
+    if ! GIT_ASKPASS=true git clone -q --branch "$SELECTED_REF_NAME" --single-branch "$clone_url" "$TMP_CLONE_DIR" > /dev/null 2>&1; then
+      echo -e "\n❌ \e[31mFailed to clone selected ref: $SELECTED_REF_NAME\e[0m"
+      return 1
+    fi
+  else
+    if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR" > /dev/null 2>&1; then
+      echo -e "\n❌ \e[31mFailed to clone main repository.\e[0m"
+      return 1
+    fi
   fi
 
   # Track successful submodules
@@ -100,7 +107,6 @@ clone_repository() {
 
   # Perform recursive init manually and track each module
   if ! git -C "$TMP_CLONE_DIR" submodule update --init --recursive --quiet; then
-    # Check which modules failed
     while IFS= read -r path; do
       if [[ -d "$TMP_CLONE_DIR/$path" ]]; then
         success_modules+=("$path")
@@ -109,7 +115,6 @@ clone_repository() {
       fi
     done < <(git -C "$TMP_CLONE_DIR" config --file "$TMP_CLONE_DIR/.gitmodules" --get-regexp path | awk '{print $2}')
   else
-    # All succeeded (recursive)
     while IFS= read -r path; do
       success_modules+=("$path")
     done < <(git -C "$TMP_CLONE_DIR" config --file "$TMP_CLONE_DIR/.gitmodules" --get-regexp path | awk '{print $2}')
@@ -185,3 +190,90 @@ select_github_repository() {
     return 0
   done
 }
+
+# Lists all branches and releases for the selected repo and lets the user choose one
+select_branch_or_tag() {
+  local repo="$SELECTED_REPO_NAME"
+  local owner="$SELECTED_REPO_OWNER"
+
+  local branches_json tags_json
+  branches_json=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/repos/$owner/$repo/branches")
+  tags_json=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/repos/$owner/$repo/tags")
+
+  local -A option_map
+  local -a all_options
+  local -a branches sorted_branches
+  local index=1
+
+  # Branches verarbeiten
+  mapfile -t branches < <(echo "$branches_json" | jq -r '.[].name')
+
+  # master zuerst einsortieren
+  for branch in "${branches[@]}"; do
+    [[ "$branch" == "master" ]] && sorted_branches=("master")
+  done
+  for branch in "${branches[@]}"; do
+    [[ "$branch" != "master" ]] && sorted_branches+=("$branch")
+  done
+
+  echo -e "\n🌿 \e[1mAvailable Branches:\e[0m"
+  echo "────────────────────────────────────────────────────────────"
+
+  for branch in "${sorted_branches[@]}"; do
+    option_map[$index]="branch:$branch"
+    all_options+=("$index|🌿 Branch:|$branch")
+    ((index++))
+  done
+
+  echo -e "\n🏷️ \e[1mAvailable Releases / Tags:\e[0m"
+  echo "────────────────────────────────────────────────────────────"
+
+  mapfile -t tags < <(echo "$tags_json" | jq -r '.[].name')
+  for tag in "${tags[@]}"; do
+    option_map[$index]="tag:$tag"
+    all_options+=("$index|🏷️ Tag:   |$tag")
+    ((index++))
+  done
+
+  # Zwei Einträge pro Zeile anzeigen
+  local i=0
+  while [[ $i -lt ${#all_options[@]} ]]; do
+    local left right
+
+    IFS="|" read -r idx1 label1 val1 <<< "${all_options[$i]}"
+    left=$(printf " %2d) %s \e[36m%-30s\e[0m" "$idx1" "$label1" "$val1")
+
+    if (( i + 1 < ${#all_options[@]} )); then
+      IFS="|" read -r idx2 label2 val2 <<< "${all_options[$((i + 1))]}"
+      right=$(printf " %2d) %s \e[36m%-30s\e[0m" "$idx2" "$label2" "$val2")
+      printf "%s   %s\n" "$left" "$right"
+    else
+      printf "%s\n" "$left"
+    fi
+
+    ((i += 2))
+  done
+
+  echo -e "\n────────────────────────────────────────────────────────────"
+  print_select_prompt $((index - 1))
+  read -r choice
+  [[ "$choice" =~ ^[Qq]$ ]] && return 1
+
+  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [[ -z "${option_map[$choice]}" ]]; then
+    print_invalid_selection
+    return 1
+  fi
+
+  IFS=":" read -r type name <<< "${option_map[$choice]}"
+  SELECTED_REF_TYPE="$type"
+  SELECTED_REF_NAME="$name"
+  export SELECTED_REF_TYPE SELECTED_REF_NAME
+
+  echo -e "✅ Selected $type: \e[36m$name\e[0m"
+  return 0
+}
+
+
+

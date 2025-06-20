@@ -30,7 +30,11 @@ add_new_app() {
 
   check_github_env_vars || return 2
   load_github_repositories || return 2
-  select_github_repository || return 2
+  while true; do
+    select_github_repository || return 2
+    select_branch_or_tag || continue
+    break
+  done
   clone_repository || return 1
 
   detect_required_dotnet_versions || return 1
