@@ -104,7 +104,7 @@ delete_cloudflare_dns_records() {
   done
 
   if [[ "$found_any" == false ]]; then
-    echo -e "ℹ️  No A/AAAA DNS records found for \e[2m$HOSTNAME_FQDN\e[0m — skipping."
+    echo -e "ℹ️ No A/AAAA DNS records found for \e[2m$HOSTNAME_FQDN\e[0m — skipping."
   else
     echo -e "✅ \e[1;32mCloudflare DNS cleanup completed.\e[0m"
   fi

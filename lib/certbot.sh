@@ -101,7 +101,7 @@ delete_certbot_certificate() {
   local cert_path="/etc/letsencrypt/live/$cert_name"
 
   if [[ ! -d "$cert_path" ]]; then
-    echo -e "ℹ️  No certificate found for: \e[2m$cert_name\e[0m — skipping."
+    echo -e "ℹ️ No certificate found for: \e[2m$cert_name\e[0m — skipping."
     return 0
   fi
 

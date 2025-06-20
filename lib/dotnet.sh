@@ -69,14 +69,14 @@ show_app_deployment_requirements() {
 
   echo "═════════════════════════════════════════════════════════════════════════════"
   echo -e "❓ Would you like to continue with deployment?\n"
-  echo -e "1) ✅ Yes, proceed to app selection        2) 🔙 No, return to main menu"
+  echo -e "1) ✅ Yes, proceed to app selection        q) 🔙 No, return to main menu"
 
-  read -n1 -r -p $'\nSelect [1–2]: ' choice
-  echo  # for clean line break after key press
+  read -n1 -r -p $'\nSelect [1,q]: ' choice
+  echo
   case "$choice" in
     1) return 0 ;;
-    2) return 1 ;;
-    *) return 1 ;;
+    q) return 2 ;;
+    *) return 2 ;;
   esac
 }
 
@@ -107,7 +107,7 @@ detect_required_dotnet_versions() {
 
   if [[ ! -f "$main_project" ]]; then
     echo -e "\n❌ \e[31mNo project file (.csproj) found in the repository.\e[0m"
-    echo -e "⚠️  This does not appear to be a valid .NET project."
+    echo -e "⚠️ This does not appear to be a valid .NET project."
     return 1
   fi
 
@@ -168,7 +168,6 @@ detect_required_dotnet_versions() {
   export MAIN_PROJECT_FILE
   return 0
 }
-
 
 delete_dotnet_version() {
   local install_dir="/opt/dotnet/sdk"

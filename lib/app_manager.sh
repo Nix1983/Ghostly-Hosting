@@ -98,9 +98,10 @@ show_apps() {
   done < <(find /etc/systemd/system -name "*.service" -type f | sort)
 
   if (( index == 1 )); then
-    echo -e "\n⚠️  No Kestrel-hosted apps found."
+    echo -e "\n⚠️ No .NET Apps found."
+    read -rsn1 -p "$(print_press_any_key)"
     return 1
-  fi1
+  fi
 
   echo -e "\n───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
   print_select_prompt "$((index-1))"
@@ -151,8 +152,6 @@ show_app_manager_menu() {
         ;;
       2)
         show_apps
-        sleep 1
-        read -rsn1 -p "$(print_press_any_key)"
         ;;
       3)
         return ;;
