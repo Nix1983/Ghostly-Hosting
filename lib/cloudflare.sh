@@ -57,6 +57,28 @@ _upsert_dns_record() {
   printf "✅ %s-record %s.\n" "$type" "$( [[ -n "$id" ]] && echo "updated" || echo "created" )"
 }
 
+resolve_cloudflare_zone_id() {
+  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$DOMAIN" ]]; then
+    echo "❌ CLOUDFLARE_API_TOKEN, CLOUDFLARE_API_BASE oder DOMAIN fehlt."
+    return 1
+  fi
+
+  local response
+  response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json")
+
+  ZONE_ID=$(echo "$response" | jq -r --arg domain "$DOMAIN" '.result[] | select(.name == $domain) | .id')
+
+  if [[ -z "$ZONE_ID" || "$ZONE_ID" == "null" ]]; then
+    echo "❌ Zone ID für $DOMAIN konnte nicht gefunden werden."
+    return 1
+  fi
+
+  export ZONE_ID
+  return 0
+}
+
 delete_cloudflare_dns_records() {
   if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$ZONE_ID" || -z "$HOSTNAME_FQDN" ]]; then
     echo -e "❌ \e[31mCannot delete DNS records – required variables missing (CLOUDFLARE_API_TOKEN, ZONE_ID, HOSTNAME_FQDN).\e[0m"

@@ -542,6 +542,13 @@ create_kestrel_service() {
     return 1
   fi
 
+  # 🧾 Create logs folder inside the app directory
+  local log_dir="$PUBLISH_DIR/logs"
+  mkdir -p "$log_dir"
+
+  # 🧹 Cleanup log files older than 30 days
+  find "$log_dir" -type f -name '*.log' -mtime +30 -delete
+
   echo -e "\n⚙️  \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
   {
@@ -558,6 +565,8 @@ create_kestrel_service() {
     echo "User=www-data"
     echo "Environment=ASPNETCORE_URLS=http://0.0.0.0:$KESTREL_PORT"
     echo "Environment=DOTNET_ENVIRONMENT=Production"
+    echo "StandardOutput=append:$log_dir/$(date +%F).log"
+    echo "StandardError=append:$log_dir/$(date +%F).log"
     echo
     echo "[Install]"
     echo "WantedBy=multi-user.target"

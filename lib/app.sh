@@ -36,7 +36,6 @@ delete_blazor_app() {
   fi
   
   export HOSTNAME_FQDN="$domain"
-  load_env
   echo -e "\n⏹️ \e[1mStopping and disabling service:\e[0m \e[36m$service\e[0m"
   systemctl stop "$service" 2>/dev/null || true
   systemctl disable "$service" 2>/dev/null || true
@@ -66,21 +65,93 @@ delete_blazor_app() {
   echo -e "\n🔐 \e[1mDeleting SSL certificate (Certbot)...\e[0m"
   delete_certbot_certificate
 
-  echo -e "\n☁️  \e[1mDeleting Cloudflare DNS records...\e[0m"
+  echo -e "\n☁️ \e[1mDeleting Cloudflare DNS records...\e[0m"
+  load_env
+  resolve_cloudflare_zone_id
   if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" && -n "$ZONE_ID" && -n "$HOSTNAME_FQDN" ]]; then
     if delete_cloudflare_dns_records; then
       echo "✅ DNS records successfully removed."
     else
-      echo -e "⚠️  \e[33mCloudflare DNS deletion failed for $HOSTNAME_FQDN.\e[0m"
+      echo -e "⚠️ \e[33mCloudflare DNS deletion failed for $HOSTNAME_FQDN.\e[0m"
       echo -e "💡 Please check manually in the Cloudflare dashboard."
     fi
   else
-    echo -e "⚠️  \e[33mMissing CLOUDFLARE_API_TOKEN, ZONE_ID or HOSTNAME_FQDN – cannot delete DNS.\e[0m"
+    echo -e "⚠️ \e[33mMissing CLOUDFLARE_API_TOKEN, ZONE_ID or HOSTNAME_FQDN – cannot delete DNS.\e[0m"
     echo -e "🔎 Please delete DNS records manually for: \e[36m$HOSTNAME_FQDN\e[0m"
   fi
 
   echo -e "\n✅ \e[1;32mApp $HOSTNAME_FQDN fully deleted.\e[0m"
   read -rsn1 -p "$(print_press_any_key)"
+}
+
+show_app_log_files() {
+  local service="$1"
+  local exec_dir
+  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
+  local log_dir="$exec_dir/logs"
+
+  if [[ ! -d "$log_dir" ]]; then
+    echo -e "\n❌ No log directory found at: \e[2m$log_dir\e[0m"
+    read -rsn1 -p "$(print_press_any_key)"
+    return
+  fi
+
+  while true; do
+    clear
+    echo -e "\n📂 \e[1mAvailable App Log Files:\e[0m \e[36m$service\e[0m"
+    echo -e "📁 Folder: \e[2m$log_dir\e[0m"
+    echo "─────────────────────────────────────────────────────────────"
+
+    mapfile -t log_files < <(find "$log_dir" -maxdepth 1 -type f -name "*.log" -printf "%T@ %p\n" | sort -nr | cut -d' ' -f2-)
+    if (( ${#log_files[@]} == 0 )); then
+      echo -e "ℹ️  No log files found."
+    else
+      local i=1
+      local row=""
+      for f in "${log_files[@]}"; do
+        local size
+        size=$(du -k "$f" | cut -f1)
+        local name
+        name=$(basename "$f")
+        row+=" $(printf "%2d) 📄 %-20s \e[2m%4s KB\e[0m   " "$i" "$name" "$size")"
+        ((i % 3 == 0)) && { echo -e "$row"; row=""; }
+        ((i++))
+      done
+      [[ -n "$row" ]] && echo -e "$row"
+    fi
+
+    echo -e "\n d) 🧹 Delete all log files"
+    echo -e " q) 🔙 Back to menu"
+    echo "─────────────────────────────────────────────────────────────"
+    print_select_prompt "${#log_files[@]}"
+    read -r choice
+    echo ""
+
+    if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
+      return
+    elif [[ "$choice" == "d" || "$choice" == "D" ]]; then
+      echo -n "❓ Really delete ALL log files? [y/N]: "
+      read -r confirm
+      if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        rm -f "$log_dir"/*.log
+        echo -e "✅ Deleted."
+        sleep 1
+      else
+        echo "↩️ Cancelled."
+        sleep 1
+      fi
+      continue
+    elif [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le "${#log_files[@]}" ]]; then
+      local file="${log_files[$((choice - 1))]}"
+      echo -e "\n📖 Viewing: \e[36m$(basename "$file")\e[0m"
+      sed -e 's/\\(err[^ ]*\\)/\\x1b[1;31m\\1\\x1b[0m/I' \
+          -e 's/\\(warn[^ ]*\\)/\\x1b[1;33m\\1\\x1b[0m/I' "$file" |
+        less +G
+    else
+      print_invalid_selection
+      sleep 1
+    fi
+  done
 }
 
 
@@ -149,7 +220,7 @@ show_app_details_menu() {
         return 0
         ;;
       4)
-        journalctl -u "$service" -n 100 --no-pager | less
+        show_app_log_files "$service"
         ;;
       5)
         echo -e "🔼 Update placeholder – implement logic here (e.g. pull repo, republish)..."
