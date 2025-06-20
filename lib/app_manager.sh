@@ -100,7 +100,7 @@ show_apps() {
   if (( index == 1 )); then
     echo -e "\n⚠️  No Kestrel-hosted apps found."
     return 1
-  fi
+  fi1
 
   echo -e "\n───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
   print_select_prompt "$((index-1))"
