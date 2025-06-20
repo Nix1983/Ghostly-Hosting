@@ -238,36 +238,64 @@ init_server() {
   echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
   if ! command -v nginx >/dev/null 2>&1; then
     apt-get update -y >/dev/null 2>&1
-    apt-get install -y nginx >/dev/null 2>&1 && echo "✅ Nginx installed." || echo "❌ Failed to install Nginx."
+    if apt-get install -y nginx >/dev/null 2>&1; then
+      echo "✅ Nginx installed."
+    else
+      echo -e "❌ \e[31mFailed to install Nginx – aborting setup.\e[0m"
+      exit 1
+    fi
   else
     echo "✅ Nginx is already installed."
   fi
 
   echo -e "\n🔌 \e[1mEnabling and starting Nginx...\e[0m"
-  systemctl enable nginx >/dev/null 2>&1
-  systemctl start nginx >/dev/null 2>&1 && echo "✅ Nginx service is running." || echo "❌ Failed to start Nginx."
+  if systemctl enable nginx >/dev/null 2>&1 && systemctl start nginx >/dev/null 2>&1; then
+    echo "✅ Nginx service is running."
+  else
+    echo -e "❌ \e[31mFailed to start or enable Nginx.\e[0m"
+    exit 1
+  fi
 
   echo -e "\n🛡️ \e[1mInstalling Fail2Ban (security)...\e[0m"
   if ! command -v fail2ban-client >/dev/null 2>&1; then
-    apt-get install -y fail2ban >/dev/null 2>&1 && echo "✅ Fail2Ban installed." || echo "❌ Failed to install Fail2Ban."
+    if apt-get install -y fail2ban >/dev/null 2>&1; then
+      echo "✅ Fail2Ban installed."
+    else
+      echo -e "❌ \e[31mFailed to install Fail2Ban.\e[0m"
+      exit 1
+    fi
   else
     echo "✅ Fail2Ban is already installed."
   fi
 
   echo -e "\n🔐 \e[1mEnabling and starting Fail2Ban...\e[0m"
-  systemctl enable fail2ban >/dev/null 2>&1
-  systemctl start fail2ban >/dev/null 2>&1 && echo "✅ Fail2Ban service is running." || echo "❌ Failed to start Fail2Ban."
+  if systemctl enable fail2ban >/dev/null 2>&1 && systemctl start fail2ban >/dev/null 2>&1; then
+    echo "✅ Fail2Ban service is running."
+  else
+    echo -e "❌ \e[31mFailed to start or enable Fail2Ban.\e[0m"
+    exit 1
+  fi
 
   echo -e "\n📜 \e[1mInstalling Certbot (for HTTPS)...\e[0m"
   if ! command -v certbot >/dev/null 2>&1; then
-    apt-get install -y certbot >/dev/null 2>&1 && echo "✅ Certbot installed." || echo "❌ Failed to install Certbot."
+    if apt-get install -y certbot >/dev/null 2>&1; then
+      echo "✅ Certbot installed."
+    else
+      echo -e "❌ \e[31mFailed to install Certbot.\e[0m"
+      exit 1
+    fi
   else
     echo "✅ Certbot is already installed."
   fi
 
   echo -e "\n🔧 \e[1mInstalling Git (for deployments)...\e[0m"
   if ! command -v git >/dev/null 2>&1; then
-    apt-get install -y git >/dev/null 2>&1 && echo "✅ Git installed." || echo "❌ Failed to install Git."
+    if apt-get install -y git >/dev/null 2>&1; then
+      echo "✅ Git installed."
+    else
+      echo -e "❌ \e[31mFailed to install Git.\e[0m"
+      exit 1
+    fi
   else
     echo "✅ Git is already installed."
   fi
@@ -286,7 +314,7 @@ init_server() {
 
   echo -e "\n✅ \e[1mServer initialization completed.\e[0m"
   echo "═════════════════════════════════════════════════════════════"
-  read -rsn1 -p $'\nPress any key to return to menu...'
+  read -rsn1 -p $'\n↩️  Press any key to return to menu...'
 }
 
 reset_server() {
