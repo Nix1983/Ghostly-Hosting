@@ -10,6 +10,7 @@ source ./lib/cloudflare.sh
 source ./lib/certbot.sh
 source ./lib/dotnet.sh
 source ./lib/nginx.sh
+source ./lib/app.sh
 
 
 rollback_app_deployment() {
@@ -62,41 +63,32 @@ show_apps() {
     service_name="$(basename "$service_file")"
     [[ "$service_name" != *.service ]] && continue
 
-    # Port aus ExecStart extrahieren
     local exec_line
     exec_line=$(systemctl show -p ExecStart "$service_name" 2>/dev/null | cut -d= -f2-)
     [[ "$exec_line" =~ --urls=http://0.0.0.0:([0-9]{4}) ]] || continue
     port="${BASH_REMATCH[1]}"
 
-    # WorkingDirectory prüfen
     exec_dir=$(systemctl show -p WorkingDirectory "$service_name" 2>/dev/null | cut -d= -f2)
     [[ -z "$exec_dir" || ! -d "$exec_dir" ]] && continue
 
-    # Domain korrekt aus dem Servicenamen extrahieren (z. B. 1-ghostlypick-com-5002 → 1.ghostlypick.com)
     domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
 
-    # Status
     if systemctl is-active --quiet "$service_name"; then
       status="🟢 running"
     else
       status="🔴 stopped"
     fi
 
-    # RAM
     ram_mb="–"
     ram_kb=$(systemctl show "$service_name" -p MemoryCurrent | cut -d= -f2)
     if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
       ram_mb="$((ram_kb / 1024 / 1024)) MB"
     fi
 
-    # Disk
     disk_mb="–"
     if [[ -d "$exec_dir" ]]; then
       disk_mb="$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')"
     fi
-
-    [[ "$ram_mb" == "–" ]] && ram_mb="  –   "
-    [[ "$disk_mb" == "–" ]] && disk_mb="  –   "
 
     printf "\n %2d) 🌐 \e]8;;https://%s\e\\%-40s\e]8;;\e\\ │ %s │ 📦 Port: \e[36m%-5s\e[0m │ 🧠 RAM: \e[36m%6s\e[0m │ 💾 Disk: \e[2m%6s\e[0m\n" \
       "$index" "$domain" "$domain" "$status" "$port" "$ram_mb" "$disk_mb"
@@ -118,12 +110,13 @@ show_apps() {
     return 0
   elif [[ -n "${app_map[$selection]}" ]]; then
     export SELECTED_SERVICE="${app_map[$selection]}"
-    echo "📂 Selected: $SELECTED_SERVICE"
+    show_app_details_menu "$SELECTED_SERVICE"
   else
     print_invalid_selection
     return 1
   fi
 }
+
 
 
 show_app_manager_menu() {
