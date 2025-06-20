@@ -49,12 +49,12 @@ add_new_app() {
 }
 
 
-list_hosted_apps() {
+show_apps() {
   local index=1
   local -A app_map=()
   clear
   echo -e "\n📋 \e[1mDeployed Kestrel Apps\e[0m"
-  echo "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  echo "───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
 
   while IFS= read -r service_file; do
     local service_name port domain exec_dir status ram_kb ram_mb disk_mb
@@ -98,7 +98,7 @@ list_hosted_apps() {
     [[ "$ram_mb" == "–" ]] && ram_mb="  –   "
     [[ "$disk_mb" == "–" ]] && disk_mb="  –   "
 
-    printf "\n %2d) 🌐 \e]8;;https://%s\e\\%-45s\e]8;;\e\\ │ %s │ 📦 Port: \e[36m%-5s\e[0m │ 🧠 RAM: \e[36m%6s\e[0m │ 💾 Disk: \e[2m%6s\e[0m\n" \
+    printf "\n %2d) 🌐 \e]8;;https://%s\e\\%-40s\e]8;;\e\\ │ %s │ 📦 Port: \e[36m%-5s\e[0m │ 🧠 RAM: \e[36m%6s\e[0m │ 💾 Disk: \e[2m%6s\e[0m\n" \
       "$index" "$domain" "$domain" "$status" "$port" "$ram_mb" "$disk_mb"
 
     app_map["$index"]="$service_name"
@@ -110,7 +110,7 @@ list_hosted_apps() {
     return 1
   fi
 
-  echo -e "\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  echo -e "\n───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
   print_select_prompt "$((index-1))"
   read -r selection
 
@@ -137,10 +137,8 @@ show_app_manager_menu() {
     fi
     echo "═════════════════════════════════════════════════════════════"
 
-    echo -e "\n 1) ➕  Add new App         2) 🔍  Show deployed Apps      3) 🚀  Deploy update"
-    echo -e "\n 4) 📤  Backup App          5) ❌  Remove App              6) 🖥️  Server Control Panel"
-    echo -e "\n q) 🏃💨 \e[1;31mExit Server Control\e[0m"
-
+    echo -e "\n 1) ➕  Add new App    2) 🔍 Show Apps   3) 🖥️ Server Control Panel"
+    echo -e "\n q) 🏃💨 \e[1;31mExit App Control\e[0m"
     echo -e "\n─────────────────────────────────────────────────────────────"
     print_select_prompt 6
 
@@ -159,26 +157,11 @@ show_app_manager_menu() {
         fi
         ;;
       2)
-        list_hosted_apps
+        show_apps
         sleep 1
         read -rsn1 -p "$(print_press_any_key)"
         ;;
       3)
-        echo -e "\n🚀 Deploying app update..."
-        sleep 1
-        read -rsn1 -p "$(print_press_any_key)"
-        ;;
-      4)
-        echo -e "\n📤 Creating app backup..."
-        sleep 1
-        read -rsn1 -p "$(print_press_any_key)"
-        ;;
-      5)
-        echo -e "\n❌ Removing app..."
-        sleep 1
-        read -rsn1 -p "$(print_press_any_key)"
-        ;;
-      6)
         return ;;
       q|Q) echo -e "\n🏃‍♂️💨 \e[1;31mExiting App Control Panel. Goodbye!\e[0m"; exit 0 ;;
       *)
