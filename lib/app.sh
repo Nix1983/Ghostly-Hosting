@@ -7,6 +7,7 @@ source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/cloudflare.sh
 source ./lib/certbot.sh
+source ./lib/github.sh
 
 delete_blazor_app() {
   local service="$1"
@@ -154,6 +155,134 @@ show_app_log_files() {
   done
 }
 
+check_for_app_update() {
+  local exec_dir="$1"
+  local service_name="$2"
+  local meta_file="$exec_dir/meta.json"
+  local backup_dir="$exec_dir/backup"
+
+  echo -e "\n🔍 \e[1mChecking for App Updates\e[0m"
+  echo "═════════════════════════════════════════════════════════════"
+
+  if [[ -z "$exec_dir" || -z "$service_name" ]]; then
+    echo -e "❌ \e[31mMissing parameters: execution directory or service name.\e[0m"
+    return 1
+  fi
+
+  if [[ ! -f "$meta_file" ]]; then
+    echo -e "❌ \e[31mNo metadata found at:\e[2m $meta_file\e[0m"
+    echo -e "💡 App was likely deployed manually or with an old script version."
+    return 1
+  fi
+
+  local repo_owner repo_name ref_type ref_name current_commit
+  repo_owner=$(jq -r '.repo_owner // empty' "$meta_file")
+  repo_name=$(jq -r '.repo_name // empty' "$meta_file")
+  ref_type=$(jq -r '.ref_type // empty' "$meta_file")
+  ref_name=$(jq -r '.ref_name // empty' "$meta_file")
+  current_commit=$(jq -r '.commit // empty' "$meta_file")
+
+  if [[ -z "$repo_owner" || -z "$repo_name" || -z "$ref_type" || -z "$ref_name" ]]; then
+    echo -e "❌ \e[31mMetadata file is incomplete or malformed.\e[0m"
+    return 1
+  fi
+
+  echo -e "📦 \e[1mRepository:\e[0m  \e[36m$repo_owner/$repo_name\e[0m"
+  echo -e "🔗 \e[1mReference:\e[0m   \e[36m$ref_type → $ref_name\e[0m"
+  echo -e "🔖 \e[1mCurrent commit:\e[0m \e[2m$current_commit\e[0m"
+
+  if [[ "$ref_type" == "tag" ]]; then
+    echo -e "\n⚠️  \e[33mThis app was deployed from a Git tag.\e[0m"
+    echo -e "📌 Tags are fixed and cannot receive updates."
+    return 0
+  fi
+
+  local latest_commit
+  latest_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/repos/$repo_owner/$repo_name/commits/$ref_name" |
+    jq -r '.sha // empty')
+
+  if [[ -z "$latest_commit" ]]; then
+    echo -e "\n❌ \e[31mFailed to retrieve latest commit from GitHub API.\e[0m"
+    return 1
+  fi
+
+  echo -e "📥 \e[1mLatest commit:\e[0m  \e[2m$latest_commit\e[0m"
+
+  if [[ "$current_commit" == "$latest_commit" ]]; then
+    echo -e "\n✅ \e[1mThis app is already up to date.\e[0m"
+    return 0
+  fi
+
+  echo -e "\n🆕 \e[1;32mA newer version is available!\e[0m"
+  echo -e "   👉 Deployed: \e[2m$current_commit\e[0m"
+  echo -e "   👉 Latest:   \e[2m$latest_commit\e[0m"
+
+  echo -e "\n❓ \e[1mWould you like to update this app now?\e[0m"
+  echo -e "1) 🔄 Yes, update now"
+  echo -e "2) 🔙 No, return to menu"
+  echo "─────────────────────────────────────────────────────────────"
+  echo -n "Select [1–2]: "
+  IFS= read -rsn1 choice
+  echo ""
+
+  case "$choice" in
+    1)
+      echo -e "🔄 \e[1mUpdating app from GitHub...\e[0m"
+      export SELECTED_REPO_OWNER="$repo_owner"
+      export SELECTED_REPO_NAME="$repo_name"
+      export SELECTED_REF_TYPE="$ref_type"
+      export SELECTED_REF_NAME="$ref_name"
+
+      clone_repository || return 1
+      detect_required_dotnet_versions || return 1
+      install_dotnet_version || return 1
+      publish_dotnet_project || {
+        echo -e "❌ \e[31mPublish failed – update aborted.\e[0m"
+        return 1
+      }
+
+      echo -e "\n⏹️  \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
+      systemctl stop "$service_name" 2>/dev/null || echo "⚠️ Could not stop service."
+
+      # Ensure backup folder exists
+      mkdir -p "$backup_dir"
+
+      # Backup meta.json with timestamp
+      local timestamp
+      timestamp=$(date +"%Y%m%dT%H%M%S")
+      cp "$meta_file" "$backup_dir/meta-${timestamp}.json" 2>/dev/null || true
+
+      echo -e "🧹 \e[1mCleaning deployment folder (excluding logs/ and backup/)...\e[0m"
+      find "$exec_dir" -mindepth 1 -not -name "logs" -not -name "backup" -exec rm -rf {} +
+
+      echo -e "📁 \e[1mDeploying new version...\e[0m"
+      cp -r "$TMP_PUBLISH_DIR"/. "$exec_dir"/
+
+      save_repo_metadata "$exec_dir"
+      cleanup_temp_folders
+
+      echo -e "🚀 \e[1mRestarting service:\e[0m \e[36m$service_name\e[0m"
+      if systemctl start "$service_name"; then
+        echo -e "\n✅ \e[1;32mUpdate completed successfully.\e[0m"
+      else
+        echo -e "\n❌ \e[31mUpdate deployed but service could not be started.\e[0m"
+        systemctl status "$service_name" --no-pager
+        return 1
+      fi
+
+      return 0
+      ;;
+    2)
+      echo -e "\n↩️  Update skipped by user."
+      return 0
+      ;;
+    *)
+      print_invalid_selection
+      return 1
+      ;;
+  esac
+}
 
 show_app_details_menu() {
   local service="$1"
@@ -223,8 +352,8 @@ show_app_details_menu() {
         show_app_log_files "$service"
         ;;
       5)
-        echo -e "🔼 Update placeholder – implement logic here (e.g. pull repo, republish)..."
-        sleep 2
+        check_for_app_update "$exec_dir" "$service"
+        read -rsn1 -p "$(print_press_any_key)"
         ;;
       6)
         show_nginx_settings_menu "$domain"
@@ -239,3 +368,4 @@ show_app_details_menu() {
     esac
   done
 }
+

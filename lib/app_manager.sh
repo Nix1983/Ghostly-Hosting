@@ -45,6 +45,7 @@ add_new_app() {
   run_certbot_workflow || return 1
 
   deploy_to_domain_folder || return 1
+  save_repo_metadata "$PUBLISH_DIR"
   cleanup_temp_folders || return 1
 
   create_kestrel_service || return 1

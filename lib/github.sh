@@ -275,5 +275,40 @@ select_branch_or_tag() {
   return 0
 }
 
+save_repo_metadata() {
+  local target_dir="$1"
+  local meta_file="$target_dir/meta.json"
+
+  if [[ -z "$SELECTED_REPO_OWNER" || -z "$SELECTED_REPO_NAME" || -z "$SELECTED_REF_TYPE" || -z "$SELECTED_REF_NAME" ]]; then
+    echo -e "❌ \e[31mCannot save metadata – required info missing.\e[0m"
+    return 1
+  fi
+
+  local latest_commit
+  latest_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$SELECTED_REF_NAME" |
+    jq -r '.sha // empty')
+
+  if [[ -z "$latest_commit" ]]; then
+    echo -e "⚠️ \e[33mCould not fetch latest commit – continuing without.\e[0m"
+  fi
+
+  jq -n --arg owner "$SELECTED_REPO_OWNER" \
+        --arg name "$SELECTED_REPO_NAME" \
+        --arg type "$SELECTED_REF_TYPE" \
+        --arg ref "$SELECTED_REF_NAME" \
+        --arg sha "$latest_commit" \
+        '{
+          repo_owner: $owner,
+          repo_name: $name,
+          ref_type: $type,
+          ref_name: $ref,
+          commit: $sha
+        }' > "$meta_file"
+
+  echo -e "📝 Metadata written to \e[2m$meta_file\e[0m"
+}
+
+
 
 
