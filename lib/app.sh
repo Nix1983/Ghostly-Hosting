@@ -31,8 +31,6 @@ delete_blazor_app() {
   echo -n "Type 'yes' to confirm: "
   read -r confirm
   if [[ "$confirm" != "yes" ]]; then
-    print_cancel
-    sleep 0.5
     return 1
   fi
   
@@ -327,54 +325,49 @@ show_app_details_menu() {
     printf "📦 %-15s %s\n" "DLL:" "$main_dll"
     echo "═══════════════════════════════════════════════════════════════════════════════════"
 
-    echo " 1) 🔄 Restart App          2) ⏹️ Stop App         3) 🧹 Delete App"
-    echo " 4) 📜 Show Logs            5) 🔼 Update App       6) ⚙️ Nginx Settings"
-    echo -e " $(print_back_to_menu)"
+    echo -e " 1) 📜 Show Logs             2) 📁 Show App Folder    3) 🔼 Update App"
+    echo -e " 4) 🔄 Restart App           5) 🛑 Stop App           6) 🧹 Delete App"
+    echo -e " 7) ⚙️ Nginx Settings        $(print_back_to_menu)"
     echo "───────────────────────────────────────────────────────────────────────────────────"
-    print_select_prompt 6
+    print_select_prompt 7
 
     IFS= read -rsn1 choice
     echo ""
 
     case "$choice" in
       1)
-        systemctl restart "$service" && echo "✅ Restarted."
-        sleep 1
-        ;;
-      2)
-        echo -n "❓ Are you sure you want to stop this app? [y/N]: "
-        read -r confirm
-        if [[ "$confirm" =~ ^[Yy]$ ]]; then
-          systemctl stop "$service" && echo "⏹️ Stopped."
-        else
-          echo "↩️  Canceled."
-        fi
-        sleep 1
-        ;;
-      3)
-        delete_blazor_app "$service" "$domain" "$exec_dir"
-        return 0
-        ;;
-      4)
         show_app_log_files "$service"
         ;;
-      5)
+      2)
+        echo -n "Show folder"
+        ;;
+      3)
         check_for_app_update "$exec_dir" "$service"
         exit_code=$?
-
         if [[ "$exit_code" -ne 9 ]]; then
           read -rsn1 -p "$(print_press_any_key)"
         fi
         ;;
-      6)
-        show_nginx_settings_menu "$domain"
+      4)
+        systemctl restart "$service" && echo "✅ Restarted."
+        sleep 1
         ;;
-      q|Q)
+      5)
+        echo -n "❓ Are you sure you want to stop this app? [y/N]: "
+        read -r confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+          systemctl stop "$service" && echo "⏹️ Stopped."
+        fi
+        ;;
+      6)
+        delete_blazor_app "$service" "$domain" "$exec_dir"
         return 0
         ;;
+      7)
+        show_nginx_settings_menu "$domain"
+        ;;
       *)
-        print_invalid_selection
-        sleep 1
+        return 0
         ;;
     esac
   done
