@@ -19,6 +19,7 @@ delete_blazor_app() {
     return 1
   fi
 
+  clear
   echo -e "\n🧨 \e[1;31mApp Deletion Warning\e[0m"
   echo "────────────────────────────────────────────────────────────"
   echo -e "You are about to permanently delete:\n"
@@ -27,16 +28,30 @@ delete_blazor_app() {
   echo " 🌐 Nginx config for:      $domain"
   echo " 🔒 SSL certificate for:   $domain"
   echo " ☁️ Cloudflare DNS entry:  $domain"
-  echo -e "\nThis action cannot be undone."
-  echo -n "Type 'yes' to confirm: "
-  read -r confirm
-  if [[ "$confirm" != "yes" ]]; then
+  echo -e "\n⚠️ This includes all logs and backups inside the app folder!"
+  echo -e "💣 \e[1mThis action cannot be undone.\e[0m"
+
+  local confirm_code user_input
+  confirm_code=$((RANDOM % 90000 + 10000))
+  echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m (or type \e[36mq\e[0m to cancel)"
+  read -rp $'\n🔐 Enter confirmation code: ' user_input
+
+  if [[ "$user_input" == "q" || "$user_input" == "Q" ]]; then
+    echo -e "\n↩️  \e[36mApp deletion cancelled.\e[0m"
+    sleep 1
     return 1
   fi
-  
- export HOSTNAME_FQDN="$domain"
- _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
- export DOMAIN="$_domain_part"
+
+  if [[ "$user_input" != "$confirm_code" ]]; then
+    echo -e "\n❌ \e[31mDeletion aborted – confirmation failed.\e[0m"
+    sleep 1
+    return 1
+  fi
+
+  export HOSTNAME_FQDN="$domain"
+  local _domain_part
+  _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
+  export DOMAIN="$_domain_part"
 
   echo -e "\n⏹️ \e[1mStopping and disabling service:\e[0m \e[36m$service\e[0m"
   systemctl stop "$service" 2>/dev/null || true
@@ -48,7 +63,7 @@ delete_blazor_app() {
   systemctl daemon-reload
 
   if [[ -d "$exec_dir" ]]; then
-    echo -e "🧹 \e[1mDeleting app folder:\e[0m \e[2m$exec_dir\e[0m"
+    echo -e "🧹 \e[1mDeleting app folder (incl. logs & backups):\e[0m \e[2m$exec_dir\e[0m"
     rm -rf "$exec_dir"
   else
     echo -e "ℹ️  App folder not found: \e[2m$exec_dir\e[0m"
@@ -329,7 +344,7 @@ show_app_details_menu() {
     echo "═══════════════════════════════════════════════════════════════════════════════════"
 
     echo -e " 1) 📜 Show Logs             2) 📁 Show App Folder    3) 🔼 Update App"
-    echo -e " 4) 🔄 Restart App           5) 🛑 Stop App           6) 🧹 Delete App"
+    echo -e " 4) 🔄 Restart App           5) 🛑 Stop App           6) 🧨 Delete App"
     echo -e " 7) ⚙️ Nginx Settings        $(print_back_to_menu)"
     echo "───────────────────────────────────────────────────────────────────────────────────"
     print_select_prompt 7
@@ -364,7 +379,9 @@ show_app_details_menu() {
         ;;
       6)
         delete_blazor_app "$service" "$domain" "$exec_dir"
-        return 0
+        if [[ $? -ne 1 ]]; then
+          return 0
+        fi
         ;;
       7)
         show_nginx_settings_menu "$domain"
