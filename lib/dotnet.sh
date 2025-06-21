@@ -549,7 +549,7 @@ create_kestrel_service() {
   # 🧹 Cleanup log files older than 30 days
   find "$log_dir" -type f -name '*.log' -mtime +30 -delete
 
-  echo -e "\n⚙️  \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
+  echo -e "\n⚙️ \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
   {
     echo "[Unit]"

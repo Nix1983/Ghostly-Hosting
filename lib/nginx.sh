@@ -25,7 +25,7 @@ create_nginx_config() {
   local cert_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
   local key_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/privkey.pem"
 
-  echo -e "\n⚙️  \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN → localhost:$KESTREL_PORT\033[0m"
+  echo -e "\n⚙️ \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN → localhost:$KESTREL_PORT\033[0m"
 
   {
     echo "server {"

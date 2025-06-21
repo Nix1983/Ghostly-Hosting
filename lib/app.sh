@@ -34,7 +34,10 @@ delete_blazor_app() {
     return 1
   fi
   
-  export HOSTNAME_FQDN="$domain"
+ export HOSTNAME_FQDN="$domain"
+ _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
+ export DOMAIN="$_domain_part"
+
   echo -e "\n⏹️ \e[1mStopping and disabling service:\e[0m \e[36m$service\e[0m"
   systemctl stop "$service" 2>/dev/null || true
   systemctl disable "$service" 2>/dev/null || true
@@ -51,7 +54,7 @@ delete_blazor_app() {
     echo -e "ℹ️  App folder not found: \e[2m$exec_dir\e[0m"
   fi
 
-  echo -e "\n⚙️  \e[1mRemoving Nginx config:\e[0m \e[36m$HOSTNAME_FQDN\e[0m"
+  echo -e "\n⚙️ \e[1mRemoving Nginx config:\e[0m \e[36m$HOSTNAME_FQDN\e[0m"
   rm -f "/etc/nginx/sites-available/$HOSTNAME_FQDN"
   rm -f "/etc/nginx/sites-enabled/$HOSTNAME_FQDN"
   if nginx -t &>/dev/null; then
