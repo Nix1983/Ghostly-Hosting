@@ -132,8 +132,8 @@ check_and_offer_reboot() {
   if [[ -f /var/run/reboot-required ]]; then
     echo -e "\n🔁 \e[1;31mReboot required\e[0m"
     echo -e "\n⚠️  \e[1mYour system requires a reboot to complete updates.\e[0m"
-    echo -e "   🔌 SSH connection will be lost temporarily during reboot."
-    echo -e "   ⏳ Wait ~\e[36m60 seconds\e[0m and reconnect manually after reboot."
+    echo -e "🔌 SSH connection will be lost temporarily during reboot."
+    echo -e "⏳ Wait ~\e[36m60 seconds\e[0m and reconnect manually after reboot."
 
     echo -e "\n❓ \e[1mWhat do you want to do?\e[0m"
     echo "────────────────────────────────────────────────────────────"

@@ -160,7 +160,9 @@ check_for_app_update() {
   local service_name="$2"
   local meta_file="$exec_dir/meta.json"
   local backup_dir="$exec_dir/backup"
+  local log_dir="$exec_dir/logs"
 
+  clear
   echo -e "\n🔍 \e[1mChecking for App Updates\e[0m"
   echo "═════════════════════════════════════════════════════════════"
 
@@ -219,10 +221,9 @@ check_for_app_update() {
   echo -e "   👉 Latest:   \e[2m$latest_commit\e[0m"
 
   echo -e "\n❓ \e[1mWould you like to update this app now?\e[0m"
-  echo -e "1) 🔄 Yes, update now"
-  echo -e "2) 🔙 No, return to menu"
+  echo -e " \n1) 🔄 Yes, update now        q) 🔙 No, return to menu"
   echo "─────────────────────────────────────────────────────────────"
-  echo -n "Select [1–2]: "
+  echo -n "Select [1,q]: "
   IFS= read -rsn1 choice
   echo ""
 
@@ -239,22 +240,34 @@ check_for_app_update() {
       install_dotnet_version || return 1
       publish_dotnet_project || {
         echo -e "❌ \e[31mPublish failed – update aborted.\e[0m"
+        cleanup_temp_folders
         return 1
       }
 
-      echo -e "\n⏹️  \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
+      echo -e "\n⏹️ \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
       systemctl stop "$service_name" 2>/dev/null || echo "⚠️ Could not stop service."
 
       # Ensure backup folder exists
       mkdir -p "$backup_dir"
 
-      # Backup meta.json with timestamp
-      local timestamp
-      timestamp=$(date +"%Y%m%dT%H%M%S")
-      cp "$meta_file" "$backup_dir/meta-${timestamp}.json" 2>/dev/null || true
+      # Backup meta.json with timestamp BEFORE deletion
+      if [[ -f "$meta_file" ]]; then
+        local timestamp
+        timestamp=$(date +"%Y%m%dT%H%M%S")
+        local backup_path="$backup_dir/meta-${timestamp}.json"
+        cp "$meta_file" "$backup_path" && echo "✅ Backup saved to $backup_path" || echo "❌ Failed to copy meta.json"
+      else
+        echo "❌ meta.json not found – cannot back up"
+      fi
 
-      echo -e "🧹 \e[1mCleaning deployment folder (excluding logs/ and backup/)...\e[0m"
-      find "$exec_dir" -mindepth 1 -not -name "logs" -not -name "backup" -exec rm -rf {} +
+      # Preserve logs and backup in TMP_PUBLISH_DIR
+      [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/logs"
+      [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/backup"
+
+      echo -e "🧹 \e[1mCleaning deployment folder...\e[0m"
+      if [[ -d "$exec_dir" ]]; then
+        rm -rf "${exec_dir:?}"/*
+      fi
 
       echo -e "📁 \e[1mDeploying new version...\e[0m"
       cp -r "$TMP_PUBLISH_DIR"/. "$exec_dir"/
@@ -268,18 +281,12 @@ check_for_app_update() {
       else
         echo -e "\n❌ \e[31mUpdate deployed but service could not be started.\e[0m"
         systemctl status "$service_name" --no-pager
-        return 1
       fi
 
       return 0
       ;;
-    2)
-      echo -e "\n↩️  Update skipped by user."
-      return 0
-      ;;
     *)
-      print_invalid_selection
-      return 1
+      return 9
       ;;
   esac
 }
@@ -353,7 +360,11 @@ show_app_details_menu() {
         ;;
       5)
         check_for_app_update "$exec_dir" "$service"
-        read -rsn1 -p "$(print_press_any_key)"
+        exit_code=$?
+
+        if [[ "$exit_code" -ne 9 ]]; then
+          read -rsn1 -p "$(print_press_any_key)"
+        fi
         ;;
       6)
         show_nginx_settings_menu "$domain"
@@ -368,4 +379,3 @@ show_app_details_menu() {
     esac
   done
 }
-

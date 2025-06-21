@@ -207,10 +207,8 @@ select_branch_or_tag() {
   local -a branches sorted_branches
   local index=1
 
-  # Branches verarbeiten
+  # Parse branches and sort master first
   mapfile -t branches < <(echo "$branches_json" | jq -r '.[].name')
-
-  # master zuerst einsortieren
   for branch in "${branches[@]}"; do
     [[ "$branch" == "master" ]] && sorted_branches=("master")
   done
@@ -218,17 +216,12 @@ select_branch_or_tag() {
     [[ "$branch" != "master" ]] && sorted_branches+=("$branch")
   done
 
-  echo -e "\n🌿 \e[1mAvailable Branches:\e[0m"
-  echo "────────────────────────────────────────────────────────────"
-
+  # Combine branches and tags into one list
   for branch in "${sorted_branches[@]}"; do
     option_map[$index]="branch:$branch"
     all_options+=("$index|🌿 Branch:|$branch")
     ((index++))
   done
-
-  echo -e "\n🏷️ \e[1mAvailable Releases / Tags:\e[0m"
-  echo "────────────────────────────────────────────────────────────"
 
   mapfile -t tags < <(echo "$tags_json" | jq -r '.[].name')
   for tag in "${tags[@]}"; do
@@ -237,11 +230,12 @@ select_branch_or_tag() {
     ((index++))
   done
 
-  # Zwei Einträge pro Zeile anzeigen
+  echo -e "\n🌀 \e[1mAvailable Branches / Releases / Tags:\e[0m"
+  echo "────────────────────────────────────────────────────────────"
+
   local i=0
   while [[ $i -lt ${#all_options[@]} ]]; do
     local left right
-
     IFS="|" read -r idx1 label1 val1 <<< "${all_options[$i]}"
     left=$(printf " %2d) %s \e[36m%-30s\e[0m" "$idx1" "$label1" "$val1")
 
@@ -252,7 +246,6 @@ select_branch_or_tag() {
     else
       printf "%s\n" "$left"
     fi
-
     ((i += 2))
   done
 
@@ -274,6 +267,7 @@ select_branch_or_tag() {
   echo -e "✅ Selected $type: \e[36m$name\e[0m"
   return 0
 }
+
 
 save_repo_metadata() {
   local target_dir="$1"
