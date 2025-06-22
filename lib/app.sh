@@ -2,7 +2,6 @@
 # shellcheck disable=SC1091
 set -e
 
-# Module einbinden
 source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/cloudflare.sh
@@ -312,7 +311,6 @@ restore_app_backup() {
   read -rsn1 -p "$(print_press_any_key)"
 }
 
-
 show_app_details_menu() {
   local service="$1"
 
@@ -436,9 +434,3 @@ show_app_details_menu() {
     esac
   done
 }
-
-
-
-
-
-

@@ -131,15 +131,15 @@ show_server_health() {
 check_and_offer_reboot() {
   if [[ -f /var/run/reboot-required ]]; then
     echo -e "\n🔁 \e[1;31mReboot required\e[0m"
-    echo -e "\n⚠️  \e[1mYour system requires a reboot to complete updates.\e[0m"
+    echo -e "\n⚠️ \e[1mYour system requires a reboot to complete updates.\e[0m"
     echo -e "🔌 SSH connection will be lost temporarily during reboot."
     echo -e "⏳ Wait ~\e[36m60 seconds\e[0m and reconnect manually after reboot."
 
     echo -e "\n❓ \e[1mWhat do you want to do?\e[0m"
     echo "────────────────────────────────────────────────────────────"
-    echo -e " 1) ♻️  Reboot now    2) ⏭️  Skip reboot (you can run \e[36mreboot\e[0m manually later)"
+    echo -e " 1) ♻️  Reboot now    q) ⏭️  Skip reboot (you can run \e[36mreboot\e[0m manually later)"
     echo "────────────────────────────────────────────────────────────"
-    echo -n "Select [1–2]: "
+    print_select_prompt 1
     IFS= read -rsn1 answer
     echo ""
 
@@ -150,11 +150,8 @@ check_and_offer_reboot() {
         reboot
         exit 0
         ;;
-      2)
-        echo -e "\n↪️  Reboot skipped. You can run \e[36mreboot\e[0m manually at any time."
-        ;;
       *)
-        echo -e "\n❌ Invalid selection. Reboot skipped."
+        echo -e "\n↪️  Reboot skipped. You can run \e[36mreboot\e[0m manually at any time."
         ;;
     esac
   else
@@ -328,14 +325,14 @@ reset_server() {
   echo -e "🔸 Remove \e[36mcertbot\e[0m and all certificates"
   echo -e "🔸 Remove \e[36mgit\e[0m and config"
   echo -e "🔸 Remove all Blazor apps in \e[36m/var/www/\e[0m"
-  echo -e "🔸 Remove all systemd services matching \e[36mblazor-*.service\e[0m"
+  echo -e "🔸 Remove all systemd services for hosted .NET apps"
   echo -e "🔸 Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
   echo -e "🔸 Reset timezone to \e[36mUTC\e[0m"
   echo -e "🔸 Remove \e[36m/swapfile\e[0m"
   echo -e "🔸 Remove \e[36mufw\e[0m and firewall rules"
   echo -e "🔸 Remove all \e[36mUpCloud firewall rules\e[0m (via API)"
   echo -e "─────────────────────────────────────────────────────────────"
-  echo -e "⚠️  \e[1mThis cannot be undone.\e[0m"
+  echo -e "⚠️ \e[1mThis cannot be undone.\e[0m"
 
   local confirm_code=$((RANDOM % 90000 + 10000))
   echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m (or type \e[36mq\e[0m to cancel)"
@@ -422,7 +419,7 @@ ensure_server_initialized() {
   fi
 
   clear
-  echo -e "\n⚠️  \e[1;31mServer is not yet initialized for .NET App Hosting.\e[0m"
+  echo -e "\n⚠️ \e[1;31mServer is not yet initialized for .NET App Hosting.\e[0m"
   echo -e "\nThe following components are missing:"
   echo "────────────────────────────────────────────"
   for item in "${missing[@]}"; do
@@ -440,9 +437,9 @@ ensure_server_initialized() {
 
   echo -e "\n❓ \e[1mHow do you want to proceed?\e[0m"
   echo "────────────────────────────────────────────"
-  echo -e " 1) 🛠️  Run init_server now     2) 🔙 Cancel and return to menu"
+  echo -e " 1) 🛠️ Run init server now     q) 🔙 Cancel and return to menu"
   echo "────────────────────────────────────────────"
-  print_select_prompt 2
+  print_select_prompt 1
 
   IFS= read -rsn1 choice
   echo ""
@@ -452,13 +449,8 @@ ensure_server_initialized() {
       init_server
       return 0
       ;;
-    2|q|Q)
-      echo -e "\nℹ️  \e[2mYou must run \e[36minit_server\e[0m before adding an app.\e[0m"
-      return 1
-      ;;
     *)
-      print_invalid_selection
-      sleep 1
+      echo -e "\nℹ️ \e[2mYou must run \e[36minit server\e[0m before adding an app.\e[0m"
       return 1
       ;;
   esac
