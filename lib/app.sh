@@ -307,15 +307,25 @@ check_for_app_update() {
   esac
 }
 
+restore_app_backup() {
+  echo -e "\n🔄 \e[1mRestore from backup not yet implemented.\e[0m"
+  read -rsn1 -p "$(print_press_any_key)"
+}
+
+toggle_cloudflare_proxy() {
+  echo -e "\n🔁 \e[1mEnable/Disable Cloudflare Proxy – Not implemented yet.\e[0m"
+  read -rsn1 -p "$(print_press_any_key)"
+}
+
 show_app_details_menu() {
   local service="$1"
 
   while true; do
-    local exec_dir port status domain disk_size ram_mb main_dll uptime_sec uptime_readable
+    local exec_dir port status domain disk_size ram_mb main_dll uptime_sec uptime_readable ssl_status auto_renew
 
     exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
     port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
-    status=$(systemctl is-active "$service" &>/dev/null && echo "🟢 running" || echo "🔴 stopped")
+    status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
     domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
     disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
     ram_kb=$(systemctl show "$service" -p MemoryCurrent | cut -d= -f2)
@@ -324,71 +334,101 @@ show_app_details_menu() {
 
     uptime_sec=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
     if [[ "$uptime_sec" -gt 0 ]]; then
-      local now
+      local now elapsed_us seconds
       now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
-      local elapsed_us=$(( now - uptime_sec ))
-      local seconds=$(( elapsed_us / 1000000 ))
-      uptime_readable=$(printf '%dd %02dh %02dm %02ds' $((seconds/86400)) $((seconds%86400/3600)) $((seconds%3600/60)) $((seconds%60)))
+      elapsed_us=$(( now - uptime_sec ))
+      seconds=$(( elapsed_us / 1000000 ))
+      uptime_readable=$(printf '%02dd %02dh %02dm %02ds' $((seconds/86400)) $((seconds%86400/3600)) $((seconds%3600/60)) $((seconds%60)))
     else
       uptime_readable="–"
     fi
 
-    clear
-    echo -e "🧾 \e[1mApp Details:\e[0m \e[36m🔗\e[0m \e]8;;https://$domain\e\\$domain\e]8;;\e\\"
-    echo "═══════════════════════════════════════════════════════════════════════════════════"
-    printf "\n📶 %-15s %-22s     🔌 %-14s %s\n" "Status:" "$status" "Port:" "$port"
-    printf "💾 %-15s %-20s     🧠 %-14s %s\n" "Disk usage:" "$disk_size" "Memory usage:" "$ram_mb"
-    printf "⏱️ %-15s %s\n" "Uptime:" "$uptime_readable"
-    printf "📁 %-15s %s\n" "Directory:" "$exec_dir"
-    printf "📦 %-15s %s\n" "DLL:" "$main_dll"
-    echo "═══════════════════════════════════════════════════════════════════════════════════"
+    # Check SSL certificate
+    local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
+    if [[ -f "$cert_path" ]]; then
+      local expiry_raw expiry_date expiry_ts now_ts days_left
+      expiry_raw=$(openssl x509 -enddate -noout -in "$cert_path" 2>/dev/null | cut -d= -f2)
+      if [[ -n "$expiry_raw" ]]; then
+        expiry_date=$(date -d "$expiry_raw" '+%Y-%m-%d')
+        expiry_ts=$(date -d "$expiry_raw" +%s)
+        now_ts=$(date +%s)
+        days_left=$(( (expiry_ts - now_ts) / 86400 ))
+        if [[ "$days_left" -ge 0 ]]; then
+          ssl_status="$expiry_date (${days_left}d) ✅"
+        else
+          ssl_status="expired ❌"
+        fi
+      else
+        ssl_status="Unknown ⚠️"
+      fi
+    else
+      ssl_status="Not found ❌"
+    fi
 
-    echo -e " 1) 📜 Show Logs             2) 📁 Show App Folder    3) 🔼 Update App"
-    echo -e " 4) 🔄 Restart App           5) 🛑 Stop App           6) 🧨 Delete App"
-    echo -e " 7) ⚙️ Nginx Settings        $(print_back_to_menu)"
-    echo "───────────────────────────────────────────────────────────────────────────────────"
-    print_select_prompt 7
+    # Check Auto Renew
+    if systemctl list-timers --all | grep -q certbot.timer; then
+      auto_renew="systemd ✅"
+    elif crontab -l 2>/dev/null | grep -q certbot; then
+      auto_renew="via cron ⚠️"
+    else
+      auto_renew="none ❌"
+    fi
+
+    clear
+    printf "🧾 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   [ %s ]\n" "$domain" "$status"
+    printf "══════════════════════════════════════════════════════════════════════════════\n"
+
+    printf "🔌 %-18s \e[36m%-22s\e[0m   📦 %-17s \e[36m%-30s\e[0m\n" "Port:" "$port" "DLL:" "$main_dll"
+    printf "💾 %-18s \e[36m%-22s\e[0m   📁 %-17s \e[2m%-30s\e[0m\n" "Disk Usage:" "$disk_size" "App Directory:" "$exec_dir"
+    printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_mb" "Uptime:" "$uptime_readable"
+
+    printf "🔒 %-18s \e[36m%-23s\e[0m   ♻️ %-17s \e[36m%-20s\e[0m\n" "SSL Certificate:" "$ssl_status" "Auto Renew:" "$auto_renew"
+    printf "🌩️ %-18s \e[2m%-22s\e[0m   📡 %-17s \e[2m%-20s\e[0m\n" "CF Proxy Active:" "[TODO CF Proxy]" "DNS Records:" "[TODO DNS]"
+    printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$domain"
+    printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
+
+    printf "══════════════════════════════════════════════════════════════════════════════\n"
+    printf " 1) 📜 Show Logs         2) 🔼 Update App        3) 🔄 Restart App\n"
+    printf " 4) 🛑 Stop App          5) 🧨 Delete App        6) 💾 Restore Backup\n"
+    printf " 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings\n"
+    printf " %s\n" "$(print_back_to_menu)"
+    printf "──────────────────────────────────────────────────────────────────────────────\n"
+    print_select_prompt 8
 
     IFS= read -rsn1 choice
-    echo ""
+    printf "\n"
 
     case "$choice" in
-      1)
-        show_app_log_files "$service"
-        ;;
+      1) show_app_log_files "$service" ;;
       2)
-        echo -n "Show folder"
+        check_for_app_update "$exec_dir" "$service"
+        local exit_code=$?
+        [[ "$exit_code" -ne 9 ]] && read -rsn1 -p "$(print_press_any_key)"
         ;;
       3)
-        check_for_app_update "$exec_dir" "$service"
-        exit_code=$?
-        if [[ "$exit_code" -ne 9 ]]; then
-          read -rsn1 -p "$(print_press_any_key)"
-        fi
-        ;;
-      4)
-        systemctl restart "$service" && echo "✅ Restarted."
+        systemctl restart "$service" && printf "✅ Restarted.\n"
         sleep 1
         ;;
-      5)
-        echo -n "❓ Are you sure you want to stop this app? [y/N]: "
+      4)
+        printf "❓ Are you sure you want to stop this app? [y/N]: "
         read -r confirm
-        if [[ "$confirm" =~ ^[Yy]$ ]]; then
-          systemctl stop "$service" && echo "⏹️ Stopped."
-        fi
+        [[ "$confirm" =~ ^[Yy]$ ]] && systemctl stop "$service" && printf "⏹️ Stopped.\n"
         ;;
-      6)
+      5)
         delete_blazor_app "$service" "$domain" "$exec_dir"
-        if [[ $? -ne 1 ]]; then
-          return 0
-        fi
+        [[ $? -ne 1 ]] && return 0
         ;;
-      7)
-        show_nginx_settings_menu "$domain"
-        ;;
-      *)
-        return 0
-        ;;
+      6) restore_app_backup ;;
+      7) toggle_cloudflare_proxy ;;
+      8) show_nginx_settings_menu "$domain" ;;
+      q|Q) return 0 ;;
+      *) print_invalid_selection; sleep 0.5 ;;
     esac
   done
 }
+
+
+
+
+
+
