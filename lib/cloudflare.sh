@@ -79,6 +79,102 @@ resolve_cloudflare_zone_id() {
   return 0
 }
 
+get_cloudflare_proxy_status() {
+  local domain="$1"
+  local zone_id="$2"
+  local token="$3"
+  local api_base="${4:-$CLOUDFLARE_API_BASE}"
+
+  if [[ -z "$domain" || -z "$zone_id" || -z "$token" ]]; then
+    echo "❌"
+    return 1
+  fi
+
+  local response proxy_flag
+  response=$(curl -s -X GET "$api_base/zones/$zone_id/dns_records?type=A&name=$domain" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json")
+
+  proxy_flag=$(echo "$response" | jq -r '.result[0].proxied // empty')
+  [[ "$proxy_flag" == "true" ]] && echo "✅" || echo "❌"
+}
+
+has_cloudflare_dns_record() {
+  local domain="$1"
+  local zone_id="$2"
+  local token="$3"
+  local type="$4"
+  local api_base="${5:-$CLOUDFLARE_API_BASE}"
+
+  if [[ -z "$domain" || -z "$zone_id" || -z "$token" || -z "$type" ]]; then
+    echo "❌"
+    return 1
+  fi
+
+  local response count
+  response=$(curl -s -X GET "$api_base/zones/$zone_id/dns_records?type=$type&name=$domain" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json")
+
+  count=$(echo "$response" | jq '.result | length')
+  [[ "$count" -gt 0 ]] && echo "✅" || echo "❌"
+}
+
+toggle_cloudflare_proxy() {
+  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$ZONE_ID" || -z "$HOSTNAME_FQDN" ]]; then
+    echo -e "❌ \e[31mMissing required variables: CLOUDFLARE_API_TOKEN, ZONE_ID, or HOSTNAME_FQDN.\e[0m"
+    return 1
+  fi
+
+  local types=("A" "AAAA")
+  local has_change=false
+
+  echo -e "\n🔄 \e[1mToggling Cloudflare Proxy for:\e[0m \e[36m$HOSTNAME_FQDN\e[0m"
+
+  for record_type in "${types[@]}"; do
+    local response record_id current_status new_status ip_var update_payload
+
+    response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$HOSTNAME_FQDN" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json")
+
+    record_id=$(echo "$response" | jq -r '.result[0].id // empty')
+    current_status=$(echo "$response" | jq -r '.result[0].proxied // empty')
+    ip_var=$(echo "$response" | jq -r '.result[0].content // empty')
+
+    if [[ -z "$record_id" ]]; then
+      echo -e "⚠️  No $record_type-record found."
+      continue
+    fi
+
+    # Toggle proxy status
+    new_status=$([[ "$current_status" == "true" ]] && echo "false" || echo "true")
+
+    update_payload=$(jq -n \
+      --arg type "$record_type" \
+      --arg name "$HOSTNAME_FQDN" \
+      --arg content "$ip_var" \
+      --argjson proxied "$new_status" \
+      '{type: $type, name: $name, content: $content, proxied: $proxied}')
+
+    curl -s -X PUT "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data "$update_payload" >/dev/null
+
+    echo -e " → $record_type updated: \e[1m$HOSTNAME_FQDN\e[0m → \e[32m$([[ "$new_status" == "true" ]] && echo "✅ ON" || echo "❌ OFF")\e[0m"
+    has_change=true
+  done
+
+  if [[ "$has_change" != true ]]; then
+    echo -e "⚠️  \e[33mNo records updated – nothing toggled.\e[0m"
+    return 1
+  fi
+
+  return 0
+}
+
+
 delete_cloudflare_dns_records() {
   if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$ZONE_ID" || -z "$HOSTNAME_FQDN" ]]; then
     echo -e "❌ \e[31mCannot delete DNS records – required variables missing (CLOUDFLARE_API_TOKEN, ZONE_ID, HOSTNAME_FQDN).\e[0m"

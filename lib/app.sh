@@ -312,10 +312,6 @@ restore_app_backup() {
   read -rsn1 -p "$(print_press_any_key)"
 }
 
-toggle_cloudflare_proxy() {
-  echo -e "\n🔁 \e[1mEnable/Disable Cloudflare Proxy – Not implemented yet.\e[0m"
-  read -rsn1 -p "$(print_press_any_key)"
-}
 
 show_app_details_menu() {
   local service="$1"
@@ -374,6 +370,20 @@ show_app_details_menu() {
       auto_renew="none ❌"
     fi
 
+    # Load proxy status via Cloudflare helper
+    export HOSTNAME_FQDN="$domain"
+    load_env >/dev/null 2>&1
+    local _domain_part; _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
+    export DOMAIN="$_domain_part"
+    resolve_cloudflare_zone_id >/dev/null 2>&1
+
+    cf_proxy=$(get_cloudflare_proxy_status "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN")
+
+    local dns_ipv4 dns_ipv6
+    dns_ipv4=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "A")
+    dns_ipv6=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "AAAA")
+    local dns_summary="A: $dns_ipv4  AAAA: $dns_ipv6"
+
     clear
     printf "🧾 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   [ %s ]\n" "$domain" "$status"
     printf "══════════════════════════════════════════════════════════════════════════════\n"
@@ -383,13 +393,13 @@ show_app_details_menu() {
     printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_mb" "Uptime:" "$uptime_readable"
 
     printf "🔒 %-18s \e[36m%-23s\e[0m   ♻️ %-17s \e[36m%-20s\e[0m\n" "SSL Certificate:" "$ssl_status" "Auto Renew:" "$auto_renew"
-    printf "🌩️ %-18s \e[2m%-22s\e[0m   📡 %-17s \e[2m%-20s\e[0m\n" "CF Proxy Active:" "[TODO CF Proxy]" "DNS Records:" "[TODO DNS]"
+    printf "🌩️ %-18s \e[36m%-23s\e[0m   📡 %-17s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$cf_proxy" "DNS Records:" "$dns_summary"
     printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$domain"
     printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
 
     printf "══════════════════════════════════════════════════════════════════════════════\n"
-    printf " 1) 📜 Show Logs         2) 🔼 Update App        3) 🔄 Restart App\n"
-    printf " 4) 🛑 Stop App          5) 🧨 Delete App        6) 💾 Restore Backup\n"
+    printf " 1) 📜 Show Logs         2) 🔼 Update App          3) 🔄 Restart App\n"
+    printf " 4) 🛑 Stop App          5) 🧨 Delete App          6) 💾 Restore Backup\n"
     printf " 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings\n"
     printf " %s\n" "$(print_back_to_menu)"
     printf "──────────────────────────────────────────────────────────────────────────────\n"
