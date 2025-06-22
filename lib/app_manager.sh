@@ -54,7 +54,6 @@ add_new_app() {
   read -rsn1 -p "$(print_press_any_key)"
 }
 
-
 show_apps() {
   local index=1
   local -A app_map=()

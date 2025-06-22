@@ -324,8 +324,73 @@ check_for_app_update() {
 }
 
 restore_app_backup() {
-  echo -e "\n🔄 \e[1mRestore from backup not yet implemented.\e[0m"
-  read -rsn1 -p "$(print_press_any_key)"
+  local exec_dir="$1"
+  local backup_dir="$exec_dir/backup"
+
+  local subdomain parent domain
+  subdomain=$(basename "$exec_dir")
+  parent=$(basename "$(dirname "$exec_dir")")
+
+  if [[ "$subdomain" == "root" ]]; then
+    domain="$parent"
+  else
+    domain="$subdomain.$parent"
+  fi
+
+  domain="${domain//-/.}"
+
+  if [[ ! -d "$backup_dir" ]]; then
+    echo -e "\n❌ \e[31mBackup folder not found at:\e[2m $backup_dir\e[0m"
+    return 1
+  fi
+
+  mapfile -t meta_files < <(find "$backup_dir" -maxdepth 1 -type f -name "meta-*.json" | sort -r)
+  if (( ${#meta_files[@]} == 0 )); then
+    echo -e "\n❌ \e[31mNo backup metadata files found.\e[0m"
+    return 1
+  fi
+
+  local options=()
+  local -A map_idx
+  local i=1
+
+  for file in "${meta_files[@]}"; do
+    local filename timestamp datetime ref commit
+    filename=$(basename "$file")
+    timestamp="${filename//meta-/}"
+    timestamp="${timestamp//.json/}"
+    timestamp="${timestamp//T/}"
+
+    datetime=$(date -d "${timestamp:0:8} ${timestamp:8:2}:${timestamp:10:2}:${timestamp:12:2}" "+%H:%M:%S %d-%m-%Y" 2>/dev/null || echo "$timestamp")
+    ref=$(jq -r '.ref_name // "-" ' "$file")
+    commit=$(jq -r '.commit // ""' "$file")
+
+    options+=("$(printf " %2d) 🕒 %s  |  🌿 %s \e[2m(%s)\e[0m" "$i" "$datetime" "$ref" "${commit:0:7}")")
+    map_idx["$i"]="$file"
+    ((i++))
+  done
+
+  while true; do
+    clear
+    echo -e "\n♻️  \e[1;34mRestore App from Backup\e[0m | 🌐 \e[36m$domain\e[0m"
+    echo -e "─────────────────────────────────────────────────────────────"
+    printf "%s\n" "${options[@]}"
+    echo -e "\n  $(print_back_to_menu)"
+    echo "─────────────────────────────────────────────────────────────"
+    print_select_prompt $((i - 1))
+    read -r choice
+    echo ""
+
+    if [[ "$choice" =~ ^[Qq]$ ]]; then return 9; fi
+    if [[ "$choice" =~ ^[0-9]+$ && -n "${map_idx[$choice]}" ]]; then
+      echo -e "\n✅ Selected Backup: \e[36m${map_idx[$choice]}\e[0m"
+      # Hier Restore-Logik aufrufen
+      return 0
+    else
+      print_invalid_selection
+      sleep 1
+    fi
+  done
 }
 
 restart_app_service() {
@@ -452,7 +517,7 @@ show_app_details_menu() {
         delete_app_interactively "$service" "$domain" "$exec_dir"
         [[ $? -eq 0 ]] && return 0
         ;;
-      6) restore_app_backup ;;
+      6) restore_app_backup "$exec_dir" ;;
       7) toggle_cloudflare_proxy 
          refresh_cloudflare_info_for_domain "$domain"
          ;;

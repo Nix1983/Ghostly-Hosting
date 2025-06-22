@@ -3,6 +3,7 @@
 set -e
 
 source ./lib/common.sh
+source ./lib/print.sh
 
 _restart_timezone_services() {
   echo -e "\n🔄 \e[1mRestarting affected services...\e[0m"
@@ -29,7 +30,7 @@ prompt_and_set_timezone() {
     echo -e " 1) 🧠 Detect timezone from your current local time"
     echo -e " 2) 📚 Manually select from common timezones"
     echo -e " 3) 🌍 Use UTC (Coordinated Universal Time)"
-    echo -e " q) 🔙 Cancel and return"
+    echo -e " $(print_back_to_menu)"
     echo "─────────────────────────────────────────────────────────────"
     print_select_prompt 3
 
@@ -139,13 +140,11 @@ detect_timezone_from_input() {
     done
 
     echo "─────────────────────────────────────────────────────────────"
-    echo " q) 🔙 Cancel and return to previous menu"
+    echo "$(print_back_to_menu)"
     print_select_prompt "${#zone_candidates[@]}"
     read -r selection
 
     if [[ "$selection" == "q" || "$selection" == "Q" ]]; then
-      echo -e "\n↩️  \e[2mReturning to timezone menu...\e[0m"
-      sleep 1
       return 1
     elif [[ "$selection" =~ ^[1-9][0-9]*$ ]] && (( selection >= 1 && selection <= ${#zone_candidates[@]} )); then
       SELECTED_TIMEZONE="${zone_candidates[$((selection - 1))]}"
@@ -174,14 +173,12 @@ prompt_for_common_timezone() {
     done
 
     echo -e "─────────────────────────────────────────────────────────────"
-    echo "  q) 🔙 Cancel and return to previous menu"
+    echo "  $(print_back_to_menu)"
     echo ""
     print_select_prompt "${#zones[@]}"
     read -r selection
 
     if [[ "$selection" == "q" || "$selection" == "Q" ]]; then
-      echo -e "\n↩️  \e[2mReturning to timezone menu...\e[0m"
-      sleep 1
       return 1
     elif [[ "$selection" =~ ^[1-9][0-9]*$ ]] && (( selection >= 1 && selection <= ${#zones[@]} )); then
       SELECTED_TIMEZONE="${zones[$((selection - 1))]}"

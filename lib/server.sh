@@ -57,7 +57,8 @@ show_server_health() {
   # Updates
   local updates_output updates_count
   updates_output=$(apt list --upgradable 2>/dev/null || true)
-  updates_count=$(echo "$updates_output" | grep -vc "Listing..." || echo 0)
+  updates_output=$(apt list --upgradable 2>/dev/null || true)
+  updates_count=$(echo "$updates_output" | grep -vc "Listing...") || updates_count=0
 
   # Services
   local services=(fail2ban nginx ssh systemd-timesyncd certbot.timer git)
@@ -233,7 +234,7 @@ show_init_server_prompt() {
 
   echo -e "\n❓ \e[1mDo you want to initialize the server now?\e[0m"
   echo -e " 1) ✅ Yes, proceed with initialization"
-  echo -e " q) 🔙 Cancel and return to menu"
+  echo -e " $(print_back_to_menu)"
   echo "─────────────────────────────────────────────────────────────"
   print_select_prompt 1
 
@@ -251,7 +252,7 @@ show_init_server_prompt() {
 
 init_server() {
   clear
-  echo -e "\n🚀 \e[1;34mInitialize Server for Blazor Hosting\e[0m"
+  echo -e "\n🚀 \e[1;34mInitialize Server for .NET Hosting\e[0m"
   echo "═════════════════════════════════════════════════════════════"
   
   echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
@@ -458,7 +459,7 @@ ensure_server_initialized() {
 
   echo -e "\n❓ \e[1mHow do you want to proceed?\e[0m"
   echo "────────────────────────────────────────────"
-  echo -e " 1) 🛠️ Run init server now     q) 🔙 Cancel and return to menu"
+  echo -e " 1) 🛠️ Run init server now     $(print_back_to_menu)"
   echo "────────────────────────────────────────────"
   print_select_prompt 1
 
