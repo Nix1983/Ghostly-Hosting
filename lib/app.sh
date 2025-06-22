@@ -100,6 +100,23 @@ delete_blazor_app() {
   read -rsn1 -p "$(print_press_any_key)"
 }
 
+refresh_cloudflare_info_for_domain() {
+  local domain="$1"
+
+  export HOSTNAME_FQDN="$domain"
+  load_env >/dev/null 2>&1
+
+  local _domain_part
+  _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
+  export DOMAIN="$_domain_part"
+  resolve_cloudflare_zone_id >/dev/null 2>&1
+
+  cf_proxy=$(get_cloudflare_proxy_status "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN")
+  dns_ipv4=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "A")
+  dns_ipv6=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "AAAA")
+  dns_summary="A: $dns_ipv4  AAAA: $dns_ipv6"
+}
+
 show_app_log_files() {
   local service="$1"
   local exec_dir
@@ -353,67 +370,59 @@ update_app_interactively() {
 show_app_details_menu() {
   local service="$1"
 
+  local exec_dir port status domain disk_size ram_mb main_dll uptime_sec uptime_readable ssl_status auto_renew
+  local cf_proxy dns_ipv4 dns_ipv6 dns_summary
+
+  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
+  port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
+  status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
+  domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
+  disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
+  local ram_kb
+  ram_kb=$(systemctl show "$service" -p MemoryCurrent | cut -d= -f2)
+  [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]] && ram_mb="$((ram_kb / 1024 / 1024)) MB" || ram_mb="–"
+  main_dll=$(find "$exec_dir" -maxdepth 1 -name "*.dll" | head -n1 | xargs basename)
+
+  uptime_sec=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
+  if [[ "$uptime_sec" -gt 0 ]]; then
+    local now elapsed_us seconds
+    now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
+    elapsed_us=$(( now - uptime_sec ))
+    seconds=$(( elapsed_us / 1000000 ))
+    uptime_readable=$(printf '%02dd %02dh %02dm %02ds' $((seconds/86400)) $((seconds%86400/3600)) $((seconds%3600/60)) $((seconds%60)))
+  else
+    uptime_readable="–"
+  fi
+
+  local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
+  if [[ -f "$cert_path" ]]; then
+    local expiry_raw expiry_date expiry_ts now_ts days_left
+    expiry_raw=$(openssl x509 -enddate -noout -in "$cert_path" 2>/dev/null | cut -d= -f2)
+    if [[ -n "$expiry_raw" ]]; then
+      expiry_date=$(date -d "$expiry_raw" '+%Y-%m-%d')
+      expiry_ts=$(date -d "$expiry_raw" +%s)
+      now_ts=$(date +%s)
+      days_left=$(( (expiry_ts - now_ts) / 86400 ))
+      ssl_status=$([[ "$days_left" -ge 0 ]] && echo "$expiry_date (${days_left}d) ✅" || echo "expired ❌")
+    else
+      ssl_status="Unknown ⚠️"
+    fi
+  else
+    ssl_status="Not found ❌"
+  fi
+
+  if systemctl list-timers --all | grep -q certbot.timer; then
+    auto_renew="systemd ✅"
+  elif crontab -l 2>/dev/null | grep -q certbot; then
+    auto_renew="via cron ⚠️"
+  else
+    auto_renew="none ❌"
+  fi
+
+  refresh_cloudflare_info_for_domain "$domain"
+
+
   while true; do
-    local exec_dir port status domain disk_size ram_mb main_dll uptime_sec uptime_readable ssl_status auto_renew
-
-    exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
-    port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
-    status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
-    domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
-    disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
-    ram_kb=$(systemctl show "$service" -p MemoryCurrent | cut -d= -f2)
-    [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]] && ram_mb="$((ram_kb / 1024 / 1024)) MB" || ram_mb="–"
-    main_dll=$(find "$exec_dir" -maxdepth 1 -name "*.dll" | head -n1 | xargs basename)
-
-    uptime_sec=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
-    if [[ "$uptime_sec" -gt 0 ]]; then
-      local now elapsed_us seconds
-      now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
-      elapsed_us=$(( now - uptime_sec ))
-      seconds=$(( elapsed_us / 1000000 ))
-      uptime_readable=$(printf '%02dd %02dh %02dm %02ds' $((seconds/86400)) $((seconds%86400/3600)) $((seconds%3600/60)) $((seconds%60)))
-    else
-      uptime_readable="–"
-    fi
-
-    local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
-    if [[ -f "$cert_path" ]]; then
-      local expiry_raw expiry_date expiry_ts now_ts days_left
-      expiry_raw=$(openssl x509 -enddate -noout -in "$cert_path" 2>/dev/null | cut -d= -f2)
-      if [[ -n "$expiry_raw" ]]; then
-        expiry_date=$(date -d "$expiry_raw" '+%Y-%m-%d')
-        expiry_ts=$(date -d "$expiry_raw" +%s)
-        now_ts=$(date +%s)
-        days_left=$(( (expiry_ts - now_ts) / 86400 ))
-        ssl_status=$([[ "$days_left" -ge 0 ]] && echo "$expiry_date (${days_left}d) ✅" || echo "expired ❌")
-      else
-        ssl_status="Unknown ⚠️"
-      fi
-    else
-      ssl_status="Not found ❌"
-    fi
-
-    if systemctl list-timers --all | grep -q certbot.timer; then
-      auto_renew="systemd ✅"
-    elif crontab -l 2>/dev/null | grep -q certbot; then
-      auto_renew="via cron ⚠️"
-    else
-      auto_renew="none ❌"
-    fi
-
-    export HOSTNAME_FQDN="$domain"
-    load_env >/dev/null 2>&1
-    local _domain_part; _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
-    export DOMAIN="$_domain_part"
-    resolve_cloudflare_zone_id >/dev/null 2>&1
-
-    cf_proxy=$(get_cloudflare_proxy_status "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN")
-
-    local dns_ipv4 dns_ipv6
-    dns_ipv4=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "A")
-    dns_ipv6=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "AAAA")
-    local dns_summary="A: $dns_ipv4  AAAA: $dns_ipv6"
-
     clear
     printf "🧾 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   [ %s ]\n" "$domain" "$status"
     printf "══════════════════════════════════════════════════════════════════════════════\n"
@@ -444,9 +453,12 @@ show_app_details_menu() {
         [[ $? -eq 0 ]] && return 0
         ;;
       6) restore_app_backup ;;
-      7) toggle_cloudflare_proxy ;;
+      7) toggle_cloudflare_proxy 
+         refresh_cloudflare_info_for_domain "$domain"
+         ;;
       8) show_nginx_settings_menu "$domain" ;;
       *) return 0 ;;
     esac
   done
 }
+
