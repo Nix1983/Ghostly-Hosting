@@ -649,7 +649,6 @@ remove_ip_from_blocklist() {
   fi
 }
 
-
 clear_fail2ban_blocklist() {
   clear
   echo -e "\n🧹 \e[1mClear Entire Blocklist"
@@ -686,7 +685,6 @@ clear_fail2ban_blocklist() {
   fi
 }
 
-
 get_blocklist_entry_list() {
   local ref_name="$1"
   declare -A map
@@ -710,7 +708,6 @@ show_blocklist_entrys() {
 
   print_f2b_ip_entries blocklist_map
 }
-
 
 show_f2b_blocklist_menu() {
   while true; do
@@ -764,7 +761,6 @@ show_f2b_blocklist_menu() {
   done
 }
 
-
 show_f2b_logs_menu() {
   while true; do
     clear
@@ -807,7 +803,6 @@ show_f2b_logs_menu() {
     esac
   done
 }
-
 
 show_f2b_menu() {
   if ! command -v fail2ban-client >/dev/null 2>&1; then
