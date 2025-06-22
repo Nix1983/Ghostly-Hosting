@@ -31,7 +31,7 @@ show_server_manager_menu() {
     echo -e "\n q) 🏃💨 \e[1;31mExit Server Control\e[0m"
 
     echo -e "\n─────────────────────────────────────────────────────────────"
-    print_select_prompt 9
+    print_select_prompt 8
 
     IFS= read -rsn1 choice
     echo ""
