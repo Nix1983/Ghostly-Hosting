@@ -372,7 +372,7 @@ restore_app_backup() {
 
   while true; do
     clear
-    echo -e "\n♻️  \e[1;34mRestore App from Backup\e[0m | 🌐 \e[36m$domain\e[0m"
+    echo -e "\n♻️   Restore App from Backup | 🌐 \e[36m$domain\e[0m"
     echo -e "─────────────────────────────────────────────────────────────"
     printf "%s\n" "${options[@]}"
     echo -e "\n  $(print_back_to_menu)"
