@@ -311,6 +311,45 @@ restore_app_backup() {
   read -rsn1 -p "$(print_press_any_key)"
 }
 
+restart_app_service() {
+  local service="$1"
+  if systemctl restart "$service"; then
+    echo "✅ Restarted."
+  else
+    echo -e "❌ \e[31mFailed to restart service.\e[0m"
+  fi
+  sleep 1
+}
+
+stop_app_service() {
+  local service="$1"
+  printf "❓ Are you sure you want to stop this app? [y/N]: "
+  read -r confirm
+  if [[ "$confirm" =~ ^[Yy]$ ]]; then
+    systemctl stop "$service" && echo "⏹️ Stopped." || echo -e "❌ \e[31mFailed to stop.\e[0m"
+    sleep 1
+  fi
+}
+
+delete_app_interactively() {
+  local service="$1"
+  local domain="$2"
+  local exec_dir="$3"
+
+  delete_blazor_app "$service" "$domain" "$exec_dir"
+  [[ $? -ne 1 ]] && return 0
+  return 1
+}
+
+update_app_interactively() {
+  local exec_dir="$1"
+  local service="$2"
+
+  check_for_app_update "$exec_dir" "$service"
+  local exit_code=$?
+  [[ "$exit_code" -ne 9 ]] && read -rsn1 -p "$(print_press_any_key)"
+}
+
 show_app_details_menu() {
   local service="$1"
 
@@ -337,7 +376,6 @@ show_app_details_menu() {
       uptime_readable="–"
     fi
 
-    # Check SSL certificate
     local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
     if [[ -f "$cert_path" ]]; then
       local expiry_raw expiry_date expiry_ts now_ts days_left
@@ -347,11 +385,7 @@ show_app_details_menu() {
         expiry_ts=$(date -d "$expiry_raw" +%s)
         now_ts=$(date +%s)
         days_left=$(( (expiry_ts - now_ts) / 86400 ))
-        if [[ "$days_left" -ge 0 ]]; then
-          ssl_status="$expiry_date (${days_left}d) ✅"
-        else
-          ssl_status="expired ❌"
-        fi
+        ssl_status=$([[ "$days_left" -ge 0 ]] && echo "$expiry_date (${days_left}d) ✅" || echo "expired ❌")
       else
         ssl_status="Unknown ⚠️"
       fi
@@ -359,7 +393,6 @@ show_app_details_menu() {
       ssl_status="Not found ❌"
     fi
 
-    # Check Auto Renew
     if systemctl list-timers --all | grep -q certbot.timer; then
       auto_renew="systemd ✅"
     elif crontab -l 2>/dev/null | grep -q certbot; then
@@ -368,7 +401,6 @@ show_app_details_menu() {
       auto_renew="none ❌"
     fi
 
-    # Load proxy status via Cloudflare helper
     export HOSTNAME_FQDN="$domain"
     load_env >/dev/null 2>&1
     local _domain_part; _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
@@ -385,16 +417,13 @@ show_app_details_menu() {
     clear
     printf "🧾 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   [ %s ]\n" "$domain" "$status"
     printf "══════════════════════════════════════════════════════════════════════════════\n"
-
     printf "🔌 %-18s \e[36m%-22s\e[0m   📦 %-17s \e[36m%-30s\e[0m\n" "Port:" "$port" "DLL:" "$main_dll"
     printf "💾 %-18s \e[36m%-22s\e[0m   📁 %-17s \e[2m%-30s\e[0m\n" "Disk Usage:" "$disk_size" "App Directory:" "$exec_dir"
     printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_mb" "Uptime:" "$uptime_readable"
-
     printf "🔒 %-18s \e[36m%-23s\e[0m   ♻️ %-17s \e[36m%-20s\e[0m\n" "SSL Certificate:" "$ssl_status" "Auto Renew:" "$auto_renew"
     printf "🌩️ %-18s \e[36m%-23s\e[0m   📡 %-17s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$cf_proxy" "DNS Records:" "$dns_summary"
     printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$domain"
     printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
-
     printf "══════════════════════════════════════════════════════════════════════════════\n"
     printf " 1) 📜 Show Logs         2) 🔼 Update App          3) 🔄 Restart App\n"
     printf " 4) 🛑 Stop App          5) 🧨 Delete App          6) 💾 Restore Backup\n"
@@ -408,29 +437,17 @@ show_app_details_menu() {
 
     case "$choice" in
       1) show_app_log_files "$service" ;;
-      2)
-        check_for_app_update "$exec_dir" "$service"
-        local exit_code=$?
-        [[ "$exit_code" -ne 9 ]] && read -rsn1 -p "$(print_press_any_key)"
-        ;;
-      3)
-        systemctl restart "$service" && printf "✅ Restarted.\n"
-        sleep 1
-        ;;
-      4)
-        printf "❓ Are you sure you want to stop this app? [y/N]: "
-        read -r confirm
-        [[ "$confirm" =~ ^[Yy]$ ]] && systemctl stop "$service" && printf "⏹️ Stopped.\n"
-        ;;
+      2) update_app_interactively "$exec_dir" "$service" ;;
+      3) restart_app_service "$service" ;;
+      4) stop_app_service "$service" ;;
       5)
-        delete_blazor_app "$service" "$domain" "$exec_dir"
-        [[ $? -ne 1 ]] && return 0
+        delete_app_interactively "$service" "$domain" "$exec_dir"
+        [[ $? -eq 0 ]] && return 0
         ;;
       6) restore_app_backup ;;
       7) toggle_cloudflare_proxy ;;
       8) show_nginx_settings_menu "$domain" ;;
-      q|Q) return 0 ;;
-      *) print_invalid_selection; sleep 0.5 ;;
+      *) return 0 ;;
     esac
   done
 }
