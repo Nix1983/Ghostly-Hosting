@@ -96,7 +96,7 @@ get_cloudflare_proxy_status() {
     -H "Content-Type: application/json")
 
   proxy_flag=$(echo "$response" | jq -r '.result[0].proxied // empty')
-  [[ "$proxy_flag" == "true" ]] && echo "✅" || echo "❌"
+  [[ "$proxy_flag" == "true" ]] && echo "Enabled ✅" || echo "Disabled ❌"
 }
 
 has_cloudflare_dns_record() {
