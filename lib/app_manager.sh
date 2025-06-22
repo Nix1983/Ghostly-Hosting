@@ -137,7 +137,7 @@ show_app_manager_menu() {
     echo -e "\n 1) ➕  Add new App    2) 🔍 Show Apps   3) 🖥️ Server Control Panel"
     echo -e "\n q) 🏃💨 \e[1;31mExit App Control\e[0m"
     echo -e "\n─────────────────────────────────────────────────────────────"
-    print_select_prompt 6
+    print_select_prompt 3
 
     IFS= read -rsn1 choice
     echo ""

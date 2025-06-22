@@ -425,11 +425,10 @@ show_app_details_menu() {
     printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$domain"
     printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
     printf "══════════════════════════════════════════════════════════════════════════════\n"
-    printf " 1) 📜 Show Logs         2) 🔼 Update App          3) 🔄 Restart App\n"
-    printf " 4) 🛑 Stop App          5) 🧨 Delete App          6) 💾 Restore Backup\n"
-    printf " 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings\n"
-    printf " %s\n" "$(print_back_to_menu)"
-    printf "──────────────────────────────────────────────────────────────────────────────\n"
+    printf "\n 1) 📜 Show Logs         2) 🔼 Update App          3) 🔄 Restart App"
+    printf "\n 4) 🛑 Stop App          5) 🧨 Delete App          6) 💾 Restore Backup"
+    printf "\n 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings      %s$(print_back_to_menu)"
+    printf "\n──────────────────────────────────────────────────────────────────────────────\n"
     print_select_prompt 8
 
     IFS= read -rsn1 choice
