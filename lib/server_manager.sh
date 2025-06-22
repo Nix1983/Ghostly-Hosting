@@ -44,8 +44,11 @@ show_server_manager_menu() {
       2) show_f2b_menu ;;
       3) return ;;
       4) show_dotnet_version_menu ;;
-      5) init_server
-         check_and_offer_reboot ;;
+      5) if show_init_server_prompt; then
+          init_server
+          check_and_offer_reboot
+        fi
+        ;;
       6) show_upcloud_menu  ;;
       7) reset_server ;;
       8) update_server_and_show_status

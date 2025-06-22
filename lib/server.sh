@@ -62,23 +62,15 @@ show_server_health() {
   updates_count=$(echo "$updates_output" | grep -vc "Listing..." || echo 0)
 
   # Services
-  local services=(fail2ban nginx ssh systemd-timesyncd certbot.timer ufw)
+  local services=(fail2ban nginx ssh systemd-timesyncd certbot.timer git)
   local service_line=""
 
   for svc in "${services[@]}"; do
     local icon="❌"
 
-    if [[ "$svc" == "ufw" ]]; then
-      if ! command -v ufw >/dev/null 2>&1; then
-        icon="❌"
-      else
-        local ufw_state
-        ufw_state=$(ufw status 2>/dev/null | head -n1)
-        if [[ "$ufw_state" == "Status: active" ]]; then
-          icon="✅"
-        else
-          icon="⚠️"
-        fi
+    if [[ "$svc" == "git" ]]; then
+      if command -v git >/dev/null 2>&1; then
+        icon="✅"
       fi
     else
       if systemctl list-unit-files | grep -q "^$svc"; then
@@ -227,6 +219,42 @@ update_server_and_show_status() {
   read -rsn1 -p $'\nPress any key to return to menu...'
 }
 
+show_init_server_prompt() {
+  clear
+  echo -e "\n🚀 \e[1;34mInitialize Server for Blazor Hosting\e[0m"
+  echo "═════════════════════════════════════════════════════════════"
+
+  echo -e "\n📋 \e[1mThe following components will be installed and configured:\e[0m"
+  echo -e "─────────────────────────────────────────────────────────────"
+  echo -e " 🌐 Nginx (Reverse Proxy)"
+  echo -e " 🛡️ Fail2Ban (SSH protection)"
+  echo -e " 🔐 Certbot (HTTPS / Let's Encrypt)"
+  echo -e " 🔧 Git (for deployment)"
+  echo -e " 🕒 Timezone will be set to Europe/Vienna"
+  echo -e " 📦 Swap file for memory management"
+  echo -e " ☁️ UpCloud firewall rules will be applied"
+  echo -e " 📈 System update and package upgrade"
+  echo -e "─────────────────────────────────────────────────────────────"
+  echo -e "💡 \e[3mYou can add apps after this setup is completed.\e[0m"
+
+  echo -e "\n❓ \e[1mDo you want to initialize the server now?\e[0m"
+  echo -e " 1) ✅ Yes, proceed with initialization"
+  echo -e " q) 🔙 Cancel and return to menu"
+  echo "─────────────────────────────────────────────────────────────"
+  print_select_prompt 1
+
+  IFS= read -rsn1 confirm
+  echo ""
+
+  if [[ "$confirm" != "1" ]]; then
+    echo -e "\n❎ \e[2mInitialization cancelled. Nothing was changed.\e[0m"
+    sleep 1
+    return 1
+  fi
+
+  return 0
+}
+
 init_server() {
   clear
   echo -e "\n🚀 \e[1;34mInitialize Server for Blazor Hosting\e[0m"
@@ -311,7 +339,7 @@ init_server() {
 
   echo -e "\n✅ \e[1mServer initialization completed.\e[0m"
   echo "═════════════════════════════════════════════════════════════"
-  read -rsn1 -p $'\n↩️  Press any key to return to menu...'
+  read -rsn1 -p $'\nPress any key to return to menu...'
 }
 
 reset_server() {

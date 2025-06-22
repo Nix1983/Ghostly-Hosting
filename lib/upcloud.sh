@@ -221,7 +221,7 @@ delete_all_upcloud_firewall_rules() {
   firewall_enabled=$(echo "$server_info" | jq -r '.server.firewall // ""')
 
   if [[ "$firewall_enabled" != "on" && "$firewall_enabled" != "true" ]]; then
-    printf "⚠️  Firewall is currently disabled – enabling now...\n"
+    printf "⚠️ Firewall is currently disabled – enabling now...\n"
     local enable_response
     enable_response=$(_upcloud_api_put "server/$SERVER_UUID" '{"server": { "firewall": "on" }}')
     firewall_enabled=$(echo "$enable_response" | jq -r '.server.firewall // ""')
@@ -265,7 +265,7 @@ delete_all_upcloud_firewall_rules() {
       "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule/$position")
 
     if echo "$del_response" | jq -e '.error' >/dev/null 2>&1; then
-      printf "⚠️  Failed to delete rule:\n"
+      printf "⚠️ Failed to delete rule:\n"
       echo "$del_response" | jq -r '.error.message // .error // .'
     else
       printf "✅ Rule deleted successfully.\n"
