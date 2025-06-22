@@ -123,8 +123,6 @@ show_apps() {
   fi
 }
 
-
-
 show_app_manager_menu() {
   local choice
   while true; do

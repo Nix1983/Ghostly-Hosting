@@ -65,45 +65,6 @@ get_server_ip() {
   fi
 }
 
-set_timezone_to_vienna() {
-  echo -e "\n🕒 \e[1mConfiguring timezone...\e[0m"
-
-  local desired_tz="Europe/Vienna"
-  local current_tz
-
-  current_tz=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "unknown")
-
-  if [[ "$current_tz" == "$desired_tz" ]]; then
-    echo -e "✅ Timezone already set correctly: \e[1;32m$desired_tz\e[0m"
-  else
-    echo -e "🔄 Current timezone: \e[33m$current_tz\e[0m"
-    echo -e "⚙️ Changing timezone to: \e[1;34m$desired_tz\e[0m"
-    timedatectl set-timezone "$desired_tz"
-    sleep 1
-    echo -e "✅ Timezone successfully updated: \e[1;32m$desired_tz\e[0m"
-
-    _restart_timezone_services
-  fi
-
-  echo -e "🕒 Current system time: \e[36m$(date)\e[0m"
-}
-
-_restart_timezone_services() {
-  echo -e "\n🔄 \e[1mRestarting affected services...\e[0m"
-
-  local services=("rsyslog" "fail2ban" "systemd-journald")
-  for svc in "${services[@]}"; do
-    if systemctl is-active --quiet "$svc"; then
-      echo -e "↻ Restarting \e[36m$svc\e[0m..."
-      systemctl restart "$svc"
-    else
-      echo -e "⚠️  \e[33m$svc is not running – skipping restart.\e[0m"
-    fi
-  done
-
-  echo -e "✅ \e[1;32mAll relevant services refreshed.\e[0m"
-}
-
 set_swap() {
   echo -e "\n🧮 \e[1;34mChecking swap space...\e[0m"
   echo "─────────────────────────────────────────────────────────────"

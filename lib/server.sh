@@ -8,11 +8,12 @@ source ./lib/print.sh
 source ./lib/upcloud.sh
 source ./lib/fail2ban.sh
 source ./lib/github.sh
+source ./lib/timezone.sh
 
 show_server_health() {
   clear
 
-  local tools=(hostname uptime ip curl grep awk sed free df systemctl apt lsb_release)
+  local tools=(hostname uptime ip curl grep awk sed free df systemctl apt lsb_release timedatectl)
   for tool in "${tools[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       echo -e "❌ \e[31mMissing required tool:\e[0m $tool"
@@ -21,12 +22,13 @@ show_server_health() {
   done
 
   # System Info
-  local kernel os uptime boot time_zone
+  local kernel os uptime boot time_zone_name time_zone_offset
   kernel=$(uname -r)
   os=$(lsb_release -ds 2>/dev/null || grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2- | tr -d '"')
   uptime=$(uptime -p | sed 's/^/ /')
   boot=$(who -b | awk '{print $3, $4}')
-  time_zone=$(date +'%Z (UTC %:::z)')
+  time_zone_name=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "Unknown")
+  time_zone_offset=$(date +'%Z (UTC %:::z)')
 
   # Network
   local ip_local ip_external gateway dns
@@ -36,25 +38,21 @@ show_server_health() {
   dns=$(grep 'nameserver' /etc/resolv.conf | awk '{print $2}' | paste -sd ',' -)
 
   # Memory (in MB)
-  read -r _ mem_total mem_used mem_free _ mem_cache _ <<< \
-    "$(free -m | awk '/^Mem:/ {print $1, $2, $3, $4, $5, $6, $7}')"
+  read -r _ mem_total mem_used mem_free _ mem_cache _ <<< "$(free -m | awk '/^Mem:/ {print $1, $2, $3, $4, $5, $6, $7}')"
   local mem_usage_pct=$((100 * mem_used / mem_total))
 
-  read -r _ swap_total swap_used swap_free <<< \
-    "$(free -m | awk '/^Swap:/ {print $1, $2, $3, $4}')"
+  read -r _ swap_total swap_used swap_free <<< "$(free -m | awk '/^Swap:/ {print $1, $2, $3, $4}')"
   local swap_usage_pct=0
   [[ "$swap_total" -gt 0 ]] && swap_usage_pct=$((100 * swap_used / swap_total))
 
   # Disk (in GB mit 2 Nachkommastellen)
-  read -r d_total_kb d_used_kb d_free_kb d_perc <<< \
-    "$(df -k / | awk 'NR==2 {print $2, $3, $4, $5}')"
+  read -r d_total_kb d_used_kb d_free_kb d_perc <<< "$(df -k / | awk 'NR==2 {print $2, $3, $4, $5}')"
   d_total=$(awk "BEGIN {printf \"%.2f\", $d_total_kb / 1024 / 1024}")
   d_used=$(awk "BEGIN {printf \"%.2f\", $d_used_kb / 1024 / 1024}")
   d_free=$(awk "BEGIN {printf \"%.2f\", $d_free_kb / 1024 / 1024}")
 
   # CPU Load
-  read -r load1 load5 load15 <<< \
-    "$(uptime | awk -F'load average:' '{print $2}' | sed 's/^[ \t]*//' | tr ',' ' ')"
+  read -r load1 load5 load15 <<< "$(uptime | awk -F'load average:' '{print $2}' | sed 's/^[ \t]*//' | tr ',' ' ')"
 
   # Updates
   local updates_output updates_count
@@ -67,11 +65,8 @@ show_server_health() {
 
   for svc in "${services[@]}"; do
     local icon="❌"
-
     if [[ "$svc" == "git" ]]; then
-      if command -v git >/dev/null 2>&1; then
-        icon="✅"
-      fi
+      command -v git >/dev/null 2>&1 && icon="✅"
     else
       if systemctl list-unit-files | grep -q "^$svc"; then
         if systemctl is-active "$svc" &>/dev/null; then
@@ -81,41 +76,40 @@ show_server_health() {
         fi
       fi
     fi
-
-    service_line+="${svc} ${icon}   "
+    service_line+="$svc $icon   "
   done
 
   # Output
   echo -e "\e[1m🩺 Server Health Summary\e[0m"
   echo "════════════════════════════════════════════════════════════════════════════════════════════"
-  printf "🖥️ %-13s %s\n" "Kernel:"       "$kernel"
-  printf "🧾 %-13s %s\n" "OS:"           "$os"
-  printf "⏳ %-12s %s\n" "Uptime:"       "$uptime"
-  printf "♻️ %-13s %s\n" "Last boot:"    "$boot"
-  printf "🕒 %-13s %s\n" "Time zone:"    "$time_zone"
+  printf "🖥️ %-13s \e[36m%s\e[0m\n" "Kernel:" "$kernel"
+  printf "🧾 %-13s \e[36m%s\e[0m\n" "OS:" "$os"
+  printf "⏳ %-12s \e[36m%s\e[0m\n" "Uptime:" "$uptime"
+  printf "♻️ %-13s \e[36m%s\e[0m\n" "Last boot:" "$boot"
+  printf "🕒 %-13s \e[36m%s\e[0m  \e[2m(%s)\e[0m\n" "Time zone:" "$time_zone_name" "$time_zone_offset"
 
   echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "📡 %-13s %s\n" "Internal IP:"   "$ip_local"
-  printf "🌍 %-13s %s\n" "External IP:"   "$ip_external"
-  printf "🚪 %-13s %s\n" "Gateway:"       "$gateway"
-  printf "🔎 %-13s %s\n" "DNS servers:"   "$dns"
+  printf "📡 %-13s \e[36m%s\e[0m\n" "Internal IP:" "$ip_local"
+  printf "🌍 %-13s \e[36m%s\e[0m\n" "External IP:" "$ip_external"
+  printf "🚪 %-13s \e[36m%s\e[0m\n" "Gateway:" "$gateway"
+  printf "🔎 %-13s \e[36m%s\e[0m\n" "DNS servers:" "$dns"
 
   echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "🧠 %-13s Total: %4sMB | Used: %4sMB | Free: %4sMB | Cache: %4sMB     Usage: %3s%%\n" \
+  printf "🧠 %-13s Total: \e[36m%4sMB\e[0m | Used: \e[33m%4sMB\e[0m | Free: \e[32m%4sMB\e[0m | Cache: \e[2m%4sMB\e[0m     Usage: \e[1m%3s%%\e[0m\n" \
     "RAM:" "$mem_total" "$mem_used" "$mem_free" "$mem_cache" "$mem_usage_pct"
-  printf "📥 %-13s Total: %4sMB | Used: %4sMB | Free: %4sMB                     Usage: %3s%%\n" \
+  printf "📥 %-13s Total: \e[36m%4sMB\e[0m | Used: \e[33m%4sMB\e[0m | Free: \e[32m%4sMB\e[0m                     Usage: \e[1m%3s%%\e[0m\n" \
     "SWAP:" "$swap_total" "$swap_used" "$swap_free" "$swap_usage_pct"
 
   echo "────────────────────────────────────────────────────────────────────────────────────────────"
-  printf "💾 %-13s Total: %5sG | Used: %5sG | Free: %5sG                     Usage:  %3s\n" \
+  printf "💾 %-13s Total: \e[36m%5sG\e[0m | Used: \e[33m%5sG\e[0m | Free: \e[32m%5sG\e[0m                     Usage:  \e[1m%3s\e[0m\n" \
     "Disk (/):" "$d_total" "$d_used" "$d_free" "$d_perc"
-  printf "⚙️ %-13s 1 min: %s   | 5 min: %s  | 15 min: %s\n" \
+  printf "⚙️ %-13s 1 min:   \e[36m%s\e[0m | 5 min:  \e[36m%s\e[0m | 15 min: \e[36m%s\e[0m\n" \
     "CPU Load:" "$load1" "$load5" "$load15"
-  printf "📦 %-13s %s\n" "Pending Updates:" "$updates_count"
+  printf "📦 %-13s \e[36m%s\e[0m\n" "Pending Updates:" "$updates_count"
 
   echo "────────────────────────────────────────────────────────────────────────────────────────────"
   echo -e "\e[1m🔌 Services:\e[0m"
-  echo "   $service_line"
+  echo -e "   $service_line"
   echo "════════════════════════════════════════════════════════════════════════════════════════════"
   echo ""
 }
@@ -259,7 +253,7 @@ init_server() {
   clear
   echo -e "\n🚀 \e[1;34mInitialize Server for Blazor Hosting\e[0m"
   echo "═════════════════════════════════════════════════════════════"
-
+  
   echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
   if ! command -v nginx >/dev/null 2>&1; then
     apt-get update -y >/dev/null 2>&1
@@ -326,7 +320,6 @@ init_server() {
   fi
 
   export DISABLE_CLEAR=true
-  set_timezone_to_vienna
   set_swap
   apply_upcloud_firewall_rules
   configure_f2b
@@ -474,7 +467,12 @@ ensure_server_initialized() {
 
   case "$choice" in
     1)
+      if ! prompt_and_set_timezone; then
+        echo -e "\nℹ️ \e[2mYou must run \e[36minit server\e[0m before adding an app.\e[0m"
+        return 1
+      fi
       init_server
+      check_and_offer_reboot
       return 0
       ;;
     *)
