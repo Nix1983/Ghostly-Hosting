@@ -83,7 +83,7 @@ show_apps() {
       status="🔴 stopped"
     fi
 
-    ram_mb="–"
+    ram_mb="0 MB"
     ram_kb=$(systemctl show "$service_name" -p MemoryCurrent | cut -d= -f2)
     if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
       ram_mb="$((ram_kb / 1024 / 1024)) MB"

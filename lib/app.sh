@@ -432,32 +432,46 @@ update_app_interactively() {
   [[ "$exit_code" -ne 9 ]] && read -rsn1 -p "$(print_press_any_key)"
 }
 
-show_app_details_menu() {
+_load_dynamic_app_info() {
   local service="$1"
+  local exec_dir="$2"
 
-  local exec_dir port status domain disk_size ram_mb main_dll uptime_sec uptime_readable ssl_status auto_renew
-  local cf_proxy dns_ipv4 dns_ipv6 dns_summary
-
-  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
-  port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
   status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
-  domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
-  disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
+
   local ram_kb
   ram_kb=$(systemctl show "$service" -p MemoryCurrent | cut -d= -f2)
-  [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]] && ram_mb="$((ram_kb / 1024 / 1024)) MB" || ram_mb="–"
-  main_dll=$(find "$exec_dir" -maxdepth 1 -name "*.dll" | head -n1 | xargs basename)
+  if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
+    ram_mb="$((ram_kb / 1024 / 1024)) MB"
+  else
+    ram_mb="0 MB"
+  fi
 
-  uptime_sec=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
-  if [[ "$uptime_sec" -gt 0 ]]; then
+  main_dll=$(find "$exec_dir" -maxdepth 1 -name "*.dll" | head -n1 | xargs basename 2>/dev/null)
+
+  local uptime_monotonic
+  uptime_monotonic=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
+  if [[ "$uptime_monotonic" -gt 0 ]]; then
     local now elapsed_us seconds
     now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
-    elapsed_us=$(( now - uptime_sec ))
-    seconds=$(( elapsed_us / 1000000 ))
+    elapsed_us=$((now - uptime_monotonic))
+    seconds=$((elapsed_us / 1000000))
     uptime_readable=$(printf '%02dd %02dh %02dm %02ds' $((seconds/86400)) $((seconds%86400/3600)) $((seconds%3600/60)) $((seconds%60)))
   else
     uptime_readable="–"
   fi
+}
+
+
+show_app_details_menu() {
+  local service="$1"
+
+  local exec_dir port domain disk_size ram_mb main_dll uptime_readable ssl_status auto_renew
+  local cf_proxy dns_ipv4 dns_ipv6 dns_summary
+
+  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
+  port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
+  domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
+  disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
 
   local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
   if [[ -f "$cert_path" ]]; then
@@ -488,8 +502,9 @@ show_app_details_menu() {
 
 
   while true; do
+    _load_dynamic_app_info "$service" "$exec_dir"
     clear
-    printf "🧾 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   [ %s ]\n" "$domain" "$status"
+    printf "🧾 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s\n" "$domain" "$status"
     printf "══════════════════════════════════════════════════════════════════════════════\n"
     printf "🔌 %-18s \e[36m%-22s\e[0m   📦 %-17s \e[36m%-30s\e[0m\n" "Port:" "$port" "DLL:" "$main_dll"
     printf "💾 %-18s \e[36m%-22s\e[0m   📁 %-17s \e[2m%-30s\e[0m\n" "Disk Usage:" "$disk_size" "App Directory:" "$exec_dir"
