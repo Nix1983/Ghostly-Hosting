@@ -174,7 +174,6 @@ toggle_cloudflare_proxy() {
   return 0
 }
 
-
 delete_cloudflare_dns_records() {
   if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$ZONE_ID" || -z "$HOSTNAME_FQDN" ]]; then
     echo -e "❌ \e[31mCannot delete DNS records – required variables missing (CLOUDFLARE_API_TOKEN, ZONE_ID, HOSTNAME_FQDN).\e[0m"
@@ -434,4 +433,3 @@ setup_cloudflare_dns_for_blazor() {
     done
   done
 }
-
