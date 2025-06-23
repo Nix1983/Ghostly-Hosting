@@ -101,22 +101,10 @@ delete_blazor_app() {
   echo -e "\n⚠️ This includes all logs and backups inside the app folder!"
   echo -e "💣 \e[1mThis action cannot be undone.\e[0m"
 
-  local confirm_code user_input
-  confirm_code=$((RANDOM % 90000 + 10000))
-  echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m (or type \e[36mq\e[0m to cancel)"
-  read -rp $'\n🔐 Enter confirmation code: ' user_input
-
-  if [[ "$user_input" == "q" || "$user_input" == "Q" ]]; then
-    echo -e "\n↩️  \e[36mApp deletion cancelled.\e[0m"
-    sleep 1
+  if ! confirm_action_code; then
     return 1
   fi
 
-  if [[ "$user_input" != "$confirm_code" ]]; then
-    echo -e "\n❌ \e[31mDeletion aborted – confirmation failed.\e[0m"
-    sleep 1
-    return 1
-  fi
 
   export HOSTNAME_FQDN="$domain"
   local _domain_part

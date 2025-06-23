@@ -146,6 +146,65 @@ find_free_port() {
   return 1
 }
 
+confirm_action_code() {
+  local confirm_code user_input char
+  confirm_code=$((RANDOM % 90000 + 10000))
+  local code_length=${#confirm_code}
+  echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m (or type \e[36mq\e[0m to cancel)"
+  echo -n $'\n🔐 Enter confirmation code: '
+
+  user_input=""
+  while true; do
+    IFS= read -rsn1 char
+
+    if [[ -z "$char" || "$char" == $'\n' ]]; then
+      break
+    fi
+
+    if [[ "$char" == $'\x1b' ]]; then
+      IFS= read -rsn1 -t 0.01 next1
+      IFS= read -rsn1 -t 0.01 next2
+      if [[ "$next1$next2" == "[3" ]]; then
+        read -rsn1 -t 0.01
+        continue
+      fi
+      continue
+    fi
+
+    if [[ "$char" == $'\x7f' || "$char" == $'\x08' ]]; then
+      if [[ -n "$user_input" ]]; then
+        user_input="${user_input::-1}"
+        echo -ne "\b \b"
+      fi
+      continue
+    fi
+
+    if [[ "$char" =~ [Qq] ]]; then
+      echo
+      return 1
+    fi
+
+    if [[ "$char" =~ [0-9] ]]; then
+      if [[ "${#user_input}" -lt "$code_length" ]]; then
+        user_input+="$char"
+        echo -n "$char"
+      fi
+    fi
+  done
+
+  if [[ "$user_input" != "$confirm_code" ]]; then
+    echo -e "\n❌ \e[31mAction aborted – confirmation failed.\e[0m"
+    echo -e "\n↩️  \e[36mReturning to previous menu...\e[0m"
+    sleep 1
+    return 1
+  fi
+
+  echo
+  return 0
+}
+
+
+
 
 
 

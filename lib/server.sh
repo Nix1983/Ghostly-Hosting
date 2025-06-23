@@ -242,8 +242,6 @@ show_init_server_prompt() {
   echo ""
 
   if [[ "$confirm" != "1" ]]; then
-    echo -e "\n❎ \e[2mInitialization cancelled. Nothing was changed.\e[0m"
-    sleep 1
     return 1
   fi
 
@@ -346,7 +344,7 @@ reset_server() {
   echo -e "🔸 Remove \e[36mfail2ban\e[0m and blocklists"
   echo -e "🔸 Remove \e[36mcertbot\e[0m and all certificates"
   echo -e "🔸 Remove \e[36mgit\e[0m and config"
-  echo -e "🔸 Remove all Blazor apps in \e[36m/var/www/\e[0m"
+  echo -e "🔸 Remove all .NET apps in \e[36m/var/www/\e[0m"
   echo -e "🔸 Remove all systemd services for hosted .NET apps"
   echo -e "🔸 Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
   echo -e "🔸 Reset timezone to \e[36mUTC\e[0m"
@@ -356,22 +354,10 @@ reset_server() {
   echo -e "─────────────────────────────────────────────────────────────"
   echo -e "⚠️ \e[1mThis cannot be undone.\e[0m"
 
-  local confirm_code=$((RANDOM % 90000 + 10000))
-  echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m (or type \e[36mq\e[0m to cancel)"
-  read -rp $'\n🔐 Enter confirmation code: ' user_input
-
-  if [[ "$user_input" == "q" || "$user_input" == "Q" ]]; then
-    echo -e "\n↩️  \e[36mReturning to main menu...\e[0m"
-    sleep 1
-    return 0
+  if ! confirm_action_code; then
+    return 1
   fi
 
-  if [[ "$user_input" != "$confirm_code" ]]; then
-    echo -e "\n❌ \e[31mReset aborted – confirmation failed.\e[0m"
-    echo -e "\n↩️  \e[36mReturning to main menu...\e[0m"
-    sleep 1
-    return 0
-  fi
 
   echo -e "\n🚧 \e[1mResetting server – please wait...\e[0m"
   echo "─────────────────────────────────────────────────────────────"
