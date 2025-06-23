@@ -40,7 +40,7 @@ install_dotnet_version() {
 show_app_deployment_requirements() {
   clear
   echo -e "\n📋 \e[1;34mRequirements for Deploying a New App\e[0m"
-  echo "═════════════════════════════════════════════════════════════════════════════"
+  print_double_line
 
   echo -e "🔐 \e[1mGitHub Access\e[0m"
   echo -e "   • GitHub repository with your app source code"
@@ -67,16 +67,14 @@ show_app_deployment_requirements() {
   echo -e "   • Must produce an executable DLL file"
   echo
 
-  echo "═════════════════════════════════════════════════════════════════════════════"
+  print_double_line
   echo -e "❓ Would you like to continue with deployment?\n"
-  echo -e "1) ✅ Yes, proceed to app selection        q) 🔙 No, return to main menu"
+  echo -e " 1) ✅ Yes, proceed to app selection        $(print_back_to_menu)"
 
-  read -n1 -r -p $'\nSelect [1,q]: ' choice
-  echo
-  case "$choice" in
+  read_menu_choice 1
+  case "$REPLY" in
     1) return 0 ;;
-    q) return 2 ;;
-    *) return 2 ;;
+    q|Q) return 2 ;;
   esac
 }
 

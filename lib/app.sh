@@ -551,7 +551,7 @@ show_app_details_menu() {
     _load_dynamic_app_info "$service" "$exec_dir"
     clear
     printf "🧾 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s\n" "$domain" "$status"
-    printf "══════════════════════════════════════════════════════════════════════════════\n"
+    print_double_line
     printf "🔌 %-18s \e[36m%-22s\e[0m   📦 %-17s \e[36m%-30s\e[0m\n" "Port:" "$port" "DLL:" "$main_dll"
     printf "💾 %-18s \e[36m%-22s\e[0m   📁 %-17s \e[2m%-30s\e[0m\n" "Disk Usage:" "$disk_size" "App Directory:" "$exec_dir"
     printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_mb" "Uptime:" "$uptime_readable"
@@ -559,17 +559,14 @@ show_app_details_menu() {
     printf "🌩️ %-18s \e[36m%-23s\e[0m   📡 %-17s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$cf_proxy" "DNS Records:" "$dns_summary"
     printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$domain"
     printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
-    printf "══════════════════════════════════════════════════════════════════════════════\n"
+    print_line  
     printf "\n 1) 📜 Show Logs         2) 🔼 Update App          3) 🔄 Restart App"
     printf "\n 4) 🛑 Stop App          5) 🧨 Delete App          6) 💾 Restore Backup"
-    printf "\n 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings      %s$(print_back_to_menu)"
-    printf "\n──────────────────────────────────────────────────────────────────────────────\n"
-    print_select_prompt 8
+    printf "\n 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings      %s$(print_back_to_menu)\n"
 
-    IFS= read -rsn1 choice
-    printf "\n"
+    read_menu_choice 8
 
-    case "$choice" in
+    case "$REPLY" in
       1) show_app_log_files "$service" ;;
       2) update_app_interactively "$exec_dir" "$service" ;;
       3) restart_app_service "$service" ;;
@@ -585,7 +582,7 @@ show_app_details_menu() {
          refresh_cloudflare_info_for_domain "$domain"
          ;;
       8) show_nginx_settings_menu "$domain" ;;
-      *) return 0 ;;
+      q|Q) return 0 ;;
     esac
   done
 }

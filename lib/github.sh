@@ -155,7 +155,7 @@ select_github_repository() {
 
   while true; do
     echo -e "\n🐙 \e[1;34mSelect a GitHub Repository\033[0m – for: \e[36m$GITHUB_API_USER\e[0m \e[2m($REPO_TOTAL repositories)\e[0m"
-    echo "────────────────────────────────────────────────────────────"
+    print_line
 
     i=0
     while [[ $i -lt $REPO_TOTAL ]]; do
@@ -172,18 +172,11 @@ select_github_repository() {
       ((i += 2))
     done
 
-    echo -e "\n─────────────────────────────────────────────────────────────"
-    print_select_prompt "$REPO_TOTAL"
-    read -r choice
-    [[ "$choice" =~ ^[Qq]$ ]] && return 1
+    read_menu_choice "$REPO_TOTAL"
+    [[ "$REPLY" =~ ^[Qq]$ ]] && return 1
 
-    if ! [[ "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > REPO_TOTAL )); then
-      print_invalid_selection
-      sleep 1
-      continue
-    fi
-
-    local selected_repo_json="${REPOS[$((choice - 1))]}"
+  
+    local selected_repo_json="${REPOS[$((REPLY - 1))]}"
     SELECTED_REPO_NAME=$(echo "$selected_repo_json" | jq -r '.name')
     SELECTED_REPO_OWNER=$(echo "$selected_repo_json" | jq -r '.owner.login')
 
@@ -207,7 +200,6 @@ select_branch_or_tag() {
   local -a branches sorted_branches
   local index=1
 
-  # Parse branches and sort master first
   mapfile -t branches < <(echo "$branches_json" | jq -r '.[].name')
   for branch in "${branches[@]}"; do
     [[ "$branch" == "master" ]] && sorted_branches=("master")
@@ -216,7 +208,6 @@ select_branch_or_tag() {
     [[ "$branch" != "master" ]] && sorted_branches+=("$branch")
   done
 
-  # Combine branches and tags into one list
   for branch in "${sorted_branches[@]}"; do
     option_map[$index]="branch:$branch"
     all_options+=("$index|🌿 Branch:|$branch")
@@ -231,7 +222,7 @@ select_branch_or_tag() {
   done
 
   echo -e "\n🌀 \e[1mAvailable Branches / Releases / Tags:\e[0m"
-  echo "────────────────────────────────────────────────────────────"
+  print_line
 
   local i=0
   while [[ $i -lt ${#all_options[@]} ]]; do
@@ -248,23 +239,16 @@ select_branch_or_tag() {
     fi
     ((i += 2))
   done
+  read_menu_choice $((index - 1))
 
-  echo -e "\n────────────────────────────────────────────────────────────"
-  print_select_prompt $((index - 1))
-  read -r choice
-  [[ "$choice" =~ ^[Qq]$ ]] && return 1
+  [[ "$REPLY" =~ ^[Qq]$ ]] && return 1
 
-  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [[ -z "${option_map[$choice]}" ]]; then
-    print_invalid_selection
-    return 1
-  fi
-
-  IFS=":" read -r type name <<< "${option_map[$choice]}"
+  IFS=":" read -r type name <<< "${option_map[$REPLY]}"
   SELECTED_REF_TYPE="$type"
   SELECTED_REF_NAME="$name"
   export SELECTED_REF_TYPE SELECTED_REF_NAME
 
-  echo -e "✅ Selected $type: \e[36m$name\e[0m"
+  echo -e "\n✅ Selected $type: \e[36m$name\e[0m"
   return 0
 }
 
@@ -307,8 +291,3 @@ save_repo_metadata() {
 
   echo -e "📝 Metadata written to \e[2m$meta_file\e[0m"
 }
-
-
-
-
-

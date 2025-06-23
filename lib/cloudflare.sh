@@ -235,8 +235,6 @@ select_cloudflare_zone_and_domain() {
   while true; do
     clear
     get_server_ip "$@"
-    printf "\n☁️  \033[1mRetrieving Cloudflare zones...\033[0m\n"
-    printf "────────────────────────────────────────────────────────────\n"
 
     response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones" \
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -251,7 +249,7 @@ select_cloudflare_zone_and_domain() {
     fi
 
     printf "\n🌐 \033[1mAvailable Cloudflare Zones:\033[0m\n"
-    printf "────────────────────────────────────────────────────────────\n"
+    print_line
     local index=1
     zone_map=()
     while IFS=$'\t' read -r name id; do
@@ -260,25 +258,19 @@ select_cloudflare_zone_and_domain() {
       ((index++))
     done <<< "$zones"
 
-    printf "────────────────────────────────────────────────────────────\n"
-    printf "❓ Select a domain by number: "
-    read -r selection
-    printf "\n"
+    read_menu_choice $((index - 1))
 
-    if ! [[ "$selection" =~ ^[0-9]+$ ]] || [[ -z "${zone_map[$selection]+x}" ]]; then
-      printf "⚠️  \033[33mInvalid selection.\033[0m Please try again.\n"
-      sleep 1
-      continue
+    if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+      return 1
     fi
 
-    local selected="${zone_map[$selection]}"
+    local selected="${zone_map[$REPLY]}"
 
     DOMAIN="${selected%%:*}"
     ZONE_ID="${selected##*:}"
     export DOMAIN ZONE_ID
-    printf "✅ Selected Zone: \033[1;34m%s\033[0m\n" "$DOMAIN"
+    printf "\n✅ Selected Zone: \033[1;34m%s\033[0m\n" "$DOMAIN"
 
-    # 🔍 Get all existing A/AAAA records
     local dns_response used_names root_taken=false
     dns_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?per_page=500&type=A&type=AAAA" \
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -287,7 +279,7 @@ select_cloudflare_zone_and_domain() {
     used_names=$(echo "$dns_response" | jq -r '.result[] | .name' | sort -u)
 
     printf "\n📄 \033[1mUsed DNS Records in this zone:\033[0m\n"
-    printf "────────────────────────────────────────────────────────────\n"
+    print_line
     echo "$dns_response" | jq -r '.result[] | select(.type=="A" or .type=="AAAA") | "\(.name)\t\(.content)"' | sort -u | while IFS=$'\t' read -r name ip; do
     printf "🔒 %-35s → \033[36m%s\033[0m\n" "$name" "$ip"
     done
@@ -300,16 +292,16 @@ select_cloudflare_zone_and_domain() {
     # 🧭 Auswahlmenü
     while true; do
       printf "\n🌍 \033[1mHow should your app be accessible?\033[0m\n"
-      printf "────────────────────────────────────────────────────────────\n"
+      print_line
       printf " 1) Use a subdomain  (e.g. \033[36mapp.%s\033[0m)\n" "$DOMAIN"
       if [[ "$root_taken" != true ]]; then
         printf " 2) Use root domain  (\033[36m%s\033[0m)\n" "$DOMAIN"
         printf " 3) ⬅️  Go back to zone selection\n"
-        printf "────────────────────────────────────────────────────────────\n"
+        print_line
         printf "❓ Your choice [1–3]: "
       else
         printf " 2) ⬅️  Go back to zone selection\n"
-        printf "────────────────────────────────────────────────────────────\n"
+        print_line
         printf "❓ Your choice [1–2]: "
       fi
 

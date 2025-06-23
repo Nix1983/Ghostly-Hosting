@@ -59,7 +59,7 @@ get_server_ip() {
 
   if [[ "$silent_mode" == false ]]; then
     printf "\n🌐 \033[1mServer Public IP Information:\033[0m\n"
-    printf "───────────────────────────────────────────────\n"
+    print_line
     printf " 🌍 IPv4 Address: \033[1;36m%s\033[0m\n" "${SERVER_IPv4:-Unavailable}"
     printf " 🌐 IPv6 Address: \033[1;36m%s\033[0m\n" "${SERVER_IPv6:-Unavailable}"
   fi

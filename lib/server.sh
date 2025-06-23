@@ -82,36 +82,36 @@ show_server_health() {
 
   # Output
   echo -e "\e[1m🩺 Server Health Summary\e[0m"
-  echo "════════════════════════════════════════════════════════════════════════════════════════════"
+  print_double_line
   printf "🖥️ %-13s \e[36m%s\e[0m\n" "Kernel:" "$kernel"
   printf "🧾 %-13s \e[36m%s\e[0m\n" "OS:" "$os"
   printf "⏳ %-12s \e[36m%s\e[0m\n" "Uptime:" "$uptime"
   printf "♻️ %-13s \e[36m%s\e[0m\n" "Last boot:" "$boot"
   printf "🕒 %-13s \e[36m%s\e[0m  \e[2m(%s)\e[0m\n" "Time zone:" "$time_zone_name" "$time_zone_offset"
 
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
+  print_line
   printf "📡 %-13s \e[36m%s\e[0m\n" "Internal IP:" "$ip_local"
   printf "🌍 %-13s \e[36m%s\e[0m\n" "External IP:" "$ip_external"
   printf "🚪 %-13s \e[36m%s\e[0m\n" "Gateway:" "$gateway"
   printf "🔎 %-13s \e[36m%s\e[0m\n" "DNS servers:" "$dns"
 
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
+  print_line
   printf "🧠 %-13s Total: \e[36m%4sMB\e[0m | Used: \e[33m%4sMB\e[0m | Free: \e[32m%4sMB\e[0m | Cache: \e[2m%4sMB\e[0m     Usage: \e[1m%3s%%\e[0m\n" \
     "RAM:" "$mem_total" "$mem_used" "$mem_free" "$mem_cache" "$mem_usage_pct"
   printf "📥 %-13s Total: \e[36m%4sMB\e[0m | Used: \e[33m%4sMB\e[0m | Free: \e[32m%4sMB\e[0m                     Usage: \e[1m%3s%%\e[0m\n" \
     "SWAP:" "$swap_total" "$swap_used" "$swap_free" "$swap_usage_pct"
 
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
+  print_line
   printf "💾 %-13s Total: \e[36m%5sG\e[0m | Used: \e[33m%5sG\e[0m | Free: \e[32m%5sG\e[0m                     Usage:  \e[1m%3s\e[0m\n" \
     "Disk (/):" "$d_total" "$d_used" "$d_free" "$d_perc"
   printf "⚙️ %-13s 1 min:   \e[36m%s\e[0m | 5 min:  \e[36m%s\e[0m | 15 min: \e[36m%s\e[0m\n" \
     "CPU Load:" "$load1" "$load5" "$load15"
   printf "📦 %-13s \e[36m%s\e[0m\n" "Pending Updates:" "$updates_count"
 
-  echo "────────────────────────────────────────────────────────────────────────────────────────────"
+  print_line
   echo -e "\e[1m🔌 Services:\e[0m"
   echo -e "   $service_line"
-  echo "════════════════════════════════════════════════════════════════════════════════════════════"
+  print_double_line
   echo ""
 }
 
@@ -123,22 +123,19 @@ check_and_offer_reboot() {
     echo -e "⏳ Wait ~\e[36m60 seconds\e[0m and reconnect manually after reboot."
 
     echo -e "\n❓ \e[1mWhat do you want to do?\e[0m"
-    echo "────────────────────────────────────────────────────────────"
+    print_line
     echo -e " 1) ♻️  Reboot now    q) ⏭️  Skip reboot (you can run \e[36mreboot\e[0m manually later)"
-    echo "────────────────────────────────────────────────────────────"
-    print_select_prompt 1
-    IFS= read -rsn1 answer
-    echo ""
+    
+    read_menu_choice 1
 
-    case "$answer" in
+    case "$REPLY" in
       1)
         echo -e "\n♻️  Rebooting system..."
         sleep 2
         reboot
         exit 0
         ;;
-      *)
-        echo -e "\n↪️  Reboot skipped. You can run \e[36mreboot\e[0m manually at any time."
+      q|Q)
         ;;
     esac
   else
@@ -149,7 +146,7 @@ check_and_offer_reboot() {
 update_server_and_show_status() {
   clear
   echo -e "\n🔄 \e[1;34mSystem Update – Ubuntu Package Manager (APT)\e[0m"
-  echo "═════════════════════════════════════════════════════════════"
+  print_double_line
 
   echo -e "\n🛰️ \e[1mUpdating APT sources ...\e[0m"
   apt-get update -y >/dev/null 2>&1 && echo "✅ Package list updated." || echo "❌ Failed to update package list."
@@ -164,7 +161,7 @@ update_server_and_show_status() {
   apt-get -y autoclean >/dev/null 2>&1 && echo "✅ Package cache cleaned."
 
   echo -e "\n🧠 \e[1mSystem Status\e[0m"
-  echo "─────────────────────────────────────────────────────────────"
+  print_line
 
   local kernel version
   kernel=$(uname -r)
@@ -210,17 +207,17 @@ update_server_and_show_status() {
   fi
 
   echo -e "\n✅ \e[1mSystem update completed.\e[0m"
-  echo -e "═════════════════════════════════════════════════════════════"
+  print_line
   read -rsn1 -p $'\nPress any key to return to menu...'
 }
 
 show_init_server_prompt() {
   clear
   echo -e "\n🚀 \e[1;34mInitialize Server for Blazor Hosting\e[0m"
-  echo "═════════════════════════════════════════════════════════════"
+  print_double_line
 
   echo -e "\n📋 \e[1mThe following components will be installed and configured:\e[0m"
-  echo -e "─────────────────────────────────────────────────────────────"
+  print_line
   echo -e " 🌐 Nginx (Reverse Proxy)"
   echo -e " 🛡️ Fail2Ban (SSH protection)"
   echo -e " 🔐 Certbot (HTTPS / Let's Encrypt)"
@@ -229,19 +226,15 @@ show_init_server_prompt() {
   echo -e " 📦 Swap file for memory management"
   echo -e " ☁️ UpCloud firewall rules will be applied"
   echo -e " 📈 System update and package upgrade"
-  echo -e "─────────────────────────────────────────────────────────────"
+  print_line
   echo -e "💡 \e[3mYou can add apps after this setup is completed.\e[0m"
 
   echo -e "\n❓ \e[1mDo you want to initialize the server now?\e[0m"
-  echo -e " 1) ✅ Yes, proceed with initialization"
-  echo -e " $(print_back_to_menu)"
-  echo "─────────────────────────────────────────────────────────────"
-  print_select_prompt 1
+  echo -e "\n 1) ✅ Yes, proceed with initialization  $(print_back_to_menu)"
 
-  IFS= read -rsn1 confirm
-  echo ""
+  read_menu_choice 1
 
-  if [[ "$confirm" != "1" ]]; then
+  if [[ "$REPLY" != "1" ]]; then
     return 1
   fi
 
@@ -251,7 +244,7 @@ show_init_server_prompt() {
 init_server() {
   clear
   echo -e "\n🚀 \e[1;34mInitialize Server for .NET Hosting\e[0m"
-  echo "═════════════════════════════════════════════════════════════"
+  print_double_line
   
   echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
   if ! command -v nginx >/dev/null 2>&1; then
@@ -330,16 +323,16 @@ init_server() {
   echo -e "      📦 \e[1mApp Manager → Add new App\e[0m"
 
   echo -e "\n✅ \e[1mServer initialization completed.\e[0m"
-  echo "═════════════════════════════════════════════════════════════"
+  print_double_line
   read -rsn1 -p $'\nPress any key to return to menu...'
 }
 
 reset_server() {
   clear
   echo -e "\n🧨 \e[1;31mWARNING: FULL SERVER RESET\e[0m"
-  echo "═════════════════════════════════════════════════════════════"
+  print_double_line
   echo -e "\nThis operation will completely wipe all installed services and data:"
-  echo -e "─────────────────────────────────────────────────────────────"
+  print_line
   echo -e "🔸 Remove \e[36mnginx\e[0m and its configs"
   echo -e "🔸 Remove \e[36mfail2ban\e[0m and blocklists"
   echo -e "🔸 Remove \e[36mcertbot\e[0m and all certificates"
@@ -351,7 +344,7 @@ reset_server() {
   echo -e "🔸 Remove \e[36m/swapfile\e[0m"
   echo -e "🔸 Remove \e[36mufw\e[0m and firewall rules"
   echo -e "🔸 Remove all \e[36mUpCloud firewall rules\e[0m (via API)"
-  echo -e "─────────────────────────────────────────────────────────────"
+  print_line
   echo -e "⚠️ \e[1mThis cannot be undone.\e[0m"
 
   if ! confirm_action_code; then
@@ -360,7 +353,7 @@ reset_server() {
 
 
   echo -e "\n🚧 \e[1mResetting server – please wait...\e[0m"
-  echo "─────────────────────────────────────────────────────────────"
+  print_line
  
   # Dienste stoppen und entfernen
   systemctl stop nginx fail2ban 2>/dev/null || true
@@ -408,7 +401,7 @@ reset_server() {
   delete_all_upcloud_firewall_rules
 
   echo -e "\n✅ \e[1;32mServer reset completed.\e[0m"
-  echo "═════════════════════════════════════════════════════════════"
+  print_double_line
   read -rsn1 -p $'\n↩️  Press any key to return to menu...'
 }
 
@@ -429,11 +422,11 @@ ensure_server_initialized() {
   clear
   echo -e "\n⚠️ \e[1;31mServer is not yet initialized for .NET App Hosting.\e[0m"
   echo -e "\nThe following components are missing:"
-  echo "────────────────────────────────────────────"
+  print_line
   for item in "${missing[@]}"; do
     echo " ❌ $item"
   done
-  echo "────────────────────────────────────────────"
+  print_line
 
   echo -e "\n🔧 \e[1mThe following will be configured by 'Init Server':\e[0m"
   echo -e "   • Nginx (Reverse Proxy)"
@@ -444,15 +437,11 @@ ensure_server_initialized() {
   echo -e "   • Timezone + Firewall Setup"
 
   echo -e "\n❓ \e[1mHow do you want to proceed?\e[0m"
-  echo "────────────────────────────────────────────"
+  print_line
   echo -e " 1) 🛠️ Run init server now     $(print_back_to_menu)"
-  echo "────────────────────────────────────────────"
-  print_select_prompt 1
+  read_menu_choice 1
 
-  IFS= read -rsn1 choice
-  echo ""
-
-  case "$choice" in
+  case "$REPLY" in
     1)
       if ! prompt_and_set_timezone; then
         echo -e "\nℹ️ \e[2mYou must run \e[36minit server\e[0m before adding an app.\e[0m"
@@ -462,7 +451,7 @@ ensure_server_initialized() {
       check_and_offer_reboot
       return 0
       ;;
-    *)
+    q|Q)
       echo -e "\nℹ️ \e[2mYou must run \e[36minit server\e[0m before adding an app.\e[0m"
       return 1
       ;;

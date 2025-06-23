@@ -445,13 +445,10 @@ show_f2b_whitelist_menu() {
     echo -e "\n 1) ➕ Add IP address               2) ❌ Remove IP address"
     echo -e "\n 3) 🧼 Show raw whitelist entries   4) 💣 Clear entire whitelist"
     echo -e "\n $(print_back_to_menu)"
-    echo    "────────────────────────────────────────────────────────────"
-    print_select_prompt 4
 
-    IFS= read -rsn1 subchoice
-    echo
+    read_menu_choice 4
 
-    case "$subchoice" in
+    case "$REPLY" in
       1)
         if add_ip_to_whitelist; then
           echo ""
@@ -477,10 +474,6 @@ show_f2b_whitelist_menu() {
         ;;
       q|Q)
         break
-        ;;
-      *)
-        print_invalid_selection
-        sleep 0.5
         ;;
     esac
   done
@@ -720,13 +713,10 @@ show_f2b_blocklist_menu() {
     echo -e "\n 1) ➕ Add IP address               2) ❌ Remove IP address"
     echo -e "\n 3) 🧼 Show raw blocklist entries   4) 💣 Clear entire blocklist"
     echo -e "\n $(print_back_to_menu)"
-    echo "────────────────────────────────────────────────────────────"
-    print_select_prompt 4
 
-    IFS= read -rsn1 subchoice
-    echo
+    read_menu_choice 4
 
-    case "$subchoice" in
+    case "$REPLY" in
       1)
         if add_ip_to_blocklist; then
           echo ""
@@ -753,10 +743,6 @@ show_f2b_blocklist_menu() {
       q|Q)
         break
         ;;
-      *)
-        print_invalid_selection
-        sleep 0.5
-        ;;
     esac
   done
 }
@@ -770,13 +756,10 @@ show_f2b_logs_menu() {
     echo -e "\n 1) 🚫 Show all banned IPs            2) ❗ Show all failed attempts"
     echo -e "\n 3) 👀 Show all suspicious activity   4) 🧾 Show full raw log"
     echo -e "\n $(print_back_to_menu)"
-    echo    "────────────────────────────────────────────────────────────"
-    print_select_prompt 4
 
-    IFS= read -rsn1 logopt
-    echo
+    read_menu_choice 4
 
-    case "$logopt" in
+    case "$REPLY" in
       1)
         echo -e "\n🚫 \e[1mAll Banned IPs:\e[0m"
         grep "Ban " /var/log/fail2ban.log | less +G
@@ -795,10 +778,6 @@ show_f2b_logs_menu() {
         ;;
       q|Q)
         break
-        ;;
-      *)
-        print_invalid_selection
-        sleep 0.5
         ;;
     esac
   done
@@ -827,13 +806,10 @@ show_f2b_menu() {
     echo -e "\n 1) 📊 Show status                2) 🟢 Manage whitelist"
     echo -e "\n 3) ℹ️ Show explanation           4) 🔥 Manage blocklist"
     echo -e "\n 5) 📄 Show log overview          $(print_back_to_menu)"
-    echo    "────────────────────────────────────────────────────────────"
-    print_select_prompt 5
+    
+    read_menu_choice 5
 
-    IFS= read -rsn1 subchoice
-    echo
-
-    case "$subchoice" in
+    case "$REPLY" in
       1)
         show_f2b_status
         echo ""
@@ -855,10 +831,6 @@ show_f2b_menu() {
         ;;
       q|Q)
         break
-        ;;
-      *)
-        print_invalid_selection
-        sleep 0.5
         ;;
     esac
   done
