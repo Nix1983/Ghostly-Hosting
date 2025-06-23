@@ -50,7 +50,6 @@ _redeploy_blazor_app() {
   fi
 }
 
-
 delete_blazor_app() {
   local service="$1"
   local domain="$2"
@@ -361,7 +360,6 @@ check_for_app_update() {
     *) return 9 ;;
   esac
 }
-
 
 restore_app_backup() {
   local exec_dir="$1"
