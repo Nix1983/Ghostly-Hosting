@@ -14,7 +14,6 @@ declare -g SELECTED_REPO_NAME=""
 declare -g SELECTED_REPO_OWNER=""
 declare -g TMP_CLONE_DIR=""
 
-# Resolves the GitHub username from the token using the GitHub API
 resolve_github_user_from_token() {
   if [[ -n "$GITHUB_API_TOKEN" ]]; then
     local user_response
@@ -23,7 +22,6 @@ resolve_github_user_from_token() {
   fi
 }
 
-# Validates required GitHub environment variables and resolves username
 check_github_env_vars() {
   local missing=()
   [[ -z "$GITHUB_API_TOKEN" ]] && missing+=("GITHUB_API_TOKEN")
@@ -47,7 +45,6 @@ check_github_env_vars() {
   return 0
 }
 
-# Loads repositories and fills REPOS array
 load_github_repositories() {
   local response
   response=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
@@ -65,8 +62,9 @@ load_github_repositories() {
   return 0
 }
 
-# Clones the selected GitHub repository including all nested submodules (with token)
 clone_repository() {
+  local commit_hash="$1"
+
   TMP_CLONE_DIR="/tmp-clone/${SELECTED_REPO_NAME}"
   export TMP_CLONE_DIR
 
@@ -74,27 +72,37 @@ clone_repository() {
     echo -e "\n♻️ Removing existing clone directory: \e[2m$TMP_CLONE_DIR\e[0m"
     rm -rf "$TMP_CLONE_DIR"
   fi
-
   echo -e "\n📦 Cloning GitHub repo: \e[36m$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME\e[0m"
   local clone_url="https://${SELECTED_REPO_OWNER}:${GITHUB_API_TOKEN}@github.com/${SELECTED_REPO_OWNER}/${SELECTED_REPO_NAME}.git"
 
-  if [[ "$SELECTED_REF_TYPE" == "branch" || "$SELECTED_REF_TYPE" == "tag" ]]; then
+  if [[ -n "$commit_hash" ]]; then
+    if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR" > /dev/null 2>&1; then
+      echo -e "\n❌ \e[31mFailed to clone repository.\e[0m"
+      sleep 5
+      return 1
+    fi
+    if ! git -C "$TMP_CLONE_DIR" checkout -q "$commit_hash" > /dev/null 2>&1; then
+      echo -e "\n❌ \e[31mFailed to checkout commit: $commit_hash\e[0m"
+      sleep 5
+      return 1
+    fi
+  elif [[ "$SELECTED_REF_TYPE" == "branch" || "$SELECTED_REF_TYPE" == "tag" ]]; then
     if ! GIT_ASKPASS=true git clone -q --branch "$SELECTED_REF_NAME" --single-branch "$clone_url" "$TMP_CLONE_DIR" > /dev/null 2>&1; then
       echo -e "\n❌ \e[31mFailed to clone selected ref: $SELECTED_REF_NAME\e[0m"
+      sleep 5
       return 1
     fi
   else
     if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR" > /dev/null 2>&1; then
       echo -e "\n❌ \e[31mFailed to clone main repository.\e[0m"
+      sleep 5
       return 1
     fi
   fi
 
-  # Track successful submodules
   local -a success_modules=()
   local -a failed_modules=()
 
-  # Rewrite all .gitmodules (recursive)
   echo -e "\n🔄 Rewriting all submodule URLs for token access..."
   find "$TMP_CLONE_DIR" -type f -name ".gitmodules" | while read -r modfile; do
     local moddir
@@ -104,15 +112,9 @@ clone_repository() {
   done
 
   echo -e "🔽 Initializing submodules...\n"
-
-  # Perform recursive init manually and track each module
   if ! git -C "$TMP_CLONE_DIR" submodule update --init --recursive --quiet; then
     while IFS= read -r path; do
-      if [[ -d "$TMP_CLONE_DIR/$path" ]]; then
-        success_modules+=("$path")
-      else
-        failed_modules+=("$path")
-      fi
+      [[ -d "$TMP_CLONE_DIR/$path" ]] && success_modules+=("$path") || failed_modules+=("$path")
     done < <(git -C "$TMP_CLONE_DIR" config --file "$TMP_CLONE_DIR/.gitmodules" --get-regexp path | awk '{print $2}')
   else
     while IFS= read -r path; do
@@ -120,27 +122,26 @@ clone_repository() {
     done < <(git -C "$TMP_CLONE_DIR" config --file "$TMP_CLONE_DIR/.gitmodules" --get-regexp path | awk '{print $2}')
   fi
 
-  # Print results
-  if (( ${#success_modules[@]} > 0 )); then
+  (( ${#success_modules[@]} > 0 )) && {
     echo -e "✅ \e[1mSuccessfully cloned submodules:\e[0m"
-    for m in "${success_modules[@]}"; do
-      echo -e "   ✔️  \e[36m$m\e[0m"
-    done
-  fi
+    for m in "${success_modules[@]}"; do echo -e "   ✔️  \e[36m$m\e[0m"; done
+  }
 
-  if (( ${#failed_modules[@]} > 0 )); then
+  (( ${#failed_modules[@]} > 0 )) && {
     echo -e "\n❌ \e[1;31mFailed to clone submodules:\e[0m"
-    for m in "${failed_modules[@]}"; do
-      echo -e "   ❌ \e[33m$m\e[0m"
-    done
+    for m in "${failed_modules[@]}"; do echo -e "   ❌ \e[33m$m\e[0m"; done
     return 1
-  fi
+  }
 
   echo -e "\n✅ Repo cloned to \e[2m$TMP_CLONE_DIR\e[0m (including all submodules)"
+
+  if [[ -n "$commit_hash" ]]; then
+    echo -e "🔖 \e[1mChecked out specific commit:\e[0m \e[36m$commit_hash\e[0m"
+  fi
+
   return 0
 }
 
-# Displays a list of repositories and lets the user select one
 select_github_repository() {
   if ! check_github_env_vars; then return 1; fi
   if ! load_github_repositories; then return 1; fi
@@ -191,7 +192,6 @@ select_github_repository() {
   done
 }
 
-# Lists all branches and releases for the selected repo and lets the user choose one
 select_branch_or_tag() {
   local repo="$SELECTED_REPO_NAME"
   local owner="$SELECTED_REPO_OWNER"
@@ -268,9 +268,9 @@ select_branch_or_tag() {
   return 0
 }
 
-
 save_repo_metadata() {
   local target_dir="$1"
+  local commit_override="$2"
   local meta_file="$target_dir/meta.json"
 
   if [[ -z "$SELECTED_REPO_OWNER" || -z "$SELECTED_REPO_NAME" || -z "$SELECTED_REF_TYPE" || -z "$SELECTED_REF_NAME" ]]; then
@@ -278,20 +278,25 @@ save_repo_metadata() {
     return 1
   fi
 
-  local latest_commit
-  latest_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-    "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$SELECTED_REF_NAME" |
-    jq -r '.sha // empty')
+  local commit_to_save
 
-  if [[ -z "$latest_commit" ]]; then
-    echo -e "⚠️ \e[33mCould not fetch latest commit – continuing without.\e[0m"
+  if [[ -n "$commit_override" ]]; then
+    commit_to_save="$commit_override"
+  else
+    commit_to_save=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+      "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$SELECTED_REF_NAME" |
+      jq -r '.sha // empty')
+
+    if [[ -z "$commit_to_save" ]]; then
+      echo -e "⚠️ \e[33mCould not fetch latest commit – continuing without.\e[0m"
+    fi
   fi
 
   jq -n --arg owner "$SELECTED_REPO_OWNER" \
         --arg name "$SELECTED_REPO_NAME" \
         --arg type "$SELECTED_REF_TYPE" \
         --arg ref "$SELECTED_REF_NAME" \
-        --arg sha "$latest_commit" \
+        --arg sha "$commit_to_save" \
         '{
           repo_owner: $owner,
           repo_name: $name,
@@ -302,6 +307,7 @@ save_repo_metadata() {
 
   echo -e "📝 Metadata written to \e[2m$meta_file\e[0m"
 }
+
 
 
 

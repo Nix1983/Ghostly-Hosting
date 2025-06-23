@@ -187,6 +187,58 @@ show_app_log_files() {
   done
 }
 
+backup_app_metadata() {
+  local exec_dir="$1"
+  local meta_file="$exec_dir/meta.json"
+  local backup_dir="$exec_dir/backup"
+
+  mkdir -p "$backup_dir"
+
+  if [[ ! -f "$meta_file" ]]; then
+    echo -e "❌ \e[31mmeta.json not found – cannot back up.\e[0m"
+    return 1
+  fi
+
+  local commit
+  commit=$(jq -r '.commit // empty' "$meta_file")
+  if [[ -z "$commit" ]]; then
+    echo -e "❌ \e[31mCommit hash not found in meta.json – aborting.\e[0m"
+    return 1
+  fi
+
+  local timestamp
+  timestamp=$(date +"%Y%m%dT%H%M%S")
+  local new_backup="$backup_dir/meta-${timestamp}.json"
+
+  if cp "$meta_file" "$new_backup"; then
+    echo "✅ Backup saved to $new_backup"
+  else
+    echo -e "❌ \e[31mFailed to copy meta.json\e[0m"
+    return 1
+  fi
+
+  # Alle vorhandenen Backups mit dem gleichen Commit finden
+  mapfile -t matching_files < <(
+    find "$backup_dir" -maxdepth 1 -type f -name "meta-*.json" \
+    -exec jq -r '.commit // empty' {} \; -exec printf "%s\n" {} \; |
+    paste - - | awk -v hash="$commit" '$1 == hash {print $2}'
+  )
+
+  if (( ${#matching_files[@]} > 1 )); then
+    mapfile -t sorted < <(printf "%s\n" "${matching_files[@]}" | sort -r)
+    local keep="${sorted[0]}"
+    echo -e "\n🧹 Found multiple backups for commit \e[36m$commit\e[0m"
+    echo -e "   ➕ Keeping latest: \e[2m$keep\e[0m"
+
+    for f in "${sorted[@]:1}"; do
+      rm -f "$f"
+      echo -e "   ❌ Removed old duplicate: \e[2m$f\e[0m"
+    done
+  fi
+
+  return 0
+}
+
 check_for_app_update() {
   local exec_dir="$1"
   local service_name="$2"
@@ -283,14 +335,7 @@ check_for_app_update() {
       mkdir -p "$backup_dir"
 
       # Backup meta.json with timestamp BEFORE deletion
-      if [[ -f "$meta_file" ]]; then
-        local timestamp
-        timestamp=$(date +"%Y%m%dT%H%M%S")
-        local backup_path="$backup_dir/meta-${timestamp}.json"
-        cp "$meta_file" "$backup_path" && echo "✅ Backup saved to $backup_path" || echo "❌ Failed to copy meta.json"
-      else
-        echo "❌ meta.json not found – cannot back up"
-      fi
+      backup_app_metadata "$exec_dir"
 
       # Preserve logs and backup in TMP_PUBLISH_DIR
       [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/logs"
@@ -325,7 +370,10 @@ check_for_app_update() {
 
 restore_app_backup() {
   local exec_dir="$1"
+  local service_name="$2"
+  local meta_file="$exec_dir/meta.json"
   local backup_dir="$exec_dir/backup"
+  local log_dir="$exec_dir/logs"
 
   local subdomain parent domain
   subdomain=$(basename "$exec_dir")
@@ -336,7 +384,6 @@ restore_app_backup() {
   else
     domain="$subdomain.$parent"
   fi
-
   domain="${domain//-/.}"
 
   if [[ ! -d "$backup_dir" ]]; then
@@ -360,7 +407,6 @@ restore_app_backup() {
     timestamp="${filename//meta-/}"
     timestamp="${timestamp//.json/}"
     timestamp="${timestamp//T/}"
-
     datetime=$(date -d "${timestamp:0:8} ${timestamp:8:2}:${timestamp:10:2}:${timestamp:12:2}" "+%H:%M:%S %d-%m-%Y" 2>/dev/null || echo "$timestamp")
     ref=$(jq -r '.ref_name // "-" ' "$file")
     commit=$(jq -r '.commit // ""' "$file")
@@ -383,8 +429,64 @@ restore_app_backup() {
 
     if [[ "$choice" =~ ^[Qq]$ ]]; then return 9; fi
     if [[ "$choice" =~ ^[0-9]+$ && -n "${map_idx[$choice]}" ]]; then
-      echo -e "\n✅ Selected Backup: \e[36m${map_idx[$choice]}\e[0m"
-      # Hier Restore-Logik aufrufen
+      local meta_file="${map_idx[$choice]}"
+      echo -e "\n✅ Selected Backup: \e[36m$meta_file\e[0m"
+
+      # 🔍 Metadaten auslesen
+      local owner repo ref_type ref_name commit
+      owner=$(jq -r '.repo_owner // empty' "$meta_file")
+      repo=$(jq -r '.repo_name // empty' "$meta_file")
+      ref_type=$(jq -r '.ref_type // empty' "$meta_file")
+      ref_name=$(jq -r '.ref_name // empty' "$meta_file")
+      commit=$(jq -r '.commit // empty' "$meta_file")
+  
+      if [[ -z "$owner" || -z "$repo" || -z "$ref_type" || -z "$ref_name" || -z "$commit" ]]; then
+        echo -e "❌ \e[31mInvalid or incomplete metadata in: $meta_file\e[0m"
+        return 1
+      fi
+
+      # 🌍 Exporte setzen wie im Originalsystem
+      export SELECTED_REPO_OWNER="$owner"
+      export SELECTED_REPO_NAME="$repo"
+      export SELECTED_REF_TYPE="$ref_type"
+      export SELECTED_REF_NAME="$ref_name"
+
+      echo -e "\n📦 Restoring from:\n - Repo: \e[36m$owner/$repo\e[0m\n - Ref:  \e[36m$ref_type → $ref_name\e[0m\n - Commit: \e[2m$commit\e[0m"
+      clone_repository "$commit" || return 1
+      detect_required_dotnet_versions || return 1
+      install_dotnet_version || return 1
+      publish_dotnet_project || {
+        echo -e "❌ \e[31mPublish failed – update aborted.\e[0m"
+        cleanup_temp_folders
+        return 1
+      }
+
+      echo -e "\n⏹️ \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
+      systemctl stop "$service_name" 2>/dev/null || echo "⚠️ Could not stop service."
+
+      # Preserve logs and backup in TMP_PUBLISH_DIR
+      [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/logs"
+      [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/backup"
+
+      echo -e "🧹 \e[1mCleaning deployment folder...\e[0m"
+      if [[ -d "$exec_dir" ]]; then
+        rm -rf "${exec_dir:?}"/*
+      fi
+
+      echo -e "📁 \e[1mDeploying new version...\e[0m"
+      cp -r "$TMP_PUBLISH_DIR"/. "$exec_dir"/
+
+      save_repo_metadata "$exec_dir" "$commit"
+      cleanup_temp_folders
+
+      echo -e "🚀 \e[1mRestarting service:\e[0m \e[36m$service_name\e[0m"
+      if systemctl start "$service_name"; then
+        echo -e "\n✅ \e[1;32mUpdate completed successfully.\e[0m"
+      else
+        echo -e "\n❌ \e[31mUpdate deployed but service could not be started.\e[0m"
+        systemctl status "$service_name" --no-pager
+      fi
+
       return 0
     else
       print_invalid_selection
@@ -392,6 +494,7 @@ restore_app_backup() {
     fi
   done
 }
+
 
 restart_app_service() {
   local service="$1"
@@ -460,7 +563,6 @@ _load_dynamic_app_info() {
     uptime_readable="–"
   fi
 }
-
 
 show_app_details_menu() {
   local service="$1"
@@ -532,7 +634,9 @@ show_app_details_menu() {
         delete_app_interactively "$service" "$domain" "$exec_dir"
         [[ $? -eq 0 ]] && return 0
         ;;
-      6) restore_app_backup "$exec_dir" ;;
+      6) restore_app_backup "$exec_dir" "$service" 
+         read -rsn1 -p "$(print_press_any_key)"
+         ;;
       7) toggle_cloudflare_proxy 
          refresh_cloudflare_info_for_domain "$domain"
          ;;
