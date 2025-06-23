@@ -58,8 +58,8 @@ show_apps() {
   local index=1
   local -A app_map=()
   clear
-  echo -e "\n📋 \e[1mDeployed Kestrel Apps\e[0m"
-  echo "───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  echo -e "\n📋 \e[1mDeployed .NET Apps\e[0m"
+  print_double_line
 
   while IFS= read -r service_file; do
     local service_name port domain exec_dir status ram_kb ram_mb disk_mb
@@ -106,19 +106,15 @@ show_apps() {
     read -rsn1 -p "$(print_press_any_key)"
     return 1
   fi
+  
+  read_menu_choice "$((index-1))"
 
-  echo -e "\n───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
-  print_select_prompt "$((index-1))"
-  read -r selection
 
-  if [[ "$selection" =~ ^[Qq]$ ]]; then
+  if [[ "$REPLY" =~ ^[Qq]$ ]]; then
     return 0
-  elif [[ -n "${app_map[$selection]}" ]]; then
-    export SELECTED_SERVICE="${app_map[$selection]}"
+  elif [[ -n "${app_map[$REPLY]}" ]]; then
+    export SELECTED_SERVICE="${app_map[$REPLY]}"
     show_app_details_menu "$SELECTED_SERVICE"
-  else
-    print_invalid_selection
-    return 1
   fi
 }
 
@@ -131,17 +127,14 @@ show_app_manager_menu() {
     else
       echo -e "\n📦 \e[1;34mApp Control Panel\e[0m"
     fi
-    echo "═════════════════════════════════════════════════════════════"
+    print_double_line
 
     echo -e "\n 1) ➕  Add new App    2) 🔍 Show Apps   3) 🖥️ Server Control Panel"
     echo -e "\n q) 🏃💨 \e[1;31mExit App Control\e[0m"
-    echo -e "\n─────────────────────────────────────────────────────────────"
-    print_select_prompt 3
+    
+    read_menu_choice 3
 
-    IFS= read -rsn1 choice
-    echo ""
-
-    case "$choice" in
+    case "$REPLY" in
       1)
         add_new_app
         local exit_code=$?
@@ -158,10 +151,6 @@ show_app_manager_menu() {
       3)
         return ;;
       q|Q) echo -e "\n🏃‍♂️💨 \e[1;31mExiting App Control Panel. Goodbye!\e[0m"; exit 0 ;;
-      *)
-        print_invalid_selection
-        sleep 0.5
-        ;;
     esac
   done
 }

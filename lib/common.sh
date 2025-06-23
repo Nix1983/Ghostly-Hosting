@@ -152,6 +152,9 @@ confirm_action_code() {
   local code_length=${#confirm_code}
   echo -e "\nTo confirm, please enter the code: \e[1;33m$confirm_code\e[0m (or type \e[36mq\e[0m to cancel)"
   echo -n $'\n🔐 Enter confirmation code: '
+  
+  # Clear input buffer before waiting for input
+  while IFS= read -rsn1 -t 0.001; do :; done
 
   user_input=""
   while true; do
@@ -203,13 +206,71 @@ confirm_action_code() {
   return 0
 }
 
+read_menu_choice() {
+  local max="$1"
+  local input="" char
+  print_line
+  print_select_prompt "$max"
 
+  # Clear input buffer before waiting for input
+  while IFS= read -rsn1 -t 0.001; do :; done
 
+  while true; do
+    IFS= read -rsn1 char
 
+    if [[ -z "$char" || "$char" == $'\n' || "$char" == $'\r' ]]; then
+      if [[ "$input" =~ ^[1-9][0-9]{0,2}$ && $((10#$input)) -le $((10#$max)) ]]; then
+        break
+      fi
+      continue
+    fi
 
+    if [[ "$char" == $'\x1b' ]]; then
+      IFS= read -rsn1 -t 0.01 next1
+      IFS= read -rsn1 -t 0.01 next2
+      if [[ "$next1$next2" == "[3" ]]; then
+        read -rsn1 -t 0.01
+        continue
+      fi
+      continue
+    fi
 
+    if [[ "$char" == $'\x7f' || "$char" == $'\x08' ]]; then
+      if [[ -n "$input" ]]; then
+        input="${input::-1}"
+        echo -ne "\b \b"
+      fi
+      continue
+    fi
 
+    if [[ "$char" =~ [Qq] ]]; then
+      echo
+      REPLY="q"
+      return 0
+    fi
 
+    if [[ "$char" =~ [0-9] ]]; then
+      if [[ -z "$input" && "$char" == "0" ]]; then
+        continue
+      fi
 
+      local test_input="${input}${char}"
+      if (( 10#$test_input > 10#$max )); then
+        continue
+      fi
 
+      input="$test_input"
+      echo -n "$char"
 
+      if (( max < 10 )); then
+        echo
+        REPLY="$input"
+        return 0
+      fi
+    fi
+  done
+
+  echo
+  REPLY="$input"
+  return 0
+}

@@ -25,19 +25,16 @@ prompt_and_set_timezone() {
   while true; do
     clear
     echo -e "\n🕒 \e[1mTimezone Setup\e[0m"
-    echo "═════════════════════════════════════════════════════════════"
+    print_double_line
     echo -e "How would you like to set the server timezone?\n"
     echo -e " 1) 🧠 Detect timezone from your current local time"
     echo -e " 2) 📚 Manually select from common timezones"
     echo -e " 3) 🌍 Use UTC (Coordinated Universal Time)"
     echo -e " $(print_back_to_menu)"
-    echo "─────────────────────────────────────────────────────────────"
-    print_select_prompt 3
 
-    IFS= read -rsn1 choice
-    echo ""
+    read_menu_choice 3
 
-    case "$choice" in
+    case "$REPLY" in
       1)
         if detect_timezone_from_input; then
           set_timezone "$SELECTED_TIMEZONE"
@@ -55,13 +52,7 @@ prompt_and_set_timezone() {
         return 0
         ;;
       q|Q)
-        echo -e "\n❎ \e[2mTimezone configuration cancelled.\e[0m"
-        sleep 1
         return 1
-        ;;
-      *)
-        echo -e "\n❌ \e[31mInvalid selection.\e[0m"
-        sleep 1
         ;;
     esac
   done
@@ -74,7 +65,7 @@ detect_timezone_from_input() {
   while true; do
     clear
     echo -e "\n⌛ \e[1mTimezone Detection via Local Time\e[0m"
-    echo "═════════════════════════════════════════════════════════════"
+    print_double_line
     echo -e "Please enter your \e[36mcurrent local time\e[0m (24h format, e.g. \e[36m14:30\e[0m):"
     read -rp "> " user_time
 
@@ -129,7 +120,7 @@ detect_timezone_from_input() {
   while true; do
     clear
     echo -e "\n📋 \e[1mSelect a matching timezone for:\e[0m \e[36mUTC$offset_str\e[0m"
-    echo "═════════════════════════════════════════════════════════════"
+    print_double_line
 
     local columns=3
     local width=30
@@ -138,21 +129,20 @@ detect_timezone_from_input() {
       printf " %2d) 🌍 \e[36m%-*s\e[0m" "$index" "$width" "${zone_candidates[$i]}"
       (( index % columns == 0 || index == ${#zone_candidates[@]} )) && echo ""
     done
+    print_line
+    echo "  $(print_back_to_menu)"
+    read_menu_choice "${#zone_candidates[@]}"
 
-    echo "─────────────────────────────────────────────────────────────"
-    echo "$(print_back_to_menu)"
-    print_select_prompt "${#zone_candidates[@]}"
-    read -r selection
 
-    if [[ "$selection" == "q" || "$selection" == "Q" ]]; then
+    if [[ "$REPLY" =~ ^[Qq]$ ]]; then
       return 1
-    elif [[ "$selection" =~ ^[1-9][0-9]*$ ]] && (( selection >= 1 && selection <= ${#zone_candidates[@]} )); then
-      SELECTED_TIMEZONE="${zone_candidates[$((selection - 1))]}"
+    fi
+    
+    if [[ "$REPLY" =~ ^[1-9][0-9]*$ ]] && (( REPLY <= ${#zone_candidates[@]} )); then
+      SELECTED_TIMEZONE="${zone_candidates[REPLY-1]}"
       return 0
     fi
 
-    echo -e "\n❌ \e[31mInvalid selection. Please try again.\e[0m"
-    sleep 2
   done
 }
 
@@ -162,7 +152,7 @@ prompt_for_common_timezone() {
   while true; do
     clear
     echo -e "\n📚 \e[1mManual Timezone Selection\e[0m"
-    echo "═════════════════════════════════════════════════════════════"
+    print_double_line
 
     local columns=3
     local width=20
@@ -172,21 +162,16 @@ prompt_for_common_timezone() {
       (( index % columns == 0 || index == ${#zones[@]} )) && echo ""
     done
 
-    echo -e "─────────────────────────────────────────────────────────────"
+    print_line
     echo "  $(print_back_to_menu)"
-    echo ""
-    print_select_prompt "${#zones[@]}"
-    read -r selection
+    read_menu_choice "${#zones[@]}"
 
-    if [[ "$selection" == "q" || "$selection" == "Q" ]]; then
+    if [[ "$REPLY" == "q" || "$REPLY" == "Q" ]]; then
       return 1
-    elif [[ "$selection" =~ ^[1-9][0-9]*$ ]] && (( selection >= 1 && selection <= ${#zones[@]} )); then
-      SELECTED_TIMEZONE="${zones[$((selection - 1))]}"
+    elif [[ "$REPLY" =~ ^[1-9][0-9]*$ ]] && (( REPLY >= 1 && REPLY <= ${#zones[@]} )); then
+      SELECTED_TIMEZONE="${zones[$((REPLY - 1))]}"
       return 0
     fi
-
-    echo -e "\n❌ \e[31mInvalid selection. Please try again.\e[0m"
-    sleep 2
   done
 }
 
@@ -203,10 +188,10 @@ set_timezone() {
     echo -e "🔄 Current timezone: \e[33m$current_tz\e[0m"
     echo -e "⚙️ Changing timezone to: \e[1;34m$desired_tz\e[0m"
     timedatectl set-timezone "$desired_tz"
-    sleep 1
     echo -e "✅ Timezone successfully updated: \e[1;32m$desired_tz\e[0m"
     _restart_timezone_services
   fi
 
   echo -e "🕒 Current system time: \e[36m$(date)\e[0m"
+  sleep 2
 }
