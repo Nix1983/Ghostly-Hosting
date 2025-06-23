@@ -50,6 +50,35 @@ _redeploy_blazor_app() {
   fi
 }
 
+_load_dynamic_app_info() {
+  local service="$1"
+  local exec_dir="$2"
+
+  status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
+
+  local ram_kb
+  ram_kb=$(systemctl show "$service" -p MemoryCurrent | cut -d= -f2)
+  if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
+    ram_mb="$((ram_kb / 1024 / 1024)) MB"
+  else
+    ram_mb="0 MB"
+  fi
+
+  main_dll=$(find "$exec_dir" -maxdepth 1 -name "*.dll" | head -n1 | xargs basename 2>/dev/null)
+
+  local uptime_monotonic
+  uptime_monotonic=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
+  if [[ "$uptime_monotonic" -gt 0 ]]; then
+    local now elapsed_us seconds
+    now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
+    elapsed_us=$((now - uptime_monotonic))
+    seconds=$((elapsed_us / 1000000))
+    uptime_readable=$(printf '%02dd %02dh %02dm %02ds' $((seconds/86400)) $((seconds%86400/3600)) $((seconds%3600/60)) $((seconds%60)))
+  else
+    uptime_readable="–"
+  fi
+}
+
 delete_blazor_app() {
   local service="$1"
   local domain="$2"
@@ -491,35 +520,6 @@ update_app_interactively() {
   [[ "$exit_code" -ne 9 ]] && read -rsn1 -p "$(print_press_any_key)"
 }
 
-_load_dynamic_app_info() {
-  local service="$1"
-  local exec_dir="$2"
-
-  status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
-
-  local ram_kb
-  ram_kb=$(systemctl show "$service" -p MemoryCurrent | cut -d= -f2)
-  if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
-    ram_mb="$((ram_kb / 1024 / 1024)) MB"
-  else
-    ram_mb="0 MB"
-  fi
-
-  main_dll=$(find "$exec_dir" -maxdepth 1 -name "*.dll" | head -n1 | xargs basename 2>/dev/null)
-
-  local uptime_monotonic
-  uptime_monotonic=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
-  if [[ "$uptime_monotonic" -gt 0 ]]; then
-    local now elapsed_us seconds
-    now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
-    elapsed_us=$((now - uptime_monotonic))
-    seconds=$((elapsed_us / 1000000))
-    uptime_readable=$(printf '%02dd %02dh %02dm %02ds' $((seconds/86400)) $((seconds%86400/3600)) $((seconds%3600/60)) $((seconds%60)))
-  else
-    uptime_readable="–"
-  fi
-}
-
 show_app_details_menu() {
   local service="$1"
 
@@ -601,4 +601,3 @@ show_app_details_menu() {
     esac
   done
 }
-
