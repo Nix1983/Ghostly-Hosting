@@ -8,6 +8,56 @@ source ./lib/cloudflare.sh
 source ./lib/certbot.sh
 source ./lib/github.sh
 
+_redeploy_blazor_app() {
+  local exec_dir="$1"
+  local service_name="$2"
+  local commit="$3"
+  local backup_dir="$exec_dir/backup"
+  local log_dir="$exec_dir/logs"
+  local meta_file="$exec_dir/meta.json"
+
+  detect_required_dotnet_versions || return 1
+  install_dotnet_version || return 1
+  publish_dotnet_project || {
+    echo -e "❌ \e[31mPublish failed – update aborted.\e[0m"
+    cleanup_temp_folders
+    return 1
+  }
+
+  echo -e "\n⏹️ \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
+  systemctl stop "$service_name" 2>/dev/null || echo "⚠️ Could not stop service."
+
+  mkdir -p "$backup_dir"
+
+  if [[ -f "$meta_file" ]]; then
+    local timestamp
+    timestamp=$(date +"%Y%m%dT%H%M%S")
+    local backup_path="$backup_dir/meta-${timestamp}.json"
+    cp "$meta_file" "$backup_path" && echo "✅ Backup saved to $backup_path" || echo "❌ Failed to copy meta.json"
+  fi
+
+  [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/logs"
+  [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/backup"
+
+  echo -e "🧹 \e[1mCleaning deployment folder...\e[0m"
+  [[ -d "$exec_dir" ]] && rm -rf "${exec_dir:?}"/*
+
+  echo -e "📁 \e[1mDeploying new version...\e[0m"
+  cp -r "$TMP_PUBLISH_DIR"/. "$exec_dir"/
+
+  save_repo_metadata "$exec_dir" "$commit"
+  cleanup_temp_folders
+
+  echo -e "🚀 \e[1mRestarting service:\e[0m \e[36m$service_name\e[0m"
+  if systemctl start "$service_name"; then
+    echo -e "\n✅ \e[1;32mUpdate completed successfully.\e[0m"
+  else
+    echo -e "\n❌ \e[31mUpdate deployed but service could not be started.\e[0m"
+    systemctl status "$service_name" --no-pager
+  fi
+}
+
+
 delete_blazor_app() {
   local service="$1"
   local domain="$2"
@@ -243,8 +293,6 @@ check_for_app_update() {
   local exec_dir="$1"
   local service_name="$2"
   local meta_file="$exec_dir/meta.json"
-  local backup_dir="$exec_dir/backup"
-  local log_dir="$exec_dir/logs"
 
   clear
   echo -e "\n🔍 \e[1mChecking for App Updates\e[0m"
@@ -257,11 +305,10 @@ check_for_app_update() {
 
   if [[ ! -f "$meta_file" ]]; then
     echo -e "❌ \e[31mNo metadata found at:\e[2m $meta_file\e[0m"
-    echo -e "💡 App was likely deployed manually or with an old script version."
     return 1
   fi
 
-  local repo_owner repo_name ref_type ref_name current_commit
+  local repo_owner repo_name ref_type ref_name current_commit latest_commit
   repo_owner=$(jq -r '.repo_owner // empty' "$meta_file")
   repo_name=$(jq -r '.repo_name // empty' "$meta_file")
   ref_type=$(jq -r '.ref_type // empty' "$meta_file")
@@ -283,7 +330,6 @@ check_for_app_update() {
     return 0
   fi
 
-  local latest_commit
   latest_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
     "$GITHUB_API_BASE/repos/$repo_owner/$repo_name/commits/$ref_name" |
     jq -r '.sha // empty')
@@ -313,67 +359,22 @@ check_for_app_update() {
 
   case "$choice" in
     1)
-      echo -e "🔄 \e[1mUpdating app from GitHub...\e[0m"
       export SELECTED_REPO_OWNER="$repo_owner"
       export SELECTED_REPO_NAME="$repo_name"
       export SELECTED_REF_TYPE="$ref_type"
       export SELECTED_REF_NAME="$ref_name"
-
       clone_repository || return 1
-      detect_required_dotnet_versions || return 1
-      install_dotnet_version || return 1
-      publish_dotnet_project || {
-        echo -e "❌ \e[31mPublish failed – update aborted.\e[0m"
-        cleanup_temp_folders
-        return 1
-      }
-
-      echo -e "\n⏹️ \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
-      systemctl stop "$service_name" 2>/dev/null || echo "⚠️ Could not stop service."
-
-      # Ensure backup folder exists
-      mkdir -p "$backup_dir"
-
-      # Backup meta.json with timestamp BEFORE deletion
-      backup_app_metadata "$exec_dir"
-
-      # Preserve logs and backup in TMP_PUBLISH_DIR
-      [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/logs"
-      [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/backup"
-
-      echo -e "🧹 \e[1mCleaning deployment folder...\e[0m"
-      if [[ -d "$exec_dir" ]]; then
-        rm -rf "${exec_dir:?}"/*
-      fi
-
-      echo -e "📁 \e[1mDeploying new version...\e[0m"
-      cp -r "$TMP_PUBLISH_DIR"/. "$exec_dir"/
-
-      save_repo_metadata "$exec_dir"
-      cleanup_temp_folders
-
-      echo -e "🚀 \e[1mRestarting service:\e[0m \e[36m$service_name\e[0m"
-      if systemctl start "$service_name"; then
-        echo -e "\n✅ \e[1;32mUpdate completed successfully.\e[0m"
-      else
-        echo -e "\n❌ \e[31mUpdate deployed but service could not be started.\e[0m"
-        systemctl status "$service_name" --no-pager
-      fi
-
-      return 0
-      ;;
-    *)
-      return 9
-      ;;
+      _redeploy_blazor_app "$exec_dir" "$service_name" "$latest_commit"
+      return $? ;;
+    *) return 9 ;;
   esac
 }
+
 
 restore_app_backup() {
   local exec_dir="$1"
   local service_name="$2"
-  local meta_file="$exec_dir/meta.json"
   local backup_dir="$exec_dir/backup"
-  local log_dir="$exec_dir/logs"
 
   local subdomain parent domain
   subdomain=$(basename "$exec_dir")
@@ -410,7 +411,6 @@ restore_app_backup() {
     datetime=$(date -d "${timestamp:0:8} ${timestamp:8:2}:${timestamp:10:2}:${timestamp:12:2}" "+%H:%M:%S %d-%m-%Y" 2>/dev/null || echo "$timestamp")
     ref=$(jq -r '.ref_name // "-" ' "$file")
     commit=$(jq -r '.commit // ""' "$file")
-
     options+=("$(printf " %2d) 🕒 %s  |  🌿 %s \e[2m(%s)\e[0m" "$i" "$datetime" "$ref" "${commit:0:7}")")
     map_idx["$i"]="$file"
     ((i++))
@@ -428,73 +428,39 @@ restore_app_backup() {
     echo ""
 
     if [[ "$choice" =~ ^[Qq]$ ]]; then return 9; fi
-    if [[ "$choice" =~ ^[0-9]+$ && -n "${map_idx[$choice]}" ]]; then
-      local meta_file="${map_idx[$choice]}"
-      echo -e "\n✅ Selected Backup: \e[36m$meta_file\e[0m"
 
-      # 🔍 Metadaten auslesen
+    if [[ "$choice" =~ ^[0-9]+$ && -n "${map_idx[$choice]}" ]]; then
+      local meta_file_restore="${map_idx[$choice]}"
+      echo -e "\n✅ Selected Backup: \e[36m$meta_file_restore\e[0m"
+
       local owner repo ref_type ref_name commit
-      owner=$(jq -r '.repo_owner // empty' "$meta_file")
-      repo=$(jq -r '.repo_name // empty' "$meta_file")
-      ref_type=$(jq -r '.ref_type // empty' "$meta_file")
-      ref_name=$(jq -r '.ref_name // empty' "$meta_file")
-      commit=$(jq -r '.commit // empty' "$meta_file")
-  
+      owner=$(jq -r '.repo_owner // empty' "$meta_file_restore")
+      repo=$(jq -r '.repo_name // empty' "$meta_file_restore")
+      ref_type=$(jq -r '.ref_type // empty' "$meta_file_restore")
+      ref_name=$(jq -r '.ref_name // empty' "$meta_file_restore")
+      commit=$(jq -r '.commit // empty' "$meta_file_restore")
+
       if [[ -z "$owner" || -z "$repo" || -z "$ref_type" || -z "$ref_name" || -z "$commit" ]]; then
-        echo -e "❌ \e[31mInvalid or incomplete metadata in: $meta_file\e[0m"
+        echo -e "❌ \e[31mInvalid or incomplete metadata in: $meta_file_restore\e[0m"
         return 1
       fi
 
-      # 🌍 Exporte setzen wie im Originalsystem
       export SELECTED_REPO_OWNER="$owner"
       export SELECTED_REPO_NAME="$repo"
       export SELECTED_REF_TYPE="$ref_type"
       export SELECTED_REF_NAME="$ref_name"
 
       echo -e "\n📦 Restoring from:\n - Repo: \e[36m$owner/$repo\e[0m\n - Ref:  \e[36m$ref_type → $ref_name\e[0m\n - Commit: \e[2m$commit\e[0m"
+
       clone_repository "$commit" || return 1
-      detect_required_dotnet_versions || return 1
-      install_dotnet_version || return 1
-      publish_dotnet_project || {
-        echo -e "❌ \e[31mPublish failed – update aborted.\e[0m"
-        cleanup_temp_folders
-        return 1
-      }
-
-      echo -e "\n⏹️ \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
-      systemctl stop "$service_name" 2>/dev/null || echo "⚠️ Could not stop service."
-
-      # Preserve logs and backup in TMP_PUBLISH_DIR
-      [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/logs"
-      [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/backup"
-
-      echo -e "🧹 \e[1mCleaning deployment folder...\e[0m"
-      if [[ -d "$exec_dir" ]]; then
-        rm -rf "${exec_dir:?}"/*
-      fi
-
-      echo -e "📁 \e[1mDeploying new version...\e[0m"
-      cp -r "$TMP_PUBLISH_DIR"/. "$exec_dir"/
-
-      save_repo_metadata "$exec_dir" "$commit"
-      cleanup_temp_folders
-
-      echo -e "🚀 \e[1mRestarting service:\e[0m \e[36m$service_name\e[0m"
-      if systemctl start "$service_name"; then
-        echo -e "\n✅ \e[1;32mUpdate completed successfully.\e[0m"
-      else
-        echo -e "\n❌ \e[31mUpdate deployed but service could not be started.\e[0m"
-        systemctl status "$service_name" --no-pager
-      fi
-
-      return 0
+      _redeploy_blazor_app "$exec_dir" "$service_name" "$commit"
+      return $?
     else
       print_invalid_selection
       sleep 1
     fi
   done
 }
-
 
 restart_app_service() {
   local service="$1"
