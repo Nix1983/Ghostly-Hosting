@@ -27,14 +27,7 @@ _redeploy_blazor_app() {
   echo -e "\n⏹️ \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
   systemctl stop "$service_name" 2>/dev/null || echo "⚠️ Could not stop service."
 
-  mkdir -p "$backup_dir"
-
-  if [[ -f "$meta_file" ]]; then
-    local timestamp
-    timestamp=$(date +"%Y%m%dT%H%M%S")
-    local backup_path="$backup_dir/meta-${timestamp}.json"
-    cp "$meta_file" "$backup_path" && echo "✅ Backup saved to $backup_path" || echo "❌ Failed to copy meta.json"
-  fi
+  backup_app_metadata "$exec_dir"
 
   [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/logs"
   [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/backup"
@@ -267,7 +260,6 @@ backup_app_metadata() {
     return 1
   fi
 
-  # Alle vorhandenen Backups mit dem gleichen Commit finden
   mapfile -t matching_files < <(
     find "$backup_dir" -maxdepth 1 -type f -name "meta-*.json" \
     -exec jq -r '.commit // empty' {} \; -exec printf "%s\n" {} \; |
