@@ -64,8 +64,6 @@ _load_dynamic_app_info() {
     ram_mb="0 MB"
   fi
 
-  main_dll=$(find "$exec_dir" -maxdepth 1 -name "*.dll" | head -n1 | xargs basename 2>/dev/null)
-
   local uptime_monotonic
   if systemctl is-active --quiet "$service"; then
     uptime_monotonic=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
@@ -523,6 +521,7 @@ show_app_details_menu() {
   port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
   domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
   disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
+  main_dll=$(systemctl show -p ExecStart "$service" | grep -oP '\s/[^ ]+\.dll' | xargs basename 2>/dev/null)
 
   local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
   if [[ -f "$cert_path" ]]; then
