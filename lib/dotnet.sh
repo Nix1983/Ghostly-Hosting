@@ -321,7 +321,7 @@ deploy_to_domain_folder() {
   if [[ -d "$target_dir" ]]; then
     echo -e "\n⚠️  \e[33mDeployment folder already exists:\e[0m \e[2m$target_dir\e[0m"
     echo -e "   This may overwrite an existing app and its services.\n"
-    echo -e "1) 🗑️  Delete and redeploy"
+    echo -e "1) 🗑️ Delete and redeploy"
     echo -e "2) 🔙 Cancel deployment"
 
     read -rsn1 -p $'\n❓ Your choice [1–2]: ' choice
@@ -339,7 +339,7 @@ deploy_to_domain_folder() {
     local service_path="/etc/systemd/system/$service_name"
 
     if systemctl list-units --type=service | grep -q "$service_name"; then
-      echo -e "   ⏹️  Stopping: \e[36m$service_name\e[0m"
+      echo -e "   ⏹️ Stopping: \e[36m$service_name\e[0m"
       systemctl stop "$service_name"
     fi
 
@@ -353,7 +353,7 @@ deploy_to_domain_folder() {
       rm -f "$service_path"
     fi
 
-    echo -e "\n♻️  Removing old deployment folder: \e[2m$target_dir\e[0m"
+    echo -e "\n♻️ Removing old deployment folder: \e[2m$target_dir\e[0m"
     rm -rf "$target_dir"
   fi
 
@@ -364,7 +364,8 @@ deploy_to_domain_folder() {
     echo -e "\n❌ \e[31mFailed to copy published files.\e[0m"
     return 1
   fi
-
+  
+  clean_published_output "$target_dir" "$SERVICE_NAME"
   echo -e "✅ Files successfully copied to: \e[2m$target_dir\e[0m"
   return 0
 }
@@ -389,6 +390,60 @@ cleanup_temp_folders() {
   fi
 
   echo -e "✅ Temporary files cleaned up."
+}
+
+clean_published_output() {
+  local dir="$1"
+  local service_name="$2"
+
+  if [[ -z "$dir" || ! -d "$dir" ]]; then
+    echo -e "❌ \033[31mInvalid or missing publish directory:\033[0m \033[2m$dir\033[0m"
+    return 1
+  fi
+
+  local env_value="Production"
+  if [[ -n "$service_name" ]]; then
+    env_value=$(systemctl show "$service_name" --property=Environment | grep -oP 'DOTNET_ENVIRONMENT=\K[^ ]+' || echo "Production")
+  fi
+
+  echo -e "\n🧹 \033[1mCleaning publish folder...\033[0m (\e[36mEnvironment: $env_value\e[0m)"
+
+  local removed=false
+  local file
+
+  mapfile -t matches < <(find "$dir" -maxdepth 1 -type f \( \
+    -name "web.config" -o \
+    -name "*.pdb" -o \
+    -name "*.deps.json" -o \
+    -name "*.runtimeconfig.dev.json" \))
+
+  for file in "${matches[@]}"; do
+    case "$(basename "$file")" in
+      web.config)
+        echo -e "🗑️ Removing: \e[2mweb.config\e[0m \e[33m(Only required for IIS on Windows)\e[0m"
+        ;;
+      *)
+        echo -e "🗑️ Removing: \e[2m$(basename "$file")\e[0m"
+        ;;
+    esac
+    rm -f "$file"
+    removed=true
+  done
+
+  if [[ "$env_value" != "Development" ]]; then
+    mapfile -t devfiles < <(find "$dir" -maxdepth 1 -type f -name "*Development.json")
+    for file in "${devfiles[@]}"; do
+      echo -e "🗑️ Removing dev config: \e[2m$(basename "$file")\e[0m"
+      rm -f "$file"
+      removed=true
+    done
+  fi
+
+  if [[ "$removed" != true ]]; then
+    echo -e "✅ Nothing to clean. All good."
+  fi
+
+  return 0
 }
 
 find_dotnet_executable_dll() {
@@ -573,5 +628,3 @@ create_kestrel_service() {
 
   echo -e "✅ \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
 }
-
-
