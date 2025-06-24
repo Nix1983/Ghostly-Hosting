@@ -509,25 +509,23 @@ create_kestrel_service() {
     return 1
   fi
 
-  local name_base
+  local name_base sub
   if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
     name_base="${DOMAIN//./-}"
   else
-    local sub="${HOSTNAME_FQDN%."$DOMAIN"}"
+    sub="${HOSTNAME_FQDN%."$DOMAIN"}"
     name_base="${sub//./-}-${DOMAIN//./-}"
   fi
+
   SERVICE_NAME="${name_base}-$KESTREL_PORT.service"
   SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
 
   if systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
     echo -e "\n♻️  \033[33mReplacing existing service:\033[0m \033[36m$SERVICE_NAME\033[0m"
-
     echo -e "   ⏹️  Stopping service..."
     systemctl stop "$SERVICE_NAME" || true
-
     echo -e "   ❌ Disabling service..."
     systemctl disable "$SERVICE_NAME" &>/dev/null || true
-
     if [[ -f "$SERVICE_PATH" ]]; then
       echo -e "   🧹 Removing: \033[2m$SERVICE_PATH\033[0m"
       rm -f "$SERVICE_PATH"
@@ -540,11 +538,10 @@ create_kestrel_service() {
     return 1
   fi
 
-  # 🧾 Create logs folder inside the app directory
   local log_dir="$PUBLISH_DIR/logs"
   mkdir -p "$log_dir"
-
-  # 🧹 Cleanup log files older than 30 days
+  chown -R www-data:www-data "$log_dir"
+  chmod -R 755 "$log_dir"
   find "$log_dir" -type f -name '*.log' -mtime +30 -delete
 
   echo -e "\n⚙️ \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
@@ -559,12 +556,10 @@ create_kestrel_service() {
     echo "ExecStart=/opt/dotnet/dotnet $PUBLISH_DIR/$DOTNET_DLL --urls=http://0.0.0.0:$KESTREL_PORT"
     echo "Restart=always"
     echo "RestartSec=10"
-    echo "SyslogIdentifier=${name_base}"
+    echo "SyslogIdentifier=$name_base"
     echo "User=www-data"
     echo "Environment=ASPNETCORE_URLS=http://0.0.0.0:$KESTREL_PORT"
     echo "Environment=DOTNET_ENVIRONMENT=Production"
-    echo "StandardOutput=append:$log_dir/$(date +%F).log"
-    echo "StandardError=append:$log_dir/$(date +%F).log"
     echo
     echo "[Install]"
     echo "WantedBy=multi-user.target"
@@ -578,3 +573,5 @@ create_kestrel_service() {
 
   echo -e "✅ \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
 }
+
+
