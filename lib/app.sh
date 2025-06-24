@@ -40,6 +40,7 @@ _redeploy_blazor_app() {
 
   save_repo_metadata "$exec_dir" "$commit"
   cleanup_temp_folders
+  clean_published_output "$exec_dir" "$service_name"
 
   echo -e "🚀 \e[1mRestarting service:\e[0m \e[36m$service_name\e[0m"
   if systemctl start "$service_name"; then

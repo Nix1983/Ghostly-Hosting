@@ -139,6 +139,11 @@ clone_repository() {
     echo -e "🔖 \e[1mChecked out specific commit:\e[0m \e[36m$commit_hash\e[0m"
   fi
 
+  if [[ -d "$TMP_CLONE_DIR/.git" ]]; then
+    SELECTED_COMMIT_HASH=$(git -C "$TMP_CLONE_DIR" rev-parse HEAD 2>/dev/null)
+    export SELECTED_COMMIT_HASH
+  fi
+
   return 0
 }
 
@@ -254,7 +259,6 @@ select_branch_or_tag() {
 
 save_repo_metadata() {
   local target_dir="$1"
-  local commit_override="$2"
   local meta_file="$target_dir/meta.json"
 
   if [[ -z "$SELECTED_REPO_OWNER" || -z "$SELECTED_REPO_NAME" || -z "$SELECTED_REF_TYPE" || -z "$SELECTED_REF_NAME" ]]; then
@@ -262,18 +266,22 @@ save_repo_metadata() {
     return 1
   fi
 
-  local commit_to_save
+  local commit_to_save="$SELECTED_COMMIT_HASH"
 
-  if [[ -n "$commit_override" ]]; then
-    commit_to_save="$commit_override"
-  else
+  if [[ -z "$commit_to_save" && -d "$TMP_CLONE_DIR/.git" ]]; then
+    commit_to_save=$(git -C "$TMP_CLONE_DIR" rev-parse HEAD 2>/dev/null)
+    export SELECTED_COMMIT_HASH="$commit_to_save"
+  fi
+
+  if [[ -z "$commit_to_save" ]]; then
     commit_to_save=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
       "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$SELECTED_REF_NAME" |
       jq -r '.sha // empty')
+    export SELECTED_COMMIT_HASH="$commit_to_save"
+  fi
 
-    if [[ -z "$commit_to_save" ]]; then
-      echo -e "⚠️ \e[33mCould not fetch latest commit – continuing without.\e[0m"
-    fi
+  if [[ -z "$commit_to_save" ]]; then
+    echo -e "⚠️ \e[33mCould not determine commit hash – continuing without.\e[0m"
   fi
 
   jq -n --arg owner "$SELECTED_REPO_OWNER" \
@@ -291,3 +299,4 @@ save_repo_metadata() {
 
   echo -e "📝 Metadata written to \e[2m$meta_file\e[0m"
 }
+

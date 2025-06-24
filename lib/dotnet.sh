@@ -364,7 +364,7 @@ deploy_to_domain_folder() {
     echo -e "\n❌ \e[31mFailed to copy published files.\e[0m"
     return 1
   fi
-  
+
   clean_published_output "$target_dir" "$SERVICE_NAME"
   echo -e "✅ Files successfully copied to: \e[2m$target_dir\e[0m"
   return 0
@@ -597,7 +597,6 @@ create_kestrel_service() {
   mkdir -p "$log_dir"
   chown -R www-data:www-data "$log_dir"
   chmod -R 755 "$log_dir"
-  find "$log_dir" -type f -name '*.log' -mtime +30 -delete
 
   echo -e "\n⚙️ \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
