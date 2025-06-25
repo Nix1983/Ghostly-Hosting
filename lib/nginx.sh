@@ -155,7 +155,7 @@ create_nginx_config() {
     echo "    add_header Content-Security-Policy \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:$KESTREL_PORT wss://localhost:$KESTREL_PORT;\";"
     echo
     echo "    location / {"
-    echo "        proxy_pass http://localhost:$KESTREL_PORT;"
+    echo "        proxy_pass http://127.0.0.1:$KESTREL_PORT;"
     echo "        proxy_http_version 1.1;"
     echo "        proxy_set_header Upgrade \$http_upgrade;"
     echo "        proxy_set_header Connection \"upgrade\";"

@@ -8,6 +8,27 @@ source ./lib/cloudflare.sh
 source ./lib/certbot.sh
 source ./lib/github.sh
 
+
+_strip_ansi() {
+  sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g'
+}
+
+_view_log_file_filtered() {
+  local file="$1"
+
+  grep -a -Eiv 'googlebot|bingbot|ahrefsbot|yandex|semrush|baiduspider' "$file" |
+  grep -a -Ev 'HEAD /| 301 | 302 | 304 | 403 ' |
+  _strip_ansi |
+  sed -E \
+    -e 's/\[ERR.*?\]/\x1b[1;31m&\x1b[0m/gI' \
+    -e 's/\[FATAL.*?\]/\x1b[1;31m&\x1b[0m/gI' \
+    -e 's/\[WARN.*?\]/\x1b[1;33m&\x1b[0m/gI' \
+    -e 's/\[INF.*?\]/\x1b[1;36m&\x1b[0m/gI' \
+    -e 's/\[DBG.*?\]/\x1b[2m&\x1b[0m/gI' |
+  less -R +G
+}
+
+
 _show_log_file_menu() {
   local log_dir="$1"
   local title="$2"
@@ -54,9 +75,7 @@ _show_log_file_menu() {
     elif [[ "$REPLY" =~ ^[0-9]+$ && "$REPLY" -ge 1 && "$REPLY" -le "${#log_files[@]}" ]]; then
       local file="${log_files[$((REPLY - 1))]}"
       echo -e "\n📖 Viewing: \e[36m$(basename "$file")\e[0m"
-      sed -e 's/\(err[^ ]*\)/\x1b[1;31m\1\x1b[0m/I' \
-          -e 's/\(warn[^ ]*\)/\x1b[1;33m\1\x1b[0m/I' "$file" |
-        less +G
+      _view_log_file_filtered "$file"
     else
       print_invalid_selection
       sleep 1
