@@ -2,10 +2,8 @@
 # shellcheck disable=SC1091
 set -e
 
-# 🌐 Load common utilities
 source ./lib/common.sh
 
-# 📦 Install Nginx if not already installed
 install_nginx_if_missing() {
   if ! command -v nginx >/dev/null 2>&1; then
     echo -e "\n📦 Installing Nginx (non-interactive)..."
@@ -19,11 +17,111 @@ install_nginx_if_missing() {
   fi
 }
 
+force_nginx_log_symlink_rotation() {
+  local log_dir="$1"
+  local today
+  today=$(date +"%d-%m-%Y")
+
+  local access_path="$log_dir/access"
+  local error_path="$log_dir/error"
+
+  mkdir -p "$access_path" "$error_path"
+  touch "$access_path/$today.txt" "$error_path/$today.txt"
+
+  rm -f "$access_path/access.log" "$error_path/error.log"
+  ln -sf "$access_path/$today.txt" "$access_path/access.log"
+  ln -sf "$error_path/$today.txt" "$error_path/error.log"
+
+  systemctl kill --signal=SIGUSR1 nginx 2>/dev/null || nginx -s reopen
+}
+
+setup_nginx_log_timer() {
+  local timer_path="/etc/systemd/system/nginx-loglink.timer"
+  local service_path="/etc/systemd/system/nginx-loglink.service"
+  local script_path="/usr/local/bin/nginx-loglink"
+
+  if systemctl list-timers --all | grep -q nginx-loglink.timer; then
+    echo -e "⏱️ \033[1mSystemd timer already set up:\033[0m nginx-loglink.timer"
+    local next_run
+    next_run=$(systemctl list-timers | grep nginx-loglink.timer | awk '{print $1, $2}')
+    echo -e "📆 Next execution: \033[36m$next_run\033[0m"
+    return
+  fi
+
+  echo -e "\n🛠️ \033[1mSetting up daily Nginx log rotation timer...\033[0m"
+
+  mkdir -p "$(dirname "$script_path")"
+
+  {
+    echo "#!/bin/bash"
+    echo "set -e"
+    echo "today=\$(date +\"%d-%m-%Y\")"
+    echo "find /var/www -type d -path \"*/logs/webserver/access\" | while read -r access_path; do"
+    echo "  error_path=\"\${access_path/access/error}\""
+    echo "  mkdir -p \"\$access_path\" \"\$error_path\""
+    echo "  touch \"\$access_path/\$today.txt\" \"\$error_path/\$today.txt\""
+    echo "  rm -f \"\$access_path/access.log\" \"\$error_path/error.log\""
+    echo "  ln -sf \"\$access_path/\$today.txt\" \"\$access_path/access.log\""
+    echo "  ln -sf \"\$error_path/\$today.txt\" \"\$error_path/error.log\""
+    echo "done"
+    echo "systemctl kill --signal=SIGUSR1 nginx 2>/dev/null || nginx -s reopen"
+  } > "$script_path"
+
+  chmod +x "$script_path"
+  echo -e "📄 Created log rotation script at: \033[2m$script_path\033[0m"
+
+  {
+    echo "[Unit]"
+    echo "Description=Rotate Nginx log symlinks daily"
+    echo
+    echo "[Service]"
+    echo "Type=oneshot"
+    echo "ExecStart=$script_path"
+  } > "$service_path"
+  echo -e "🧩 Created systemd service file: \033[2m$service_path\033[0m"
+
+  {
+    echo "[Unit]"
+    echo "Description=Daily Nginx loglink rotation timer"
+    echo
+    echo "[Timer]"
+    echo "OnCalendar=*-*-* 00:01:00"
+    echo "Persistent=true"
+    echo
+    echo "[Install]"
+    echo "WantedBy=timers.target"
+  } > "$timer_path"
+  echo -e "⏲️ Created systemd timer file: \033[2m$timer_path\033[0m"
+
+  systemctl daemon-reload
+  systemctl enable --now nginx-loglink.timer
+
+  local next_run
+  next_run=$(systemctl list-timers | grep nginx-loglink.timer | awk '{print $1, $2}')
+  echo -e "✅ \033[32mTimer activated.\033[0m Next execution: \033[36m$next_run\033[0m"
+}
+
 create_nginx_config() {
   local conf_path="/etc/nginx/sites-available/$HOSTNAME_FQDN"
   local conf_link="/etc/nginx/sites-enabled/$HOSTNAME_FQDN"
   local cert_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
   local key_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/privkey.pem"
+
+  local base_folder
+  base_folder="/var/www/${DOMAIN//./.}/$( [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]] && echo root || echo "${HOSTNAME_FQDN%%."$DOMAIN"}")"
+  local log_dir="$base_folder/logs/webserver"
+  local access_dir="$log_dir/access"
+  local error_dir="$log_dir/error"
+
+  mkdir -p "$access_dir" "$error_dir"
+  chown -R www-data:www-data "$log_dir"
+  chmod -R 755 "$log_dir"
+
+  if ! grep -q "log_format timed_combined" /etc/nginx/nginx.conf; then
+    local logfmt
+    logfmt="log_format timed_combined '\$remote_addr - \$remote_user [\$time_local] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\"';"
+    sed -i "/http {/a\    $logfmt" /etc/nginx/nginx.conf
+  fi
 
   echo -e "\n⚙️ \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN → localhost:$KESTREL_PORT\033[0m"
 
@@ -45,6 +143,9 @@ create_nginx_config() {
     echo "    ssl_ciphers HIGH:!aNULL:!MD5;"
     echo "    ssl_prefer_server_ciphers on;"
     echo "    include /etc/nginx/mime.types;"
+    echo
+    echo "    access_log $access_dir/access.log timed_combined;"
+    echo "    error_log  $error_dir/error.log;"
     echo
     echo "    add_header Strict-Transport-Security \"max-age=63072000; includeSubDomains; preload\" always;"
     echo "    add_header X-Content-Type-Options nosniff;"
@@ -72,11 +173,13 @@ create_nginx_config() {
   if nginx -t &>/dev/null; then
     systemctl reload nginx
     echo -e "✅ Nginx config applied and reloaded."
+    force_nginx_log_symlink_rotation "$log_dir"
   else
     echo -e "❌ \033[31mNginx config test failed.\033[0m Please check manually."
     return 1
   fi
 }
+
 
 setup_nginx_for_blazor_app() {
   if [[ -z "$HOSTNAME_FQDN" || -z "$KESTREL_PORT" ]]; then
@@ -86,6 +189,7 @@ setup_nginx_for_blazor_app() {
 
   install_nginx_if_missing
   create_nginx_config || return 1
+  setup_nginx_log_timer
 
   echo -e "\n🌐 \033[1mBlazor App is now accessible at:\033[0m 🔗 \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
 }
