@@ -25,7 +25,7 @@ show_server_manager_menu() {
     echo -e "\n🖥️ \e[1;34mServer Control Panel\e[0m | $SERVER_IPv4"
     print_double_line
 
-    echo -e "\n 1) 🩺  Show Server Health   2) 🛡️  Fail2Ban Admin     3) 📦  App Control Panel"
+    echo -e "\n 1) 🩺  Show Server Health   2) 🛡️  Fail2Ban Admin     3) 🧩  App Control Panel"
     echo -e "\n 4) 🧰  Show .NET Versions   5) 🪛  Init Server        6) ☁️  UpCloud Admin"
     echo -e "\n 7) 🧨  Reset Server         8) 🔄  Update Server"
     echo -e "\n q) 🏃💨 \e[1;31mExit Server Control\e[0m"

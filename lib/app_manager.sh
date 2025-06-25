@@ -123,9 +123,9 @@ show_app_manager_menu() {
   while true; do
     clear
     if [[ -n "${SERVER_IPv4:-}" ]]; then
-      echo -e "\n📦 \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4"
+      echo -e "\n🧩 \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4"
     else
-      echo -e "\n📦 \e[1;34mApp Control Panel\e[0m"
+      echo -e "\n🧩 \e[1;34mApp Control Panel\e[0m"
     fi
     print_double_line
 

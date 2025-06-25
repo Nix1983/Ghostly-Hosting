@@ -99,7 +99,7 @@ show_log_menu() {
 
   while true; do
     clear
-    echo -e "\n📊 \033[1mLog Viewer:🔗 \e[2m(https://$domain)\e[0m"
+    echo -e "\n📊 \033[1mLog Viewer:🔗 \e[94m(https://$domain)\e[0m"
     print_double_line
     echo -e "\n 1) 🌐 Access Logs    \e[2m(Nginx access.log)\e[0m       2) ⚠️ Error Logs  \e[2m(Nginx error.log)\e[0m"
     echo -e "\n 3) 🧩 App Logs       \e[2m(Serilog, runtime etc.)\e[0m  $(print_back_to_menu)\n"
