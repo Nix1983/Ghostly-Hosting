@@ -45,9 +45,9 @@ _show_log_file_menu() {
     echo -e "\n$title 📁 \e[2m$log_dir\e[0m"
     print_double_line
 
-    mapfile -t log_files < <(find "$log_dir" -maxdepth 1 -type f \( -iname "*.log" -o -iname "*.txt" -o -iname "*.log.json" \) -printf "%T@ %p\n" | sort -nr | cut -d' ' -f2-)
+    mapfile -t log_files < <(find "$log_dir" -maxdepth 1 -type f \( -iname "*.log" -o -iname "*.txt" -o -iname "*.log.json" \) -size +0c -printf "%T@ %p\n" | sort -nr | cut -d' ' -f2-)
     if (( ${#log_files[@]} == 0 )); then
-      echo -e "\n  ℹ️  No log files found.\n"
+      echo -e "\n  ℹ️  No non-empty log files found.\n"
     else
       local i=1 row=""
       for f in "${log_files[@]}"; do
