@@ -2,12 +2,12 @@
 # shellcheck disable=SC1091
 set -e
 
+source ./lib/common.sh
+
 # Global variables to be accessed in other modules
 declare -g DOTNET_Version=""
 declare -g TMP_PUBLISH_DIR=""
 
-# Supported major versions (must match the beginning of TargetFramework)
-declare -ag SUPPORTED_DOTNET_VERSIONS=("6.0" "7.0" "8.0" "9.0")
 
 install_dotnet_version() {
   local install_dir="/opt/dotnet"
@@ -143,7 +143,7 @@ detect_required_dotnet_versions() {
 
   # Step 5: Validate against supported versions
   local is_supported=false
-  for supported in "${SUPPORTED_DOTNET_VERSIONS[@]:-6.0 7.0 8.0 9.0}"; do
+  for supported in "${SUPPORTED_DOTNET_VERSIONS[@]}"; do
     if [[ "$version" == "$supported" ]]; then
       is_supported=true
       break
@@ -153,7 +153,7 @@ detect_required_dotnet_versions() {
   if [[ "$is_supported" == false ]]; then
     echo -e "\n❌ \e[1;31mUnsupported .NET version detected:\e[0m \e[36m$version\e[0m"
     echo -e "✅ Supported versions are:"
-    for ver in "${SUPPORTED_DOTNET_VERSIONS[@]:-6.0 7.0 8.0 9.0}"; do
+    for ver in "${SUPPORTED_DOTNET_VERSIONS[@]}"; do
       echo -e "   • \e[32m$ver\e[0m"
     done
     return 1

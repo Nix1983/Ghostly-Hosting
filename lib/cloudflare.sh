@@ -2,7 +2,6 @@
 # shellcheck disable=SC1091
 set -e
 
-# ✨ Funktionen einbinden
 source ./lib/common.sh
 
 _check_cloudflare_env_vars() {
@@ -83,15 +82,14 @@ get_cloudflare_proxy_status() {
   local domain="$1"
   local zone_id="$2"
   local token="$3"
-  local api_base="${4:-$CLOUDFLARE_API_BASE}"
 
-  if [[ -z "$domain" || -z "$zone_id" || -z "$token" ]]; then
+  if [[ -z "$domain" || -z "$zone_id" || -z "$token" || -z "$CLOUDFLARE_API_BASE" ]]; then
     echo "❌"
     return 1
   fi
 
   local response proxy_flag
-  response=$(curl -s -X GET "$api_base/zones/$zone_id/dns_records?type=A&name=$domain" \
+  response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?type=A&name=$domain" \
     -H "Authorization: Bearer $token" \
     -H "Content-Type: application/json")
 
@@ -99,26 +97,27 @@ get_cloudflare_proxy_status() {
   [[ "$proxy_flag" == "true" ]] && echo "Enabled ✅" || echo "Disabled ❌"
 }
 
+
 has_cloudflare_dns_record() {
   local domain="$1"
   local zone_id="$2"
   local token="$3"
   local type="$4"
-  local api_base="${5:-$CLOUDFLARE_API_BASE}"
 
-  if [[ -z "$domain" || -z "$zone_id" || -z "$token" || -z "$type" ]]; then
+  if [[ -z "$domain" || -z "$zone_id" || -z "$token" || -z "$type" || -z "$CLOUDFLARE_API_BASE" ]]; then
     echo "❌"
     return 1
   fi
 
   local response count
-  response=$(curl -s -X GET "$api_base/zones/$zone_id/dns_records?type=$type&name=$domain" \
+  response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?type=$type&name=$domain" \
     -H "Authorization: Bearer $token" \
     -H "Content-Type: application/json")
 
   count=$(echo "$response" | jq '.result | length')
   [[ "$count" -gt 0 ]] && echo "✅" || echo "❌"
 }
+
 
 toggle_cloudflare_proxy() {
   if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$ZONE_ID" || -z "$HOSTNAME_FQDN" ]]; then

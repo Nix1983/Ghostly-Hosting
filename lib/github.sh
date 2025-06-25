@@ -6,9 +6,6 @@ source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/dotnet.sh
 
-# Default GitHub API base URL
-GITHUB_API_BASE="https://api.github.com"
-
 # Global variables to be accessed in other modules
 declare -g SELECTED_REPO_NAME=""
 declare -g SELECTED_REPO_OWNER=""

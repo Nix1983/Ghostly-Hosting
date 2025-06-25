@@ -3,7 +3,6 @@
 
 set -e
 
-# ✨ Funktionen einbinden
 source ./lib/common.sh
 source ./lib/print.sh
 

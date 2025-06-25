@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+
 load_env() {
   # 🔐 Load Cloudflare and UpCloud credentials from .env file
   local ENV_FILE="./.env"
@@ -18,7 +19,7 @@ load_env() {
 
   # Check required variables
   local missing=0
-  for var in CLOUDFLARE_API_TOKEN CLOUDFLARE_API_BASE UPCLOUD_API_USER UPCLOUD_API_PASS UPCLOUD_API_BASE; do
+  for var in CLOUDFLARE_API_TOKEN UPCLOUD_API_USER UPCLOUD_API_PASS GITHUB_API_TOKEN; do
     if [[ -z "${!var}" ]]; then
       echo "❌ Required variable '$var' is missing or empty in .env"
       missing=1

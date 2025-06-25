@@ -2,7 +2,6 @@
 # shellcheck disable=SC1091
 set -e
 
-# Module einbinden
 source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/github.sh
