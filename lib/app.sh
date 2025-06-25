@@ -504,7 +504,7 @@ show_app_details_menu() {
     read_menu_choice 8
 
     case "$REPLY" in
-      1) show_app_log_files "$service" ;;
+      1) show_log_menu "$service" ;;
       2) update_app_interactively "$exec_dir" "$service" ;;
       3) restart_app_service "$service" ;;
       4) stop_app_service "$service" ;;

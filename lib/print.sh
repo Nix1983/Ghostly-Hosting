@@ -19,7 +19,11 @@ print_back_to_menu() {
 
 print_select_prompt() {
   local max="$1"
-  echo -n "Please select [1–$max, q]: "
+  if [[ "$max" -eq 0 ]]; then
+    echo -n "Please select [q]: "
+  else
+    echo -n "Please select [1–$max, q]: "
+  fi
 }
 
 print_line(){
