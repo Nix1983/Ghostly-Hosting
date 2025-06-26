@@ -56,12 +56,34 @@ add_new_app() {
 show_apps() {
   local index=1
   local -A app_map=()
+  local -A cf_proxy_map zone_ids
+
   clear
-  echo -e "\n📋 \e[1mDeployed .NET Apps\e[0m"
+  echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
   print_double_line
 
+  if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
+    local zones_json
+    zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
+
+    while IFS=$'\t' read -r name id; do
+      zone_ids["$name"]="$id"
+    done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
+
+    for domain in "${!zone_ids[@]}"; do
+      local zone_id="${zone_ids[$domain]}"
+      local dns_json
+      dns_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?type=A&per_page=500")
+
+      while IFS=$'\t' read -r name proxied; do
+        cf_proxy_map["$name"]=$([[ "$proxied" == "true" ]] && echo "✅" || echo "❌")
+      done < <(echo "$dns_json" | jq -r '.result[] | [.name, .proxied] | @tsv')
+    done
+  fi
+
   while IFS= read -r service_file; do
-    local service_name port domain exec_dir status ram_kb ram_mb disk_mb
+    local service_name port domain exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable cf_proxy
 
     service_name="$(basename "$service_file")"
     [[ "$service_name" != *.service ]] && continue
@@ -77,10 +99,32 @@ show_apps() {
     domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
 
     if systemctl is-active --quiet "$service_name"; then
-      status="🟢 running"
+      status_icon="🟢"
     else
-      status="🔴 stopped"
+      status_icon="🔴"
     fi
+
+    repo_name="–"
+    if [[ -f "$exec_dir/meta.json" ]]; then
+      repo_name=$(jq -r '.repo_name // "–"' "$exec_dir/meta.json")
+      if [[ ${#repo_name} -gt 20 ]]; then
+        repo_name="${repo_name:0:17}..."
+      fi
+    fi
+
+    uptime_readable=" 0d 00h 00m 00s"
+    if systemctl is-active --quiet "$service_name"; then
+      local up_raw now elapsed_us sec
+      up_raw=$(systemctl show -p ActiveEnterTimestampMonotonic "$service_name" | cut -d= -f2)
+      if [[ "$up_raw" =~ ^[0-9]+$ ]]; then
+        now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
+        elapsed_us=$((now - up_raw))
+        sec=$((elapsed_us / 1000000))
+        uptime_readable=$(printf "%2dd %02dh %02dm %02ds" $((sec/86400)) $((sec%86400/3600)) $((sec%3600/60)) $((sec%60)))
+      fi
+    fi
+
+    cf_proxy="${cf_proxy_map[$domain]:-–}"
 
     ram_mb="0 MB"
     ram_kb=$(systemctl show "$service_name" -p MemoryCurrent | cut -d= -f2)
@@ -93,8 +137,8 @@ show_apps() {
       disk_mb="$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')"
     fi
 
-    printf "\n %2d) 🌐 \e]8;;https://%s\e\\%-40s\e]8;;\e\\ │ %s │ 📦 Port: \e[36m%-5s\e[0m │ 🧠 RAM: \e[36m%6s\e[0m │ 💾 Disk: \e[2m%6s\e[0m\n" \
-      "$index" "$domain" "$domain" "$status" "$port" "$ram_mb" "$disk_mb"
+    printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%6s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
+      "$index" "$status_icon" "$domain" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
 
     app_map["$index"]="$service_name"
     ((index++))
@@ -102,12 +146,10 @@ show_apps() {
 
   if (( index == 1 )); then
     echo -e "\n⚠️ No .NET Apps found."
-    read -rsn1 -p "$(print_press_any_key)"
-    return 1
+    read -rsn1 -p "$(print_press_any_key)"; return 1
   fi
-  
-  read_menu_choice "$((index-1))"
 
+  read_menu_choice "$((index - 1))"
 
   if [[ "$REPLY" =~ ^[Qq]$ ]]; then
     return 0
