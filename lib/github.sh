@@ -256,7 +256,7 @@ select_branch_or_tag() {
 
 save_repo_metadata() {
   local target_dir="$1"
-  local meta_file="$target_dir/meta.json"
+  local meta_file="$target_dir/$META_FILE_NAME"
 
   if [[ -z "$SELECTED_REPO_OWNER" || -z "$SELECTED_REPO_NAME" || -z "$SELECTED_REF_TYPE" || -z "$SELECTED_REF_NAME" ]]; then
     echo -e "❌ \e[31mCannot save metadata – required info missing.\e[0m"

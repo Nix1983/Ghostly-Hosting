@@ -13,9 +13,9 @@ _redeploy_blazor_app() {
   local exec_dir="$1"
   local service_name="$2"
   local commit="$3"
-  local backup_dir="$exec_dir/backup"
+  local backup_dir="$exec_dir/$BACKUP_DIR"
   local log_dir="$exec_dir/$LOGS_DIR"
-  local meta_file="$exec_dir/meta.json"
+  local meta_file="$exec_dir/$META_FILE_NAME"
 
   detect_required_dotnet_versions || return 1
   install_dotnet_version || return 1
@@ -31,7 +31,7 @@ _redeploy_blazor_app() {
   backup_app_metadata "$exec_dir"
 
   [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/$LOGS_DIR"
-  [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/backup"
+  [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/$BACKUP_DIR"
 
   echo -e "🧹 \e[1mCleaning deployment folder...\e[0m"
   [[ -d "$exec_dir" ]] && rm -rf "${exec_dir:?}"/*
@@ -184,20 +184,20 @@ refresh_cloudflare_info_for_domain() {
 
 backup_app_metadata() {
   local exec_dir="$1"
-  local meta_file="$exec_dir/meta.json"
-  local backup_dir="$exec_dir/backup"
+  local meta_file="$exec_dir/$META_FILE_NAME"
+  local backup_dir="$exec_dir/$BACKUP_DIR"
 
   mkdir -p "$backup_dir"
 
   if [[ ! -f "$meta_file" ]]; then
-    echo -e "❌ \e[31mmeta.json not found – cannot back up.\e[0m"
+    echo -e "❌ \e[31m$META_FILE_NAME not found – cannot back up.\e[0m"
     return 1
   fi
 
   local commit
   commit=$(jq -r '.commit // empty' "$meta_file")
   if [[ -z "$commit" ]]; then
-    echo -e "❌ \e[31mCommit hash not found in meta.json – aborting.\e[0m"
+    echo -e "❌ \e[31mCommit hash not found in $META_FILE_NAME – aborting.\e[0m"
     return 1
   fi
 
@@ -208,7 +208,7 @@ backup_app_metadata() {
   if cp "$meta_file" "$new_backup"; then
     echo "✅ Backup saved to $new_backup"
   else
-    echo -e "❌ \e[31mFailed to copy meta.json\e[0m"
+    echo -e "❌ \e[31mFailed to copy $META_FILE_NAME\e[0m"
     return 1
   fi
 
@@ -236,7 +236,7 @@ backup_app_metadata() {
 check_for_app_update() {
   local exec_dir="$1"
   local service_name="$2"
-  local meta_file="$exec_dir/meta.json"
+  local meta_file="$exec_dir/$META_FILE_NAME"
 
   clear
   echo -e "\n🔍 \e[1mChecking for App Updates\e[0m"
@@ -317,7 +317,7 @@ check_for_app_update() {
 restore_app_backup() {
   local exec_dir="$1"
   local service_name="$2"
-  local backup_dir="$exec_dir/backup"
+  local backup_dir="$exec_dir/$BACKUP_DIR"
 
   local subdomain parent domain
   subdomain=$(basename "$exec_dir")
