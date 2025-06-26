@@ -312,11 +312,10 @@ deploy_to_domain_folder() {
     folder_name="$DOMAIN/$subdomain"
   fi
 
-  local base_dir="/var/www"
-  local target_dir="$base_dir/$folder_name"
+  local target_dir="$APP_BASE_DIR/$folder_name"
   export PUBLISH_DIR="$target_dir"
 
-  mkdir -p "$base_dir"
+  mkdir -p "$APP_BASE_DIR"
 
   if [[ -d "$target_dir" ]]; then
     echo -e "\n⚠️  \e[33mDeployment folder already exists:\e[0m \e[2m$target_dir\e[0m"
@@ -474,7 +473,6 @@ find_dotnet_executable_dll() {
 
 check_apps_using_sdk() {
   local version="$1"
-  local root="/var/www"
   local file
   local matched=""
 
@@ -487,7 +485,7 @@ check_apps_using_sdk() {
         break 2
       fi
     done < <(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]\+"' "$file" | cut -d'"' -f4)
-  done < <(find "$root" -type f -name "*.runtimeconfig.json" 2>/dev/null)
+  done < <(find "$APP_BASE_DIR" -type f -name "*.runtimeconfig.json" 2>/dev/null)
 
   [[ "$matched" == "yes" ]]
 }

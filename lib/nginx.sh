@@ -56,7 +56,7 @@ setup_nginx_log_timer() {
     echo "#!/bin/bash"
     echo "set -e"
     echo "today=\$(date +\"%d-%m-%Y\")"
-    echo "find /var/www -type d -path \"*/logs/webserver/access\" | while read -r access_path; do"
+    echo "find \"$APP_BASE_DIR\" -type d -path \"*/logs/webserver/access\" | while read -r access_path; do"
     echo "  error_path=\"\${access_path/access/error}\""
     echo "  mkdir -p \"\$access_path\" \"\$error_path\""
     echo "  touch \"\$access_path/\$today.txt\" \"\$error_path/\$today.txt\""
@@ -108,7 +108,7 @@ create_nginx_config() {
   local key_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/privkey.pem"
 
   local base_folder
-  base_folder="/var/www/${DOMAIN//./.}/$( [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]] && echo root || echo "${HOSTNAME_FQDN%%."$DOMAIN"}")"
+  base_folder="$APP_BASE_DIR/${DOMAIN//./.}/$( [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]] && echo root || echo "${HOSTNAME_FQDN%%."$DOMAIN"}")"
   local log_dir="$base_folder/logs/webserver"
   local access_dir="$log_dir/access"
   local error_dir="$log_dir/error"

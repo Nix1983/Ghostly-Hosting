@@ -337,7 +337,7 @@ reset_server() {
   echo -e "🔸 Remove \e[36mfail2ban\e[0m and blocklists"
   echo -e "🔸 Remove \e[36mcertbot\e[0m and all certificates"
   echo -e "🔸 Remove \e[36mgit\e[0m and config"
-  echo -e "🔸 Remove all .NET apps in \e[36m/var/www/\e[0m"
+  echo -e "🔸 Remove all .NET apps in \e[36m$APP_BASE_DIR/\e[0m"
   echo -e "🔸 Remove all systemd services for hosted .NET apps"
   echo -e "🔸 Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
   echo -e "🔸 Reset timezone to \e[36mUTC\e[0m"
@@ -372,7 +372,7 @@ reset_server() {
   echo -e "🗑️ Removed all Blazor systemd services."
 
   # Apps & Zertifikate löschen
-  rm -rf /var/www/* /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt
+  rm -rf "${APP_BASE_DIR:?}/"* /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt
   echo -e "🗑️ Removed Blazor app folders and certificates."
 
   # Swap entfernen
