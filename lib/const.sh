@@ -29,3 +29,6 @@ declare -gr APP_BASE_DIR="/var/www"
 declare -gr LOGS_DIR="logs"
 declare -gr WEB_LOGS_ACCESS_DIR="webserver/access"
 declare -gr WEB_LOGS_ERROR_DIR="webserver/error"
+
+#Default common folders
+declare -gr CLONE_BASE_DIR="tmp-clone"

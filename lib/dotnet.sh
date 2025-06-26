@@ -254,7 +254,7 @@ publish_dotnet_project() {
     return 1
   fi
 
-  TMP_PUBLISH_DIR="/tmp-clone/publish-${SELECTED_REPO_NAME}"
+  TMP_PUBLISH_DIR="/$CLONE_BASE_DIR/publish-${SELECTED_REPO_NAME}"
   export TMP_PUBLISH_DIR
 
   if [[ -d "$TMP_PUBLISH_DIR" ]]; then
@@ -266,7 +266,7 @@ publish_dotnet_project() {
   echo -e "📄 Project: \e[36m${MAIN_PROJECT_FILE##*/}\e[0m"
   echo -e "📦 Output:  \e[2m$TMP_PUBLISH_DIR\e[0m"
 
-  local log_file="/tmp-clone/publish-${SELECTED_REPO_NAME}.log"
+  local log_file="/$CLONE_BASE_DIR/publish-${SELECTED_REPO_NAME}.log"
   rm -f "$log_file"
 
   # Run publish and show a simple spinner while waiting
@@ -382,7 +382,7 @@ cleanup_temp_folders() {
     rm -rf "$TMP_PUBLISH_DIR"
   fi
 
-  local log_file="/tmp-clone/publish-${SELECTED_REPO_NAME}.log"
+  local log_file="/$CLONE_BASE_DIR/publish-${SELECTED_REPO_NAME}.log"
   if [[ -f "$log_file" ]]; then
     echo -e "   🗑️ Removing log file: \e[2m$log_file\e[0m"
     rm -f "$log_file"

@@ -62,7 +62,7 @@ load_github_repositories() {
 clone_repository() {
   local commit_hash="$1"
 
-  TMP_CLONE_DIR="/tmp-clone/${SELECTED_REPO_NAME}"
+  TMP_CLONE_DIR="/$CLONE_BASE_DIR/${SELECTED_REPO_NAME}"
   export TMP_CLONE_DIR
 
   if [[ -d "$TMP_CLONE_DIR" ]]; then
