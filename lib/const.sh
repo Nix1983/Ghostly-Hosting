@@ -24,3 +24,8 @@ declare -agr SUPPORTED_DOTNET_VERSIONS=("6.0" "7.0" "8.0" "9.0")
 
 # Base directory for all deployed apps
 declare -gr APP_BASE_DIR="/var/www"
+
+# Default subfolder structure for app-specific logs (used in Blazor deployment)
+declare -gr LOGS_DIR="logs"
+declare -gr WEB_LOGS_ACCESS_DIR="webserver/access"
+declare -gr WEB_LOGS_ERROR_DIR="webserver/error"

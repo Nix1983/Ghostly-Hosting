@@ -97,16 +97,35 @@ delete_certbot_certificate() {
     return 1
   fi
 
-  local cert_name="$HOSTNAME_FQDN"
-  local cert_path="/etc/letsencrypt/live/$cert_name"
+  local cert_name cert_path
+  cert_name="$HOSTNAME_FQDN"
+  cert_path="/etc/letsencrypt/live/$cert_name"
 
   if [[ ! -d "$cert_path" ]]; then
     echo -e "ℹ️ No certificate found for: \e[2m$cert_name\e[0m — skipping."
     return 0
   fi
 
-  echo -e "\n🧹 \e[1;31mDeleting Let's Encrypt certificate:\e[0m \e[36m$cert_name\e[0m"
+  echo -e "\n🔐 \e[1mChecking for active certbot process...\e[0m"
+  if pgrep -f certbot >/dev/null; then
+    echo -e "⏳ Another certbot instance is running. Waiting up to 20s..."
 
+    for _ in {1..20}; do
+      sleep 1
+      if ! pgrep -f certbot >/dev/null; then
+        echo -e "✅ Previous certbot process has finished."
+        break
+      fi
+    done
+
+    if pgrep -f certbot >/dev/null; then
+      echo -e "❌ \e[31mCertbot is still running after 20 seconds.\e[0m"
+      echo -e "💡 Please wait or terminate the process manually before retrying."
+      return 1
+    fi
+  fi
+
+  echo -e "\n🧹 \e[1;31mDeleting Let's Encrypt certificate:\e[0m \e[36m$cert_name\e[0m"
   if certbot delete --cert-name "$cert_name" --non-interactive --quiet; then
     echo -e "✅ \e[32mCertificate successfully deleted.\e[0m"
   else
@@ -114,6 +133,7 @@ delete_certbot_certificate() {
     return 1
   fi
 }
+
 
 
 

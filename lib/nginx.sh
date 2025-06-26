@@ -56,8 +56,8 @@ setup_nginx_log_timer() {
     echo "#!/bin/bash"
     echo "set -e"
     echo "today=\$(date +\"%d-%m-%Y\")"
-    echo "find \"$APP_BASE_DIR\" -type d -path \"*/logs/webserver/access\" | while read -r access_path; do"
-    echo "  error_path=\"\${access_path/access/error}\""
+    echo "find \"$APP_BASE_DIR\" -type d -path \"*/$LOGS_DIR/$WEB_LOGS_ACCESS_DIR\" | while read -r access_path; do"
+    echo "  error_path=\"\${access_path%/$WEB_LOGS_ACCESS_DIR}/$WEB_LOGS_ERROR_DIR\""
     echo "  mkdir -p \"\$access_path\" \"\$error_path\""
     echo "  touch \"\$access_path/\$today.txt\" \"\$error_path/\$today.txt\""
     echo "  rm -f \"\$access_path/access.log\" \"\$error_path/error.log\""
@@ -66,6 +66,7 @@ setup_nginx_log_timer() {
     echo "done"
     echo "systemctl kill --signal=SIGUSR1 nginx 2>/dev/null || nginx -s reopen"
   } > "$script_path"
+
 
   chmod +x "$script_path"
   echo -e "📄 Created log rotation script at: \033[2m$script_path\033[0m"
@@ -109,9 +110,9 @@ create_nginx_config() {
 
   local base_folder
   base_folder="$APP_BASE_DIR/${DOMAIN//./.}/$( [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]] && echo root || echo "${HOSTNAME_FQDN%%."$DOMAIN"}")"
-  local log_dir="$base_folder/logs/webserver"
-  local access_dir="$log_dir/access"
-  local error_dir="$log_dir/error"
+  local log_dir="$base_folder/$LOGS_DIR"
+  local access_dir="$log_dir/$WEB_LOGS_ACCESS_DIR"
+  local error_dir="$log_dir/$WEB_LOGS_ERROR_DIR"
 
   mkdir -p "$access_dir" "$error_dir"
   chown -R www-data:www-data "$log_dir"

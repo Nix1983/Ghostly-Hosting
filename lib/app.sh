@@ -14,7 +14,7 @@ _redeploy_blazor_app() {
   local service_name="$2"
   local commit="$3"
   local backup_dir="$exec_dir/backup"
-  local log_dir="$exec_dir/logs"
+  local log_dir="$exec_dir/$LOGS_DIR"
   local meta_file="$exec_dir/meta.json"
 
   detect_required_dotnet_versions || return 1
@@ -30,7 +30,7 @@ _redeploy_blazor_app() {
 
   backup_app_metadata "$exec_dir"
 
-  [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/logs"
+  [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/$LOGS_DIR"
   [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/backup"
 
   echo -e "🧹 \e[1mCleaning deployment folder...\e[0m"

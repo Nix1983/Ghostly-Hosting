@@ -591,7 +591,7 @@ create_kestrel_service() {
     return 1
   fi
 
-  local log_dir="$PUBLISH_DIR/logs"
+  local log_dir="$PUBLISH_DIR/$LOGS_DIR"
   mkdir -p "$log_dir"
   chown -R www-data:www-data "$log_dir"
   chmod -R 755 "$log_dir"
