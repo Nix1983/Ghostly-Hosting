@@ -198,8 +198,7 @@ select_branch_or_tag() {
     "$GITHUB_API_BASE/repos/$owner/$repo/tags")
 
   local -A option_map
-  local -a all_options
-  local -a branches sorted_branches
+  local -a all_options branches sorted_branches
   local index=1
 
   mapfile -t branches < <(echo "$branches_json" | jq -r '.[].name')
@@ -223,16 +222,36 @@ select_branch_or_tag() {
     ((index++))
   done
 
+  local option_count="${#all_options[@]}"
+  if [[ "$option_count" -eq 1 ]]; then
+    local selected_entry="${option_map[1]}"
+    IFS=":" read -r type name <<< "$selected_entry"
+
+    local type_label
+    case "$type" in
+      branch) type_label="Branch" ;;
+      tag) type_label="Tag" ;;
+      *) type_label="Reference" ;;
+    esac
+
+    SELECTED_REF_TYPE="$type"
+    SELECTED_REF_NAME="$name"
+    export SELECTED_REF_TYPE SELECTED_REF_NAME
+
+    echo -e "\n✅ Only one $type_label available – automatically selected: \e[36m$name\e[0m"
+    return 0
+  fi
+
   echo -e "\n🌀 \e[1mAvailable Branches / Releases / Tags:\e[0m"
   print_line
 
   local i=0
-  while [[ $i -lt ${#all_options[@]} ]]; do
+  while [[ $i -lt $option_count ]]; do
     local left right
     IFS="|" read -r idx1 label1 val1 <<< "${all_options[$i]}"
     left=$(printf " %2d) %s \e[36m%-30s\e[0m" "$idx1" "$label1" "$val1")
 
-    if (( i + 1 < ${#all_options[@]} )); then
+    if (( i + 1 < option_count )); then
       IFS="|" read -r idx2 label2 val2 <<< "${all_options[$((i + 1))]}"
       right=$(printf " %2d) %s \e[36m%-30s\e[0m" "$idx2" "$label2" "$val2")
       printf "%s   %s\n" "$left" "$right"
@@ -241,8 +260,8 @@ select_branch_or_tag() {
     fi
     ((i += 2))
   done
-  read_menu_choice $((index - 1))
 
+  read_menu_choice $((index - 1))
   [[ "$REPLY" =~ ^[Qq]$ ]] && return 1
 
   IFS=":" read -r type name <<< "${option_map[$REPLY]}"
