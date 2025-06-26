@@ -1,7 +1,7 @@
 #!/bin/bash
 # shellcheck disable=SC1091
 
-source ./lib/constants.sh
+source ./lib/const.sh
 source ./lib/common.sh
 source ./lib/server_manager.sh
 source ./lib/app_manager.sh
