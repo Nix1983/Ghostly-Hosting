@@ -263,13 +263,16 @@ delete_all_upcloud_firewall_rules() {
     del_response=$(curl -s -u "$UPCLOUD_API_USER:$UPCLOUD_API_PASS" -X DELETE \
       "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule/$position")
 
-    if echo "$del_response" | jq -e '.error' >/dev/null 2>&1; then
-      printf "⚠️ Failed to delete rule:\n"
-      echo "$del_response" | jq -r '.error.message // .error // .'
-    else
-      printf "✅ Rule deleted successfully.\n"
-      printf "────────────────────────────────────────────────────────────\n"
-    fi
+   if [[ -z "$del_response" ]]; then
+     printf "✅ Rule deleted (no response, assumed success).\n"
+   elif echo "$del_response" | jq -e '.error?' >/dev/null 2>&1; then
+     printf "⚠️ Failed to delete rule:\n"
+     echo "$del_response" | jq -r '.error.message // .error // .'
+   else
+     printf "✅ Rule deleted successfully.\n"
+   fi
+   printf "────────────────────────────────────────────────────────────\n"
+
   done
 
   printf "\n✅ All rules deleted (unless errors occurred).\n"
