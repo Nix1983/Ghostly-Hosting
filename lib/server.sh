@@ -38,7 +38,6 @@ remove_ufw() {
   echo -e "🗑️ Removed UFW and all firewall configurations."
 }
 
-
 show_server_health() {
   clear
 
@@ -393,6 +392,36 @@ init_server() {
   read -rsn1 -p $'\nPress any key to return to menu...'
 }
 
+remove_all_kestrel_services() {
+  echo -e "\n🧹 \e[1mRemoving all Blazor (Kestrel) systemd services...\e[0m"
+
+  local services
+  mapfile -t services < <(find /etc/systemd/system -type f -name "*-[5-9][0-9][0-9][0-9].service")
+
+  if [[ ${#services[@]} -eq 0 ]]; then
+    echo -e "ℹ️ No Kestrel services found."
+    return 0
+  fi
+
+  for service_path in "${services[@]}"; do
+    local service_name
+    service_name=$(basename "$service_path")
+
+    if systemctl list-units --all --type=service | grep -q "$service_name"; then
+      echo -e "\n⏹️ Stopping: \e[36m$service_name\e[0m"
+      systemctl stop "$service_name" || true
+      echo -e "❌ Disabling: \e[36m$service_name\e[0m"
+      systemctl disable "$service_name" &>/dev/null || true
+    fi
+
+    echo -e "🧽 Removing file: \e[2m$service_path\e[0m"
+    rm -f "$service_path"
+  done
+
+  systemctl daemon-reexec
+  systemctl daemon-reload
+  echo -e "\n✅ \e[32mAll Kestrel services removed.\e[0m"
+}
 
 reset_server() {
   clear
@@ -420,6 +449,8 @@ reset_server() {
   echo -e "\n🚧 \e[1mResetting server – please wait...\e[0m"
   print_line
 
+  remove_nginx_log_timer
+  remove_all_kestrel_services
   remove_nginx
   remove_certbot
   remove_fail2ban
@@ -429,12 +460,7 @@ reset_server() {
   remove_ufw
   remove_swap
 
-  echo -e "\n🗑️ \e[1mRemoving hosted apps and systemd services...\e[0m"
-  rm -rf "${APP_BASE_DIR:?}/"* /var/"$CLONE_BASE_DIR"
-  find /etc/systemd/system/ -name "blazor-*.service" -exec rm -f {} \;
-  systemctl daemon-reexec
-  systemctl daemon-reload
-  echo -e "🗑️ Removed hosted apps and all related systemd services."
+  rm -rf "${APP_BASE_DIR:?}/"* "/var/${CLONE_BASE_DIR:?}"
 
   echo -e "\n🌐 \e[1mResetting system timezone...\e[0m"
   timedatectl set-timezone UTC

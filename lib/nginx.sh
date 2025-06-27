@@ -198,6 +198,31 @@ create_nginx_config() {
   fi
 }
 
+remove_nginx_log_timer() {
+  local timer_path="/etc/systemd/system/nginx-loglink.timer"
+  local service_path="/etc/systemd/system/nginx-loglink.service"
+  local script_path="/usr/local/bin/nginx-loglink"
+
+  echo -e "\n🧹 \e[1mRemoving NGINX log rotation timer and related components...\e[0m"
+
+  if systemctl list-timers --all | grep -q nginx-loglink.timer; then
+    echo -e "⏹️ Disabling and stopping nginx-loglink.timer..."
+    systemctl disable --now nginx-loglink.timer 2>/dev/null || true
+  fi
+
+  if systemctl list-units --all | grep -q nginx-loglink.service; then
+    echo -e "❌ Disabling nginx-loglink.service..."
+    systemctl disable nginx-loglink.service 2>/dev/null || true
+  fi
+
+  echo -e "🧽 Removing timer, service and script files..."
+  rm -f "$timer_path" "$service_path" "$script_path"
+
+  systemctl daemon-reexec
+  systemctl daemon-reload
+
+  echo -e "✅ \e[32mNGINX log timer removed.\e[0m"
+}
 
 setup_nginx_for_blazor_app() {
   if [[ -z "$HOSTNAME_FQDN" || -z "$KESTREL_PORT" ]]; then

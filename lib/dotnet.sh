@@ -15,7 +15,6 @@ remove_dotnet() {
   echo -e "🗑️ Removed .NET SDK and path config."
 }
 
-
 install_dotnet_version() {
   local install_dir="/opt/dotnet"
 
@@ -76,7 +75,7 @@ show_app_deployment_requirements() {
 
   print_double_line
   echo -e "❓ Would you like to continue with deployment?\n"
-  echo -e " 1) ✅ Yes, proceed to app selection        $(print_back_to_menu)"
+  echo -e " 1) ✅ Yes, proceed with app deployment      $(print_back_to_menu)"
 
   read_menu_choice 1
   case "$REPLY" in
@@ -95,17 +94,18 @@ detect_required_dotnet_versions() {
     return 1
   fi
 
-  # Step 1: Check for .sln and try to extract first .csproj
   local sln
   sln=$(find "$dir" -maxdepth 1 -name "*.sln" | head -n 1)
 
   if [[ -n "$sln" ]]; then
     echo -e "\n📘 Found solution file: \e[2m${sln##*/}\e[0m"
-    main_project=$(grep -oE '[^"]+\.csproj' "$sln" | head -n 1)
+    main_project=$(grep -oE '"[^"]+\.csproj"' "$sln" | head -n 1 | tr -d '"')
+
+    # Normalize path: convert Windows-style "\" to "/"
+    main_project=$(echo "$main_project" | sed 's|\\|/|g')
     main_project="$dir/$main_project"
   fi
 
-  # Step 2: If no .csproj from solution, fallback to first .csproj in repo
   if [[ ! -f "$main_project" ]]; then
     main_project=$(find "$dir" -maxdepth 2 -name "*.csproj" | head -n 1)
   fi
@@ -118,7 +118,6 @@ detect_required_dotnet_versions() {
 
   echo -e "📄 Main project: \e[36m${main_project#"$dir"/}\e[0m"
 
-  # Step 3: Extract TargetFramework(s)
   local tf_raw
   tf_raw=$(grep -oE '<TargetFrameworks?>[^<]+' "$main_project" | sed -E 's/<[^>]+>//g' | tr ';' '\n')
 
@@ -127,11 +126,9 @@ detect_required_dotnet_versions() {
     return 1
   fi
 
-  # Step 4: Parse usable versions
   local candidates=()
   while IFS= read -r line; do
     local tf="$line"
-    # Accept formats like net8, net8.0, net7.0-windows etc.
     local basever
     basever=$(echo "$tf" | grep -oE 'net([0-9]+)(\.0)?' | sed -E 's/^net//;s/\.0$//')
     case "$basever" in
@@ -148,7 +145,6 @@ detect_required_dotnet_versions() {
   mapfile -t candidates < <(printf "%s\n" "${candidates[@]}" | sort -Vu)
   version="${candidates[-1]}"
 
-  # Step 5: Validate against supported versions
   local is_supported=false
   for supported in "${SUPPORTED_DOTNET_VERSIONS[@]}"; do
     if [[ "$version" == "$supported" ]]; then
@@ -325,7 +321,7 @@ deploy_to_domain_folder() {
   mkdir -p "$APP_BASE_DIR"
 
   if [[ -d "$target_dir" ]]; then
-    echo -e "\n⚠️  \e[33mDeployment folder already exists:\e[0m \e[2m$target_dir\e[0m"
+    echo -e "\n⚠️ \e[33mDeployment folder already exists:\e[0m \e[2m$target_dir\e[0m"
     echo -e "   This may overwrite an existing app and its services.\n"
     echo -e "1) 🗑️ Delete and redeploy"
     echo -e "2) 🔙 Cancel deployment"
@@ -339,19 +335,26 @@ deploy_to_domain_folder() {
     fi
 
     echo -e "\n🛑 \e[1mStopping and removing related services...\e[0m"
-    local escaped_folder
-    escaped_folder=$(echo "$folder_name" | sed 's/\//-/g')
-    local service_name="blazor-${escaped_folder}.service"
+    local service_name
+
+    if [[ -n "$SERVICE_NAME" ]]; then
+      service_name="$SERVICE_NAME"
+    else
+      local escaped_folder
+      escaped_folder=$(echo "$folder_name" | sed 's/\//-/g')
+      service_name="${escaped_folder}.service"
+    fi
+
     local service_path="/etc/systemd/system/$service_name"
 
     if systemctl list-units --type=service | grep -q "$service_name"; then
       echo -e "   ⏹️ Stopping: \e[36m$service_name\e[0m"
-      systemctl stop "$service_name"
+      systemctl stop "$service_name" || true
     fi
 
     if systemctl is-enabled "$service_name" &>/dev/null; then
       echo -e "   ❌ Disabling: \e[36m$service_name\e[0m"
-      systemctl disable "$service_name" &>/dev/null
+      systemctl disable "$service_name" &>/dev/null || true
     fi
 
     if [[ -f "$service_path" ]]; then
@@ -371,7 +374,7 @@ deploy_to_domain_folder() {
     return 1
   fi
 
-  clean_published_output "$target_dir" "$SERVICE_NAME"
+  clean_published_output "$target_dir" "${SERVICE_NAME:-}"
   echo -e "✅ Files successfully copied to: \e[2m$target_dir\e[0m"
   return 0
 }
