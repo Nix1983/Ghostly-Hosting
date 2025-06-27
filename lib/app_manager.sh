@@ -22,9 +22,6 @@ add_new_app() {
   ensure_server_initialized || return 2
   show_app_deployment_requirements || return 2
 
-  get_server_ip --silent
-  load_env || return 1
-
   select_cloudflare_zone_and_domain  || return 2
 
   check_github_env_vars || return 2

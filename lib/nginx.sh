@@ -4,6 +4,23 @@ set -e
 
 source ./lib/common.sh
 
+remove_nginx() {
+  systemctl stop nginx 2>/dev/null || true
+  systemctl disable nginx 2>/dev/null || true
+  systemctl reset-failed nginx 2>/dev/null || true
+
+  apt-get purge -y nginx nginx-* nginx-common nginx-core nginx-full nginx-light nginx-extras >/dev/null 2>&1
+
+  rm -f /usr/sbin/nginx /usr/bin/nginx
+  rm -rf /etc/nginx /var/log/nginx /var/lib/nginx /usr/share/nginx \
+         /etc/default/nginx /run/nginx.pid /var/www/html \
+         /etc/systemd/system/nginx.service \
+         /etc/systemd/system/multi-user.target.wants/nginx.service
+
+  echo -e "🗑️ Removed NGINX configuration, binaries and related files."
+}
+
+
 install_nginx_if_missing() {
   if ! command -v nginx >/dev/null 2>&1; then
     echo -e "\n📦 Installing Nginx (non-interactive)..."

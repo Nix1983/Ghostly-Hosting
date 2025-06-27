@@ -9,6 +9,35 @@ source ./lib/upcloud.sh
 source ./lib/fail2ban.sh
 source ./lib/github.sh
 source ./lib/timezone.sh
+source ./lib/nginx.sh
+source ./lib/dotnet.sh
+
+remove_snapd() {
+  apt-get purge -y snapd >/dev/null 2>&1
+  rm -rf ~/snap /snap /var/snap /var/lib/snapd \
+         /etc/systemd/system/snap* \
+         /etc/systemd/system/multi-user.target.wants/snap* >/dev/null 2>&1
+  echo -e "🗑️ Removed Snapd and all residual files."
+}
+
+remove_swap() {
+  if [[ -f /swapfile ]]; then
+    swapoff /swapfile
+    rm -f /swapfile
+    sed -i '/\/swapfile/d' /etc/fstab
+    echo -e "🗑️ Removed swap file."
+  fi
+}
+
+remove_ufw() {
+  systemctl stop ufw 2>/dev/null || true
+  systemctl disable ufw 2>/dev/null || true
+  systemctl reset-failed ufw 2>/dev/null || true
+  apt-get purge -y ufw >/dev/null 2>&1
+  rm -rf /etc/ufw /var/log/ufw.log /lib/ufw /var/lib/ufw 2>/dev/null
+  echo -e "🗑️ Removed UFW and all firewall configurations."
+}
+
 
 show_server_health() {
   clear
@@ -245,7 +274,7 @@ init_server() {
   clear
   echo -e "\n🚀 \e[1;34mInitialize Server for .NET Hosting\e[0m"
   print_double_line
-  
+
   echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
   if ! command -v nginx >/dev/null 2>&1; then
     apt-get update -y >/dev/null 2>&1
@@ -279,6 +308,18 @@ init_server() {
     echo "✅ Fail2Ban is already installed."
   fi
 
+  if [[ ! -d /etc/fail2ban ]]; then
+    echo -e "⚠️ \e[33mFail2Ban config missing – repairing broken installation (Ubuntu 20 workaround)...\e[0m"
+    apt-get purge -y fail2ban >/dev/null 2>&1
+    rm -rf /etc/fail2ban /var/lib/fail2ban /var/log/fail2ban*
+    if apt-get install -y fail2ban >/dev/null 2>&1; then
+      echo "✅ Fail2Ban reinstalled and fixed."
+    else
+      echo -e "❌ \e[31mRepair failed – aborting.\e[0m"
+      exit 1
+    fi
+  fi
+
   echo -e "\n🔐 \e[1mEnabling and starting Fail2Ban...\e[0m"
   if systemctl enable fail2ban >/dev/null 2>&1 && systemctl start fail2ban >/dev/null 2>&1; then
     echo "✅ Fail2Ban service is running."
@@ -289,7 +330,7 @@ init_server() {
 
   echo -e "\n📜 \e[1mInstalling Certbot (for HTTPS)...\e[0m"
   if ! command -v certbot >/dev/null 2>&1; then
-    if apt-get install -y certbot >/dev/null 2>&1; then
+    if apt-get install -y certbot python3-certbot >/dev/null 2>&1; then
       echo "✅ Certbot installed."
     else
       echo -e "❌ \e[31mFailed to install Certbot.\e[0m"
@@ -299,9 +340,17 @@ init_server() {
     echo "✅ Certbot is already installed."
   fi
 
+  if systemctl list-unit-files --type=timer | grep -q '^certbot.timer'; then
+    systemctl enable certbot.timer >/dev/null 2>&1
+    systemctl start certbot.timer >/dev/null 2>&1
+    echo -e "✅ certbot.timer enabled."
+  else
+    echo -e "⚠️  \e[33mcertbot.timer not available on this system – skipping.\e[0m"
+  fi
+
   echo -e "\n🔧 \e[1mInstalling Git (for deployments)...\e[0m"
   if ! command -v git >/dev/null 2>&1; then
-    if apt-get install -y git >/dev/null 2>&1; then
+    if apt-get install -y git git-core git-man >/dev/null 2>&1; then
       echo "✅ Git installed."
     else
       echo -e "❌ \e[31mFailed to install Git.\e[0m"
@@ -310,6 +359,23 @@ init_server() {
   else
     echo "✅ Git is already installed."
   fi
+
+  # 🔍 Git-Installation validieren
+  if ! command -v git >/dev/null 2>&1; then
+    # 🧪 Fallback: manuell verlinken falls git existiert aber nicht im PATH ist
+    if [[ -x /usr/lib/git-core/git && ! -x /usr/bin/git ]]; then
+      ln -sf /usr/lib/git-core/git /usr/bin/git
+    fi
+  fi
+
+  # 🛑 Noch immer kein Git – harter Abbruch
+  if ! command -v git >/dev/null 2>&1; then
+    echo -e "❌ \e[31mGit binary not found after installation – aborting.\e[0m"
+    exit 1
+  fi
+
+  echo "✅ Git binary verified: $(command -v git)"
+
 
   export DISABLE_CLEAR=true
   set_swap
@@ -327,76 +393,54 @@ init_server() {
   read -rsn1 -p $'\nPress any key to return to menu...'
 }
 
+
 reset_server() {
   clear
   echo -e "\n🧨 \e[1;31mWARNING: FULL SERVER RESET\e[0m"
   print_double_line
   echo -e "\nThis operation will completely wipe all installed services and data:"
   print_line
-  echo -e "🔸 Remove \e[36mnginx\e[0m and its configs"
-  echo -e "🔸 Remove \e[36mfail2ban\e[0m and blocklists"
-  echo -e "🔸 Remove \e[36mcertbot\e[0m and all certificates"
-  echo -e "🔸 Remove \e[36mgit\e[0m and config"
+  echo -e "🔸 Remove \e[36mNGINX\e[0m and its configs"
+  echo -e "🔸 Remove \e[36mCertbot\e[0m and all certificates"
+  echo -e "🔸 Remove \e[36mFail2Ban\e[0m and blocklists"
+  echo -e "🔸 Remove \e[36mGit\e[0m and all related binaries"
+  echo -e "🔸 Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
+  echo -e "🔸 Remove \e[36mSnapd\e[0m and related core services"
+  echo -e "🔸 Remove \e[36mufw\e[0m and all firewall rules"
   echo -e "🔸 Remove all .NET apps in \e[36m$APP_BASE_DIR/\e[0m"
   echo -e "🔸 Remove all systemd services for hosted .NET apps"
-  echo -e "🔸 Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
-  echo -e "🔸 Reset timezone to \e[36mUTC\e[0m"
   echo -e "🔸 Remove \e[36m/swapfile\e[0m"
-  echo -e "🔸 Remove \e[36mufw\e[0m and firewall rules"
   echo -e "🔸 Remove all \e[36mUpCloud firewall rules\e[0m (via API)"
+  echo -e "🔸 Reset timezone to \e[36mUTC\e[0m"
   print_line
   echo -e "⚠️ \e[1mThis cannot be undone.\e[0m"
 
-  if ! confirm_action_code; then
-    return 1
-  fi
-
+  if ! confirm_action_code; then return 1; fi
 
   echo -e "\n🚧 \e[1mResetting server – please wait...\e[0m"
   print_line
- 
-  # Dienste stoppen und entfernen
-  systemctl stop nginx fail2ban 2>/dev/null || true
-  systemctl disable nginx fail2ban 2>/dev/null || true
-  apt-get purge -y nginx nginx-common nginx-core fail2ban certbot ufw git >/dev/null 2>&1
-  apt-get autoremove -y >/dev/null 2>&1
-  echo -e "🗑️ Removed nginx, fail2ban, certbot, git, ufw."
 
-  # Fail2Ban Konfigurations- und Logdateien löschen
-  rm -rf /etc/fail2ban /var/log/fail2ban* /var/lib/fail2ban
-  echo -e "🗑️ Removed Fail2Ban configuration and log files."
+  remove_nginx
+  remove_certbot
+  remove_fail2ban
+  remove_git
+  remove_dotnet
+  remove_snapd
+  remove_ufw
+  remove_swap
 
-  # Blazor systemd units löschen
+  echo -e "\n🗑️ \e[1mRemoving hosted apps and systemd services...\e[0m"
+  rm -rf "${APP_BASE_DIR:?}/"* /var/"$CLONE_BASE_DIR"
   find /etc/systemd/system/ -name "blazor-*.service" -exec rm -f {} \;
+  systemctl daemon-reexec
   systemctl daemon-reload
-  echo -e "🗑️ Removed all Blazor systemd services."
+  echo -e "🗑️ Removed hosted apps and all related systemd services."
 
-  # Apps & Zertifikate löschen
-  rm -rf "${APP_BASE_DIR:?}/"* /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt
-  echo -e "🗑️ Removed Blazor app folders and certificates."
-
-  # Swap entfernen
-  if [[ -f /swapfile ]]; then
-    swapoff /swapfile
-    rm -f /swapfile
-    sed -i '/\/swapfile/d' /etc/fstab
-    echo -e "🗑️ Removed swap file."
-  fi
-
-  # Timezone zurücksetzen
+  echo -e "\n🌐 \e[1mResetting system timezone...\e[0m"
   timedatectl set-timezone UTC
   echo -e "🌐 Timezone reset to UTC."
 
-  # .NET SDK entfernen
-  if [[ -d /opt/dotnet ]]; then
-    rm -rf /opt/dotnet
-    sed -i '/DOTNET_ROOT/d' ~/.profile
-    sed -i '/\/opt\/dotnet/d' ~/.profile
-    echo -e "🗑️ Removed .NET SDKs and path configuration."
-  fi
-
-  # UpCloud Firewall Regeln löschen
-  echo -e "🧱 Deleting UpCloud firewall rules..."
+  echo -e "\n🧱 \e[1mDeleting UpCloud firewall rules...\e[0m"
   export DISABLE_CLEAR=true
   delete_all_upcloud_firewall_rules
 

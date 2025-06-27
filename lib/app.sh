@@ -146,7 +146,6 @@ delete_blazor_app() {
   delete_certbot_certificate
 
   echo -e "\n☁️ \e[1mDeleting Cloudflare DNS records...\e[0m"
-  load_env
   resolve_cloudflare_zone_id
   if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" && -n "$ZONE_ID" && -n "$HOSTNAME_FQDN" ]]; then
     if delete_cloudflare_dns_records; then
@@ -168,7 +167,6 @@ refresh_cloudflare_info_for_domain() {
   local domain="$1"
 
   export HOSTNAME_FQDN="$domain"
-  load_env >/dev/null 2>&1
 
   local _domain_part
   _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')

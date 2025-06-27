@@ -7,6 +7,22 @@ source ./lib/print.sh
 
 CONFIG_FILE="/etc/fail2ban/jail.local"
 
+remove_fail2ban() {
+  systemctl stop fail2ban 2>/dev/null || true
+  systemctl disable fail2ban 2>/dev/null || true
+  systemctl reset-failed fail2ban 2>/dev/null || true
+
+  apt-get purge -y fail2ban fail2ban-py* >/dev/null 2>&1
+  dpkg --purge fail2ban >/dev/null 2>&1 || true
+
+  rm -rf /etc/fail2ban /var/lib/fail2ban /var/log/fail2ban*
+  rm -f /usr/bin/fail2ban-client /usr/bin/fail2ban-server /usr/bin/fail2ban-regex \
+        /usr/bin/fail2ban-testcases /usr/bin/fail2ban-python3
+  rm -rf /usr/lib/python3*/dist-packages/fail2ban* /usr/local/bin/fail2ban*
+
+  echo -e "🗑️ Removed Fail2Ban configuration, binaries and Python modules."
+}
+
 
 configure_f2b() {
 

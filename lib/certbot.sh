@@ -1,6 +1,19 @@
 #!/bin/bash
 set -e
 
+remove_certbot() {
+  systemctl stop certbot.timer 2>/dev/null || true
+  systemctl disable certbot.timer 2>/dev/null || true
+  systemctl reset-failed certbot.timer 2>/dev/null || true
+
+  apt-get purge -y certbot python3-certbot certbot-doc >/dev/null 2>&1
+
+  rm -rf /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt
+
+  echo -e "🗑️ Removed Certbot and all certificate data."
+}
+
+
 _check_required_tools() {
   for tool in openssl systemctl grep cut xargs; do
     if ! command -v "$tool" >/dev/null 2>&1; then

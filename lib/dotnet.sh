@@ -8,6 +8,13 @@ source ./lib/common.sh
 declare -g DOTNET_Version=""
 declare -g TMP_PUBLISH_DIR=""
 
+remove_dotnet() {
+  rm -rf /opt/dotnet
+  sed -i '/DOTNET_ROOT/d' ~/.profile
+  sed -i '/\/opt\/dotnet/d' ~/.profile
+  echo -e "🗑️ Removed .NET SDK and path config."
+}
+
 
 install_dotnet_version() {
   local install_dir="/opt/dotnet"

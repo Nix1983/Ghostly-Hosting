@@ -2,33 +2,22 @@
 set -e
 
 
-load_env() {
-  # 🔐 Load Cloudflare and UpCloud credentials from .env file
-  local ENV_FILE="./.env"
-
-  if [[ -f "$ENV_FILE" ]]; then
-    set -o allexport
-    # shellcheck disable=SC1091
-    # shellcheck disable=SC1090
-    source "$ENV_FILE"
-    set +o allexport
-  else
-    echo "❌ Error: Environment file '$ENV_FILE' not found."
-    exit 1
+load_env_once() {
+  if [[ -n "${__ENV_LOADED_ALREADY:-}" ]]; then
+    return 0
   fi
 
-  # Check required variables
-  local missing=0
-  for var in CLOUDFLARE_API_TOKEN UPCLOUD_API_USER UPCLOUD_API_PASS GITHUB_API_TOKEN; do
-    if [[ -z "${!var}" ]]; then
-      echo "❌ Required variable '$var' is missing or empty in .env"
-      missing=1
-    fi
-  done
-
-  if [[ "$missing" -eq 1 ]]; then
-    exit 1
+  local env_file="./.env"
+  if [[ ! -f "$env_file" ]]; then
+    return 1
   fi
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$env_file"
+  set +a
+
+  __ENV_LOADED_ALREADY=1
 }
 
 is_valid_ipv4() {
@@ -43,27 +32,21 @@ is_valid_ipv4() {
   return 0
 } 
 
-get_server_ip() {
-  local silent_mode=false
-
-  if [[ "${1:-}" == "--silent" ]]; then
-    silent_mode=true
+load_server_ip_once() {
+  if [[ -n "${__SERVER_IP_LOADED:-}" ]]; then
+    return 0
   fi
 
-  if [[ -z "${SERVER_IPv4:-}" ]]; then
-    SERVER_IPv4=$(curl -s -4 https://api.ipify.org)
+  SERVER_IPv4=$(curl -s -4 https://api.ipify.org || true)
+  SERVER_IPv6=$(curl -s -6 https://api64.ipify.org || true)
+
+  if [[ -z "$SERVER_IPv4" && -z "$SERVER_IPv6" ]]; then
+    echo -e "\n❌ \e[1;31mUnable to retrieve public IP address.\e[0m"
+    echo -e "💡 Please check your internet connection or firewall settings."
+    exit 1
   fi
 
-  if [[ -z "${SERVER_IPv6:-}" ]]; then
-    SERVER_IPv6=$(curl -s -6 https://api64.ipify.org)
-  fi
-
-  if [[ "$silent_mode" == false ]]; then
-    printf "\n🌐 \033[1mServer Public IP Information:\033[0m\n"
-    print_line
-    printf " 🌍 IPv4 Address: \033[1;36m%s\033[0m\n" "${SERVER_IPv4:-Unavailable}"
-    printf " 🌐 IPv6 Address: \033[1;36m%s\033[0m\n" "${SERVER_IPv6:-Unavailable}"
-  fi
+  __SERVER_IP_LOADED=1
 }
 
 set_swap() {

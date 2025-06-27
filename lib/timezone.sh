@@ -14,7 +14,7 @@ _restart_timezone_services() {
       echo -e "↻ Restarting \e[36m$svc\e[0m..."
       systemctl restart "$svc"
     else
-      echo -e "⚠️  \e[33m$svc is not running – skipping restart.\e[0m"
+      echo -e "⚠️ \e[33m$svc is not running – skipping restart.\e[0m"
     fi
   done
 

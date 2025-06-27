@@ -233,7 +233,6 @@ select_cloudflare_zone_and_domain() {
 
   while true; do
     clear
-    get_server_ip "$@"
 
     response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones" \
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \

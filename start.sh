@@ -6,72 +6,143 @@ source ./lib/common.sh
 source ./lib/server_manager.sh
 source ./lib/app_manager.sh
 
-load_env
-get_server_ip --silent
 
-check_system_requirements_or_exit() {
-  local missing=()
+ensure_required_tools_installed() {
+  local -a required_tools=(jq curl grep cut xargs)
+  local -a missing_tools=()
+  local tool
+
+  for tool in "${required_tools[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      missing_tools+=("$tool")
+    fi
+  done
+
+  if [[ ${#missing_tools[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  echo -e "\n❌ \e[1mMissing required tools on this server:\e[0m \e[36m${missing_tools[*]}\e[0m"
+  echo -e "💡 These tools are essential for API calls and JSON parsing."
+  echo -ne "📦 Installing missing packages... \e[2mPlease wait\e[0m "
+
+  # Spinner anzeigen
+  local pid spinner i
+  (
+    apt-get update -qq >/dev/null 2>&1
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing_tools[@]}" >/dev/null 2>&1
+  ) &
+  pid=$!
+  spinner=('/' '-' '\' '|')
+  i=0
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\b%s" "${spinner[i]}"
+    i=$(( (i + 1) % 4 ))
+    sleep 0.1
+  done
+  wait "$pid"
+  local exit_code=$?
+
+  printf "\b"
+
+  if [[ $exit_code -eq 0 ]]; then
+    echo -e " ✅\n\e[32mAll required tools installed successfully.\e[0m"
+  else
+    echo -e " ❌\n\e[31mFailed to install required tools:\e[0m \e[36m${missing_tools[*]}\e[0m"
+    exit 1
+  fi
+}
+
+check_system_version_or_warn() {
+  local version codename major_version
+  version=$(lsb_release -ds 2>/dev/null || echo "Unknown")
+  codename=$(lsb_release -cs 2>/dev/null || echo "unknown")
+  major_version=$(lsb_release -rs 2>/dev/null | cut -d. -f1)
+
+  if [[ "$codename" == "focal" ]]; then
+    clear
+    echo -e "\n📦 \e[1;33mLegacy Ubuntu Version Detected\e[0m"
+    print_double_line
+    echo -e "⚠️  \e[1mUbuntu $version ($codename) is outdated and no longer supported.\e[0m"
+    echo -e "   • Brotli support is unavailable in official Nginx packages."
+    echo -e "   • Performance enhancements may be missing."
+    print_line
+    echo -e "💡 \e[1mRecommended:\e[0m"
+    echo -e "   • Use \e[32mUbuntu 22.04 LTS (Jammy)\e[0m for full support"
+    echo -e "   • Or use \e[36mUbuntu 24.04 LTS (Noble)\e[0m – Brotli support coming soon"
+    print_line
+    read -rsn1 -p $'\n↩️  Press any key to exit...'
+    clear
+    exit 1
+  fi
+
+  if [[ "$major_version" -ge 24 ]]; then
+     clear
+     echo -e "\n📦 \e[1;33mNote: Limited Brotli Support on Ubuntu $version ($codename)\e[0m"
+     print_double_line
+     echo -e "⚠️  \e[1mBrotli compression is not available yet on this system.\e[0m"
+     echo -e "   • Standard Gzip will be used temporarily."
+     echo -e "   • Brotli module will be supported as soon as packaging is updated."
+     print_line
+     echo -e "💡 \e[1mYou have two options:\e[0m"
+     echo -e "   • Wait for Brotli support in Ubuntu $codename and enable it later"
+     echo -e "   • Use \e[32mUbuntu 22.04 LTS (Jammy)\e[0m for full Brotli support now"
+     print_line
+     read -rsn1 -p $'\n↩️  Press any key to continue...'
+   fi
+
+}
+
+check_required_env_or_exit() {
   local version codename
   version=$(lsb_release -ds 2>/dev/null || echo "Unknown")
   codename=$(lsb_release -cs 2>/dev/null || echo "unknown")
 
-  # 🧪 Systempakete prüfen
-  if ! apt-cache show libnginx-mod-brotli >/dev/null 2>&1; then
-    missing+=("🌀 Brotli module for Nginx (libnginx-mod-brotli)")
+  local missing_env=()
+  [[ -z "$CLOUDFLARE_API_TOKEN" ]] && missing_env+=("CLOUDFLARE_API_TOKEN")
+  [[ -z "$UPCLOUD_API_USER" ]]     && missing_env+=("UPCLOUD_API_USER")
+  [[ -z "$UPCLOUD_API_PASS" ]]     && missing_env+=("UPCLOUD_API_PASS")
+  [[ -z "$GITHUB_API_TOKEN" ]]     && missing_env+=("GITHUB_API_TOKEN")
+
+  if (( ${#missing_env[@]} > 0 )); then
+    clear
+    echo -e "\n🧩 \e[1;31mMissing Required API Credentials\e[0m"
+    print_double_line
+    for var in "${missing_env[@]}"; do
+      case "$var" in
+        CLOUDFLARE_API_TOKEN) echo -e "❌ ☁️ CLOUDFLARE_API_TOKEN" ;;
+        UPCLOUD_API_USER)     echo -e "❌ 🔑 UPCLOUD_API_USER" ;;
+        UPCLOUD_API_PASS)     echo -e "❌ 🔑 UPCLOUD_API_PASS" ;;
+        GITHUB_API_TOKEN)     echo -e "❌ 🐙 GITHUB_API_TOKEN" ;;
+      esac
+    done
+    print_line
+    echo -e "🖥️ \e[1mCurrent system:\e[0m \e[36m$version ($codename)\e[0m"
+    print_line
+    echo -e "💡 \e[1mExplanation:\e[0m"
+    for var in "${missing_env[@]}"; do
+      case "$var" in
+        CLOUDFLARE_API_TOKEN)
+          echo -e "   • Required for managing DNS and HTTPS certificates via Cloudflare."
+          ;;
+        UPCLOUD_API_USER)
+          echo -e "   • Required to manage UpCloud firewall, PTR records, and more."
+          ;;
+        UPCLOUD_API_PASS)
+          echo -e "   • Your UpCloud API password to authenticate requests."
+          ;;
+        GITHUB_API_TOKEN)
+          echo -e "   • Needed to access private GitHub repositories and automate deployments."
+          ;;
+      esac
+    done
+    echo -e "\n📍 \e[2mSet these values in your .env file.\e[0m"
+    print_line
+    echo -e "🛑 \e[1;31mSetup cannot continue without these.\e[0m"
+    read -rsn1 -p $'\n↩️  Press any key to exit...'
+    clear
+    exit 1
   fi
-
-  if ! command -v nginx >/dev/null 2>&1; then
-    missing+=("🌐 Nginx (web proxy)")
-  fi
-
-  if ! command -v fail2ban-client >/dev/null 2>&1; then
-    missing+=("🛡️ Fail2Ban (security)")
-  fi
-
-  if ! command -v certbot >/dev/null 2>&1; then
-    missing+=("🔐 Certbot (HTTPS via Let's Encrypt)")
-  fi
-
-  if ! command -v git >/dev/null 2>&1; then
-    missing+=("🔧 Git (deployment tool)")
-  fi
-
-  # ☁️ API-Credentials prüfen
-  [[ -z "$CLOUDFLARE_API_TOKEN" ]] && missing+=("☁️ CLOUDFLARE_API_TOKEN")
-  [[ -z "$UPCLOUD_API_USER" ]]     && missing+=("🔑 UPCLOUD_API_USER")
-  [[ -z "$UPCLOUD_API_PASS" ]]     && missing+=("🔑 UPCLOUD_API_PASS")
-  [[ -z "$GITHUB_API_TOKEN" ]]     && missing+=("🐙 GITHUB_API_TOKEN")
-
-  if (( ${#missing[@]} == 0 )); then
-    return 0
-  fi
-
-  clear
-  echo -e "\n🧩 \e[1;31mMissing System Requirements or API Credentials Detected\e[0m"
-  print_double_line
-
-  for item in "${missing[@]}"; do
-    echo -e "❌ $item"
-  done
-
-  print_line
-  echo -e "🖥️ \e[1mCurrent system:\e[0m \e[36m$version ($codename)\e[0m"
-
-  print_line
-  echo -e "💡 \e[1mDetails:\e[0m"
-  [[ " ${missing[*]} " == *"libnginx-mod-brotli"* ]] && echo -e "   • Brotli is not available in Ubuntu 24.04 (Noble). Use Ubuntu 20.04 or 22.04 for support."
-  [[ " ${missing[*]} " == *"CLOUDFLARE_API_TOKEN"* ]] && echo -e "   • \e[36mCLOUDFLARE_API_TOKEN\e[0m is required to manage DNS records via Cloudflare API."
-  [[ " ${missing[*]} " == *"UPCLOUD_API_USER"* ]] && echo -e "   • \e[36mUPCLOUD_API_USER\e[0m is your UpCloud username to access the API."
-  [[ " ${missing[*]} " == *"UPCLOUD_API_PASS"* ]] && echo -e "   • \e[36mUPCLOUD_API_PASS\e[0m is your UpCloud API password."
-  [[ " ${missing[*]} " == *"GITHUB_API_TOKEN"* ]] && echo -e "   • \e[36mGITHUB_API_TOKEN\e[0m is required to clone private repositories and access repo metadata."
-
-  echo -e "\n📍 \e[2mSet missing credentials in your .env file or export them before running this script.\e[0m"
-
-  print_line
-  echo -e "🛑 \e[1;31mCannot continue until all requirements are met.\e[0m"
-  read -rsn1 -p $'\n↩️  Press any key to exit...'
-  clear
-  exit 1
 }
 
 main_menu() {
@@ -87,5 +158,9 @@ main_menu() {
   done
 }
 
-check_system_requirements_or_exit
+load_env_once
+load_server_ip_once
+check_system_version_or_warn
+check_required_env_or_exit
+ensure_required_tools_installed
 main_menu
