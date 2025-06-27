@@ -97,7 +97,6 @@ get_cloudflare_proxy_status() {
   [[ "$proxy_flag" == "true" ]] && echo "Enabled ✅" || echo "Disabled ❌"
 }
 
-
 has_cloudflare_dns_record() {
   local domain="$1"
   local zone_id="$2"
@@ -117,7 +116,6 @@ has_cloudflare_dns_record() {
   count=$(echo "$response" | jq '.result | length')
   [[ "$count" -gt 0 ]] && echo "✅" || echo "❌"
 }
-
 
 toggle_cloudflare_proxy() {
   if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$ZONE_ID" || -z "$HOSTNAME_FQDN" ]]; then

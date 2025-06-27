@@ -176,17 +176,31 @@ update_server_and_show_status() {
   echo -e "\n🔄 \e[1;34mSystem Update – Ubuntu Package Manager (APT)\e[0m"
   print_double_line
 
-  echo -e "\n🛰️ \e[1mUpdating APT sources ...\e[0m"
-  apt-get update -y >/dev/null 2>&1 && echo "✅ Package list updated." || echo "❌ Failed to update package list."
+  echo -ne "\n🛰️ \e[1mUpdating APT sources...\e[0m "
+  if apt-get update -y >/dev/null 2>&1; then
+    echo -e "✅ Done"
+  else
+    echo -e "❌ Failed"
+  fi
 
-  echo -e "\n📦 \e[1mUpgrading installed packages ...\e[0m"
-  apt-get -o Dpkg::Options::="--force-confdef" \
-           -o Dpkg::Options::="--force-confold" \
-           -y upgrade | tee /tmp/apt-upgrade.log | grep -E "upgraded|newly installed|removed" || echo "✅ All packages already up-to-date."
+  echo -e "\n📦 \e[1mUpgrading installed packages (this may take a while)...\e[0m"
+  echo -e "   ➤ Running: \e[2mapt-get upgrade\e[0m"
+  echo ""
+
+  DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" \
+    -o Dpkg::Options::="--force-confold" -y upgrade
+
+  if [[ $? -eq 0 ]]; then
+    echo -e "\n   ✅ Packages upgraded successfully."
+  else
+    echo -e "\n   ❌ Upgrade failed. Check manually."
+  fi
 
   echo -e "\n🧼 \e[1mCleaning up system ...\e[0m"
-  apt-get -y autoremove >/dev/null 2>&1 && echo "✅ Unused packages removed."
-  apt-get -y autoclean >/dev/null 2>&1 && echo "✅ Package cache cleaned."
+  echo -ne "   ➤ Removing unused packages... "
+  apt-get -y autoremove >/dev/null 2>&1 && echo "✅ Done"
+  echo -ne "   ➤ Cleaning package cache... "
+  apt-get -y autoclean >/dev/null 2>&1 && echo "✅ Done"
 
   echo -e "\n🧠 \e[1mSystem Status\e[0m"
   print_line
@@ -195,44 +209,41 @@ update_server_and_show_status() {
   kernel=$(uname -r)
   version=$(lsb_release -ds 2>/dev/null || echo "Unknown")
 
-  echo -e "💻 OS Version:      \e[36m$version\e[0m"
-  echo -e "🧬 Kernel:          \e[36m$kernel\e[0m"
+  printf "💻 %-17s %s\n" "OS Version:" "$version"
+  printf "🧬 %-17s %s\n" "Kernel:" "$kernel"
 
   local pending_updates
-  pending_updates=$(apt list --upgradable 2>/dev/null)
+  pending_updates=$(apt list --upgradable 2>/dev/null || true)
 
-  # Check nginx
-  if dpkg -l | grep -E "^ii" | grep -qw nginx; then
-    if echo "$pending_updates" | grep -q "^nginx/"; then
-      echo -e "🌐 Nginx:           \e[33mUpdate available\e[0m"
-    else
-      echo -e "🌐 Nginx:           \e[32mUp to date\e[0m"
-    fi
-  else
-    echo -e "🌐 Nginx:           \e[2mNot installed\e[0m"
-  fi
+  check_package_status() {
+    local pkg_name="$1" label="$2" emoji="$3" check_bin="$4"
+    local status
 
-  # Check fail2ban
-  if dpkg -l | grep -E "^ii" | grep -qw fail2ban; then
-    if echo "$pending_updates" | grep -q "^fail2ban/"; then
-      echo -e "🛡️ Fail2Ban:        \e[33mUpdate available\e[0m"
-    else
-      echo -e "🛡️ Fail2Ban:        \e[32mUp to date\e[0m"
+    if [[ $# -ge 4 && -n "$check_bin" ]]; then
+      if ! command -v "$check_bin" >/dev/null 2>&1; then
+        status="\e[2mNot installed\e[0m"
+        printf "%s %-17s %b\n" "$emoji" "$label:" "$status"
+        return
+      fi
     fi
-  else
-    echo -e "🛡️ Fail2Ban:        \e[2mNot installed\e[0m"
-  fi
 
-  # Check git (via command -v für echte Funktionsprüfung)
-  if command -v git >/dev/null 2>&1; then
-    if echo "$pending_updates" | grep -q "^git/"; then
-      echo -e "🔧 Git:             \e[33mUpdate available\e[0m"
+    if dpkg -s "$pkg_name" >/dev/null 2>&1; then
+      if echo "$pending_updates" | grep -q "^$pkg_name/"; then
+        status="\e[33mUpdate available\e[0m"
+      else
+        status="\e[32mUp to date\e[0m"
+      fi
     else
-      echo -e "🔧 Git:             \e[32mUp to date\e[0m"
+      status="\e[2mNot installed\e[0m"
     fi
-  else
-    echo -e "🔧 Git:             \e[2mNot installed\e[0m"
-  fi
+    printf "%s %-17s %b\n" "$emoji" "$label:" "$status"
+  }
+
+
+  echo ""
+  check_package_status nginx     "Nginx"     "🌐" nginx
+  check_package_status fail2ban  "Fail2Ban"  "🛡️"
+  check_package_status git       "Git"       "🔧" git
 
   echo -e "\n✅ \e[1mSystem update completed.\e[0m"
   print_line

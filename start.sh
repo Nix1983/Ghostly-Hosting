@@ -22,9 +22,12 @@ ensure_required_tools_installed() {
     return 0
   fi
 
-  echo -e "\n❌ \e[1mMissing required tools on this server:\e[0m \e[36m${missing_tools[*]}\e[0m"
-  echo -e "💡 These tools are essential for API calls and JSON parsing."
-  echo -ne "📦 Installing missing packages... \e[2mPlease wait\e[0m "
+  echo -e "\n🚨 \e[1;31mMissing system tools detected:\e[0m \e[36m${missing_tools[*]}\e[0m"
+  print_double_line
+  echo -e "🧩 These tools are required for general system operations."
+  echo -e "📌 \e[2mNote: This installation is only needed on first run.\e[0m"
+  echo -e "📦 Installing missing components... \e[2mPlease wait\e[0m"
+
 
   # Spinner anzeigen
   local pid spinner i
@@ -158,9 +161,25 @@ main_menu() {
   done
 }
 
+log_step() {
+  echo -e "\n🔹 \e[36mRunning:\e[0m $1"
+}
+
+log_step "Loading environment"
 load_env_once
+
+log_step "Loading server IP"
 load_server_ip_once
+
+log_step "Checking system version"
 check_system_version_or_warn
+
+log_step "Validating required environment variables"
 check_required_env_or_exit
+
+log_step "Ensuring required system tools"
 ensure_required_tools_installed
+
+log_step "Launching main menu"
 main_menu
+
