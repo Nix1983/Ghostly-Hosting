@@ -33,7 +33,7 @@ ensure_required_tools_installed() {
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing_tools[@]}" >/dev/null 2>&1
   ) &
   pid=$!
-  spinner=('/' '-' '\' '|')
+  spinner=("/" "-" "\\" "|")
   i=0
   while kill -0 "$pid" 2>/dev/null; do
     printf "\b%s" "${spinner[i]}"
