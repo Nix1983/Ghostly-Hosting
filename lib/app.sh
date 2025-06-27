@@ -84,7 +84,7 @@ _load_dynamic_app_info() {
 }
 
 
-delete_blazor_app() {
+delete_app() {
   local service="$1"
   local domain="$2"
   local exec_dir="$3"
@@ -110,7 +110,6 @@ delete_blazor_app() {
     return 1
   fi
 
-
   export HOSTNAME_FQDN="$domain"
   local _domain_part
   _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
@@ -120,6 +119,7 @@ delete_blazor_app() {
   systemctl stop "$service" 2>/dev/null || true
   systemctl disable "$service" 2>/dev/null || true
   rm -f "/etc/systemd/system/$service"
+  rm -f "/etc/systemd/system/multi-user.target.wants/$service"
 
   echo "🔄 Reloading systemd..."
   systemctl daemon-reexec
@@ -159,9 +159,19 @@ delete_blazor_app() {
     echo -e "🔎 Please delete DNS records manually for: \e[36m$HOSTNAME_FQDN\e[0m"
   fi
 
+  # Remove nginx-loglink timer if no other apps exist
+  if [[ -z "$(find "$APP_BASE_DIR" -type f -name '*.dll' 2>/dev/null)" ]]; then
+    echo -e "\n🧹 \e[1mNo apps remaining – removing nginx log timer...\e[0m"
+    systemctl disable --now nginx-loglink.timer 2>/dev/null || true
+    rm -f /etc/systemd/system/nginx-loglink.timer
+    rm -f /etc/systemd/system/nginx-loglink.service
+    systemctl daemon-reload
+  fi
+
   echo -e "\n✅ \e[1;32mApp $HOSTNAME_FQDN fully deleted.\e[0m"
   read -rsn1 -p "$(print_press_any_key)"
 }
+
 
 refresh_cloudflare_info_for_domain() {
   local domain="$1"
@@ -428,7 +438,7 @@ delete_app_interactively() {
   local domain="$2"
   local exec_dir="$3"
 
-  delete_blazor_app "$service" "$domain" "$exec_dir"
+  delete_app "$service" "$domain" "$exec_dir"
   [[ $? -ne 1 ]] && return 0
   return 1
 }
