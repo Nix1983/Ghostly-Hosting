@@ -172,7 +172,6 @@ delete_app() {
   print_press_any_key
 }
 
-
 refresh_cloudflare_info_for_domain() {
   local domain="$1"
 
@@ -189,8 +188,6 @@ refresh_cloudflare_info_for_domain() {
   dns_ipv6=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "AAAA")
   dns_summary="A: $dns_ipv4  AAAA: $dns_ipv6"
 }
-
-
 
 backup_app_metadata() {
   local exec_dir="$1"

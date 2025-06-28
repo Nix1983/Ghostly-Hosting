@@ -65,159 +65,161 @@ generate_dns_summary_for_fqdn() {
 }
 
 show_apps() {
-  local index=1
+  local index app_choice
   local -A app_map=()
   local -A cf_proxy_map dns_map fqdn_map proxy_map has_a_map has_aaaa_map
 
-  clear
-  echo -e "\n🔍 \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
+  while true; do
+    index=1
+    app_map=()
+    fqdn_map=()
+    proxy_map=()
+    has_a_map=()
+    has_aaaa_map=()
 
-  if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
-    local zones_json zone_ids=()
-    zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
-    while IFS=$'\t' read -r name id; do
-      zone_ids+=("$id")
-    done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
+    clear
+    echo -e "\n🔍 \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
 
-    for zone_id in "${zone_ids[@]}"; do
-      local dns_json
-      dns_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-        "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?per_page=500")
+    if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
+      local zones_json zone_ids=()
+      zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
+      while IFS=$'\t' read -r name id; do
+        zone_ids+=("$id")
+      done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
 
-      while IFS=$'\t' read -r name type proxied; do
-        [[ -n "$name" && -n "$type" ]] || continue
-        dns_map["$name,$type"]=1
-        if [[ "$type" == "A" || "$type" == "AAAA" ]]; then
-          if [[ "$proxied" == "true" ]]; then
-            cf_proxy_map["$name"]="✅"
-          elif [[ -z "${cf_proxy_map[$name]}" ]]; then
-            cf_proxy_map["$name"]="❌"
+      for zone_id in "${zone_ids[@]}"; do
+        local dns_json
+        dns_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+          "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?per_page=500")
+
+        while IFS=$'\t' read -r name type proxied; do
+          [[ -n "$name" && -n "$type" ]] || continue
+          dns_map["$name,$type"]=1
+          if [[ "$type" == "A" || "$type" == "AAAA" ]]; then
+            if [[ "$proxied" == "true" ]]; then
+              cf_proxy_map["$name"]="✅"
+            elif [[ -z "${cf_proxy_map[$name]}" ]]; then
+              cf_proxy_map["$name"]="❌"
+            fi
           fi
+        done < <(echo "$dns_json" | jq -r '.result[] | [.name, .type, (.proxied // "")] | @tsv')
+      done
+    fi
+
+    clear
+    echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
+    print_double_line
+
+    while IFS= read -r service_file; do
+      local service_name port domain exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable
+      local has_a has_aaaa dns_warning cf_proxy fqdn
+
+      service_name="$(basename "$service_file")"
+      [[ "$service_name" != *.service ]] && continue
+
+      local exec_line
+      exec_line=$(systemctl show -p ExecStart "$service_name" 2>/dev/null | cut -d= -f2-)
+      [[ "$exec_line" =~ --urls=http://0.0.0.0:([0-9]{4}) ]] || continue
+      port="${BASH_REMATCH[1]}"
+
+      exec_dir=$(systemctl show -p WorkingDirectory "$service_name" 2>/dev/null | cut -d= -f2)
+      [[ -z "$exec_dir" || ! -d "$exec_dir" ]] && continue
+
+      domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/')
+      fqdn=$(echo "$domain" | sed 's/-/\./g')
+      [[ "$fqdn" != *.* ]] && fqdn="$fqdn.ghostlypick.com"
+
+      has_a="${dns_map[$fqdn,A]:-0}"
+      has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
+
+      if [[ "$has_a" -eq 0 && "$has_aaaa" -eq 0 ]]; then
+        dns_warning="⚠️ App is not reachable (no DNS entries found)"
+      elif [[ "$has_a" -eq 0 ]]; then
+        dns_warning="⚠️ App is not reachable via IPv4"
+      elif [[ "$has_aaaa" -eq 0 ]]; then
+        dns_warning="⚠️ App is not reachable via IPv6"
+      else
+        dns_warning=""
+      fi
+
+      if systemctl is-active --quiet "$service_name"; then
+        status_icon=$([[ -n "$dns_warning" ]] && echo "⚠️" || echo "🟢")
+      else
+        status_icon="🔴"
+      fi
+
+      cf_proxy="❌"
+      if [[ -n "${cf_proxy_map[$fqdn]}" ]]; then
+        cf_proxy="${cf_proxy_map[$fqdn]}"
+      fi
+
+      repo_name="–"
+      if [[ -f "$exec_dir/meta.json" ]]; then
+        repo_name=$(jq -r '.repo_name // "–"' "$exec_dir/meta.json")
+        if [[ ${#repo_name} -gt 20 ]]; then
+          repo_name="${repo_name:0:17}..."
         fi
-      done < <(echo "$dns_json" | jq -r '.result[] | [.name, .type, (.proxied // "")] | @tsv')
-    done
-  fi
-
-  clear
-  echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
-  print_double_line
-
-  while IFS= read -r service_file; do
-    local service_name port domain exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable
-    local has_a has_aaaa dns_warning cf_proxy fqdn
-
-    service_name="$(basename "$service_file")"
-    [[ "$service_name" != *.service ]] && continue
-
-    local exec_line
-    exec_line=$(systemctl show -p ExecStart "$service_name" 2>/dev/null | cut -d= -f2-)
-    [[ "$exec_line" =~ --urls=http://0.0.0.0:([0-9]{4}) ]] || continue
-    port="${BASH_REMATCH[1]}"
-
-    exec_dir=$(systemctl show -p WorkingDirectory "$service_name" 2>/dev/null | cut -d= -f2)
-    [[ -z "$exec_dir" || ! -d "$exec_dir" ]] && continue
-
-    domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/')
-    fqdn=$(echo "$domain" | sed 's/-/\./g')
-    [[ "$fqdn" != *.* ]] && fqdn="$fqdn.ghostlypick.com"
-
-    has_a="${dns_map[$fqdn,A]:-0}"
-    has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
-
-    if [[ "$has_a" -eq 0 && "$has_aaaa" -eq 0 ]]; then
-      dns_warning="⚠️ App is not reachable (no DNS entries found)"
-    elif [[ "$has_a" -eq 0 ]]; then
-      dns_warning="⚠️ App is not reachable via IPv4"
-    elif [[ "$has_aaaa" -eq 0 ]]; then
-      dns_warning="⚠️ App is not reachable via IPv6"
-    else
-      dns_warning=""
-    fi
-
-    if systemctl is-active --quiet "$service_name"; then
-      status_icon=$([[ -n "$dns_warning" ]] && echo "⚠️" || echo "🟢")
-    else
-      status_icon="🔴"
-    fi
-
-    cf_proxy="❌"
-    if [[ -n "${cf_proxy_map[$fqdn]}" ]]; then
-      cf_proxy="${cf_proxy_map[$fqdn]}"
-    elif [[ "$fqdn" == *.* ]]; then
-      root_domain="${fqdn##*.}"
-      root_zone="${fqdn#*.}"
-      full_root="${root_zone}.${root_domain}"
-      if [[ -n "${cf_proxy_map[$full_root]}" ]]; then
-        cf_proxy="${cf_proxy_map[$full_root]}"
       fi
-    fi
 
-    repo_name="–"
-    if [[ -f "$exec_dir/meta.json" ]]; then
-      repo_name=$(jq -r '.repo_name // "–"' "$exec_dir/meta.json")
-      if [[ ${#repo_name} -gt 20 ]]; then
-        repo_name="${repo_name:0:17}..."
+      uptime_readable=" 0d 00h 00m 00s"
+      if systemctl is-active --quiet "$service_name"; then
+        local up_raw now elapsed_us sec
+        up_raw=$(systemctl show -p ActiveEnterTimestampMonotonic "$service_name" | cut -d= -f2)
+        if [[ "$up_raw" =~ ^[0-9]+$ ]]; then
+          now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
+          elapsed_us=$((now - up_raw))
+          sec=$((elapsed_us / 1000000))
+          uptime_readable=$(printf "%2dd %02dh %02dm %02ds" $((sec/86400)) $((sec%86400/3600)) $((sec%3600/60)) $((sec%60)))
+        fi
       fi
-    fi
 
-    uptime_readable=" 0d 00h 00m 00s"
-    if systemctl is-active --quiet "$service_name"; then
-      local up_raw now elapsed_us sec
-      up_raw=$(systemctl show -p ActiveEnterTimestampMonotonic "$service_name" | cut -d= -f2)
-      if [[ "$up_raw" =~ ^[0-9]+$ ]]; then
-        now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
-        elapsed_us=$((now - up_raw))
-        sec=$((elapsed_us / 1000000))
-        uptime_readable=$(printf "%2dd %02dh %02dm %02ds" $((sec/86400)) $((sec%86400/3600)) $((sec%3600/60)) $((sec%60)))
+      ram_mb="0 MB"
+      ram_kb=$(systemctl show "$service_name" -p MemoryCurrent | cut -d= -f2)
+      if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
+        ram_mb="$((ram_kb / 1024 / 1024)) MB"
       fi
+
+      disk_mb="–"
+      if [[ -d "$exec_dir" ]]; then
+        disk_mb="$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')"
+      fi
+
+      printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%6s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
+        "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
+
+      app_map["$index"]="$service_name"
+      fqdn_map["$index"]="$fqdn"
+      proxy_map["$index"]="$cf_proxy"
+      has_a_map["$index"]="$has_a"
+      has_aaaa_map["$index"]="$has_aaaa"
+      ((index++))
+    done < <(find /etc/systemd/system -name "*.service" -type f | sort)
+
+    if (( index == 1 )); then
+      echo -e "\n🧩  \e[1;33mNo .NET apps have been deployed yet.\e[0m"
+      echo -e "\nℹ️  Use the \e[1mDeploy New App\e[0m option in the main menu"
+      echo -e "    to select a Git repository and deploy your application."
+      echo -e "    This will automatically set up a systemd service,"
+      echo -e "    an SSL certificate, and an Nginx reverse proxy."
+      print_press_any_key
+      return 1
     fi
 
-    ram_mb="0 MB"
-    ram_kb=$(systemctl show "$service_name" -p MemoryCurrent | cut -d= -f2)
-    if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
-      ram_mb="$((ram_kb / 1024 / 1024)) MB"
+    read_menu_choice "$((index - 1))"
+    if [[ "$REPLY" =~ ^[Qq]$ ]]; then
+      return 0
+    elif [[ -n "${app_map[$REPLY]}" ]]; then
+      export SELECTED_SERVICE="${app_map[$REPLY]}"
+      show_app_details_menu \
+        "${app_map[$REPLY]}" \
+        "${fqdn_map[$REPLY]}" \
+        "${proxy_map[$REPLY]}" \
+        "${has_a_map[$REPLY]}" \
+        "${has_aaaa_map[$REPLY]}"
     fi
-
-    disk_mb="–"
-    if [[ -d "$exec_dir" ]]; then
-      disk_mb="$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')"
-    fi
-
-    printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%6s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
-      "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
-
-    app_map["$index"]="$service_name"
-    fqdn_map["$index"]="$fqdn"
-    proxy_map["$index"]="$cf_proxy"
-    has_a_map["$index"]="$has_a"
-    has_aaaa_map["$index"]="$has_aaaa"
-    ((index++))
-  done < <(find /etc/systemd/system -name "*.service" -type f | sort)
-
-  if (( index == 1 )); then
-    echo -e "\n🧩  \e[1;33mNo .NET apps have been deployed yet.\e[0m"
-    echo -e "\nℹ️  Use the \e[1mDeploy New App\e[0m option in the main menu"
-    echo -e "    to select a Git repository and deploy your application."
-    echo -e "    This will automatically set up a systemd service,"
-    echo -e "    an SSL certificate, and an Nginx reverse proxy."
-    print_press_any_key
-    return 1
-  fi
-
-  read_menu_choice "$((index - 1))"
-
-  if [[ "$REPLY" =~ ^[Qq]$ ]]; then
-    return 0
-  elif [[ -n "${app_map[$REPLY]}" ]]; then
-    export SELECTED_SERVICE="${app_map[$REPLY]}"
-    show_app_details_menu \
-      "${app_map[$REPLY]}" \
-      "${fqdn_map[$REPLY]}" \
-      "${proxy_map[$REPLY]}" \
-      "${has_a_map[$REPLY]}" \
-      "${has_aaaa_map[$REPLY]}"
-  fi
+  done
 }
+
 
 show_app_manager_menu() {
   local choice
