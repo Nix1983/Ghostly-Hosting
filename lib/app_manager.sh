@@ -216,6 +216,11 @@ show_apps() {
         "${proxy_map[$REPLY]}" \
         "${has_a_map[$REPLY]}" \
         "${has_aaaa_map[$REPLY]}"
+
+      # Check after returning if any apps are left
+      if ! find /etc/systemd/system -name "*.service" -type f | grep -q .; then
+       return 0
+      fi
     fi
   done
 }
