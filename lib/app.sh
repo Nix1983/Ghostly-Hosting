@@ -146,7 +146,7 @@ delete_app() {
   delete_certbot_certificate
 
   echo -e "\n☁️ \e[1mDeleting Cloudflare DNS records...\e[0m"
-  resolve_cloudflare_zone_id
+  resolve_cloudflare_zone_id "$HOSTNAME_FQDN"
   if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" && -n "$ZONE_ID" && -n "$HOSTNAME_FQDN" ]]; then
     if delete_cloudflare_dns_records; then
       echo "✅ DNS records successfully removed."
@@ -178,16 +178,18 @@ refresh_cloudflare_info_for_domain() {
 
   export HOSTNAME_FQDN="$domain"
 
-  local _domain_part
-  _domain_part=$(echo "$domain" | awk -F. '{print $(NF-1)"."$NF}')
-  export DOMAIN="$_domain_part"
-  resolve_cloudflare_zone_id >/dev/null 2>&1
+  if ! resolve_cloudflare_zone_id "$domain" >/dev/null 2>&1; then
+    dns_summary="A: ❌  AAAA: ❌"
+    cf_proxy="❌"
+    return 1
+  fi
 
   cf_proxy=$(get_cloudflare_proxy_status "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN")
   dns_ipv4=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "A")
   dns_ipv6=$(has_cloudflare_dns_record "$domain" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN" "AAAA")
   dns_summary="A: $dns_ipv4  AAAA: $dns_ipv6"
 }
+
 
 
 backup_app_metadata() {
@@ -454,17 +456,19 @@ update_app_interactively() {
 
 show_app_details_menu() {
   local service="$1"
+  local fqdn="$2"
+  local cf_proxy="$3"
+  local has_a="$4"
+  local has_aaaa="$5"
 
-  local exec_dir port domain disk_size ram_mb main_dll uptime_readable ssl_status auto_renew
-  local cf_proxy dns_ipv4 dns_ipv6 dns_summary dns_warning
+  local exec_dir port disk_size ram_mb main_dll uptime_readable ssl_status auto_renew dns_summary dns_warning
 
   exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
   port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
-  domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
   disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
   main_dll=$(systemctl show -p ExecStart "$service" | grep -oP '\s/[^ ]+\.dll' | xargs basename 2>/dev/null)
 
-  local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
+  local cert_path="/etc/letsencrypt/live/$fqdn/fullchain.pem"
   if [[ -f "$cert_path" ]]; then
     local expiry_raw expiry_date expiry_ts now_ts days_left
     expiry_raw=$(openssl x509 -enddate -noout -in "$cert_path" 2>/dev/null | cut -d= -f2)
@@ -489,36 +493,26 @@ show_app_details_menu() {
     auto_renew="none ❌"
   fi
 
-  refresh_cloudflare_info_for_domain "$domain"
+  dns_summary="A: $( [[ "$has_a" -eq 1 ]] && echo ✅ || echo ❌ )  AAAA: $( [[ "$has_aaaa" -eq 1 ]] && echo ✅ || echo ❌ )"
 
-  while true; do
-    _load_dynamic_app_info "$service" "$exec_dir"
-
-  # Split out actual values (not nur "A: ❌")
-  dns_ipv4=$(echo "$dns_summary" | grep -oE "A: [^ ]+" | grep -v "❌" || true)
-  dns_ipv6=$(echo "$dns_summary" | grep -oE "AAAA: [^ ]+" | grep -v "❌" || true)
-  
-  # Falls leer, setzen auf ❌
-  [[ -z "$dns_ipv4" ]] && dns_ipv4="A: ❌"
-  [[ -z "$dns_ipv6" ]] && dns_ipv6="AAAA: ❌"
-  
-  # Jetzt sauber prüfen
-  if [[ "$dns_ipv4" == "A: ❌" && "$dns_ipv6" == "AAAA: ❌" ]]; then
+  if (( has_a == 0 && has_aaaa == 0 )); then
     dns_warning="⚠️ App is not reachable (no DNS entries found)"
-  elif [[ "$dns_ipv4" == "A: ❌" ]]; then
+  elif (( has_a == 0 )); then
     dns_warning="⚠️ App is not reachable via IPv4"
-  elif [[ "$dns_ipv6" == "AAAA: ❌" ]]; then
+  elif (( has_aaaa == 0 )); then
     dns_warning="⚠️ App is not reachable via IPv6"
   else
     dns_warning=""
   fi
 
+  while true; do
+    _load_dynamic_app_info "$service" "$exec_dir"
 
     clear
     if [[ -n "$dns_warning" ]]; then
-      printf "🧩 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s   \e[1;31m%s\e[0m\n" "$domain" "$status" "$dns_warning"
+      printf "🧩 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s   \e[1;31m%s\e[0m\n" "$fqdn" "$status" "$dns_warning"
     else
-      printf "🧩 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s\n" "$domain" "$status"
+      printf "🧩 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s\n" "$fqdn" "$status"
     fi
     print_double_line
 
@@ -527,7 +521,7 @@ show_app_details_menu() {
     printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_mb" "Uptime:" "$uptime_readable"
     printf "🔒 %-18s \e[36m%-23s\e[0m   ♻️ %-17s \e[36m%-20s\e[0m\n" "SSL Certificate:" "$ssl_status" "SSL Auto Renew:" "$auto_renew"
     printf "🌩️ %-18s \e[36m%-23s\e[0m   📡 %-17s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$cf_proxy" "DNS Records:" "$dns_summary"
-    printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$domain"
+    printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$fqdn"
     printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
     print_line
 
@@ -543,7 +537,7 @@ show_app_details_menu() {
       3) restart_app_service "$service" ;;
       4) stop_app_service "$service" ;;
       5)
-        delete_app_interactively "$service" "$domain" "$exec_dir"
+        delete_app_interactively "$service" "$fqdn" "$exec_dir"
         [[ $? -eq 0 ]] && return 0
         ;;
       6)
@@ -551,13 +545,19 @@ show_app_details_menu() {
         print_press_any_key
         ;;
       7)
-        toggle_cloudflare_proxy
-        refresh_cloudflare_info_for_domain "$domain"
+        toggle_cloudflare_proxy "$fqdn"
+
+        if resolve_cloudflare_zone_id "$fqdn"; then
+          local proxy_result
+          proxy_result=$(get_cloudflare_proxy_status "$fqdn" "$ZONE_ID" "$CLOUDFLARE_API_TOKEN")
+          [[ "$proxy_result" == *"✅"* ]] && cf_proxy="✅" || cf_proxy="❌"
+        fi
         ;;
       8)
-        show_nginx_settings_menu "$domain"
+        show_nginx_settings_menu "$fqdn"
         ;;
       q|Q) return 0 ;;
     esac
   done
 }
+

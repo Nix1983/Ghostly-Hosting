@@ -57,20 +57,37 @@ _upsert_dns_record() {
 }
 
 resolve_cloudflare_zone_id() {
-  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$DOMAIN" ]]; then
-    echo "❌ CLOUDFLARE_API_TOKEN, CLOUDFLARE_API_BASE oder DOMAIN fehlt."
+  local input_domain="$1"
+
+  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$input_domain" ]]; then
+    echo "❌ Missing required variables: CLOUDFLARE_API_TOKEN, CLOUDFLARE_API_BASE or domain."
     return 1
   fi
 
-  local response
+  local response zone_list
   response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
     -H "Content-Type: application/json")
 
-  ZONE_ID=$(echo "$response" | jq -r --arg domain "$DOMAIN" '.result[] | select(.name == $domain) | .id')
+  if ! echo "$response" | jq -e '.success == true and (.result | type == "array")' >/dev/null 2>&1; then
+    echo "❌ Failed to retrieve Cloudflare zones:"
+    echo "$response" | jq -C . 2>/dev/null || echo "$response"
+    return 1
+  fi
+
+  zone_list=$(echo "$response" | jq -r '.result[].name')
+
+  for zone in $zone_list; do
+    if [[ "$input_domain" == "$zone" || "$input_domain" == *."$zone" ]]; then
+      ZONE_ID=$(echo "$response" | jq -r --arg zone "$zone" '.result[] | select(.name == $zone) | .id')
+      break
+    fi
+  done
 
   if [[ -z "$ZONE_ID" || "$ZONE_ID" == "null" ]]; then
-    echo "❌ Zone ID für $DOMAIN konnte nicht gefunden werden."
+    echo "❌ Zone ID could not be resolved for: $input_domain"
+    echo "ℹ️  Available zones:"
+    echo "$zone_list" | sed 's/^/ → /'
     return 1
   fi
 
@@ -118,38 +135,54 @@ has_cloudflare_dns_record() {
 }
 
 toggle_cloudflare_proxy() {
-  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$ZONE_ID" || -z "$HOSTNAME_FQDN" ]]; then
-    echo -e "❌ \e[31mMissing required variables: CLOUDFLARE_API_TOKEN, ZONE_ID, or HOSTNAME_FQDN.\e[0m"
+  local fqdn="$1"
+
+  if [[ -z "$fqdn" ]]; then
+    echo -e "❌ \e[31mDomain name (FQDN) not provided.\e[0m"
+    print_press_any_key
+    return 1
+  fi
+
+  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then
+    echo -e "❌ \e[31mMissing required variables: CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_BASE.\e[0m"
+    print_press_any_key
+    return 1
+  fi
+
+  if ! resolve_cloudflare_zone_id "$fqdn"; then
+    echo -e "❌ \e[31mUnable to resolve Zone ID for domain:\e[0m \e[36m$fqdn\e[0m"
+    print_press_any_key
     return 1
   fi
 
   local types=("A" "AAAA")
   local has_change=false
 
-  echo -e "\n🔄 \e[1mToggling Cloudflare Proxy for:\e[0m \e[36m$HOSTNAME_FQDN\e[0m"
+  echo -e "\n🔄 \e[1mToggling Cloudflare Proxy for:\e[0m \e[36m$fqdn\e[0m"
 
   for record_type in "${types[@]}"; do
     local response record_id current_status new_status ip_var update_payload
 
-    response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$HOSTNAME_FQDN" \
+    response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$fqdn" \
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
       -H "Content-Type: application/json")
+
+    if ! echo "$response" | jq -e '.result | length > 0' >/dev/null 2>&1; then
+      echo -e "⚠️  No $record_type record found or invalid response."
+      continue
+    fi
 
     record_id=$(echo "$response" | jq -r '.result[0].id // empty')
     current_status=$(echo "$response" | jq -r '.result[0].proxied // empty')
     ip_var=$(echo "$response" | jq -r '.result[0].content // empty')
 
-    if [[ -z "$record_id" ]]; then
-      echo -e "⚠️  No $record_type-record found."
-      continue
-    fi
+    [[ -z "$record_id" ]] && continue
 
-    # Toggle proxy status
     new_status=$([[ "$current_status" == "true" ]] && echo "false" || echo "true")
 
     update_payload=$(jq -n \
       --arg type "$record_type" \
-      --arg name "$HOSTNAME_FQDN" \
+      --arg name "$fqdn" \
       --arg content "$ip_var" \
       --argjson proxied "$new_status" \
       '{type: $type, name: $name, content: $content, proxied: $proxied}')
@@ -159,7 +192,7 @@ toggle_cloudflare_proxy() {
       -H "Content-Type: application/json" \
       --data "$update_payload" >/dev/null
 
-    echo -e " → $record_type updated: \e[1m$HOSTNAME_FQDN\e[0m → \e[32m$([[ "$new_status" == "true" ]] && echo "✅ ON" || echo "❌ OFF")\e[0m"
+    echo -e " → $record_type updated: \e[1m$fqdn\e[0m → \e[32m$([[ "$new_status" == "true" ]] && echo "✅ ON" || echo "❌ OFF")\e[0m"
     has_change=true
   done
 

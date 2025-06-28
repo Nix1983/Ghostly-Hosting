@@ -67,7 +67,7 @@ generate_dns_summary_for_fqdn() {
 show_apps() {
   local index=1
   local -A app_map=()
-  local -A cf_proxy_map dns_map
+  local -A cf_proxy_map dns_map fqdn_map proxy_map has_a_map has_aaaa_map
 
   clear
   echo -e "\n🔍 \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
@@ -95,13 +95,13 @@ show_apps() {
           fi
         fi
       done < <(echo "$dns_json" | jq -r '.result[] | [.name, .type, (.proxied // "")] | @tsv')
-
     done
   fi
 
   clear
   echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
   print_double_line
+
   while IFS= read -r service_file; do
     local service_name port domain exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable
     local has_a has_aaaa dns_warning cf_proxy fqdn
@@ -119,10 +119,7 @@ show_apps() {
 
     domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/')
     fqdn=$(echo "$domain" | sed 's/-/\./g')
-
-    if [[ "$fqdn" != *.* ]]; then
-      fqdn="$fqdn.ghostlypick.com"
-    fi
+    [[ "$fqdn" != *.* ]] && fqdn="$fqdn.ghostlypick.com"
 
     has_a="${dns_map[$fqdn,A]:-0}"
     has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
@@ -143,18 +140,17 @@ show_apps() {
       status_icon="🔴"
     fi
 
-   cf_proxy="❌"
-   if [[ -n "${cf_proxy_map[$fqdn]}" ]]; then
-     cf_proxy="${cf_proxy_map[$fqdn]}"
-   elif [[ "$fqdn" == *.* ]]; then
-     root_domain="${fqdn##*.}"
-     root_zone="${fqdn#*.}"
-     full_root="${root_zone}.${root_domain}"
-     if [[ -n "${cf_proxy_map[$full_root]}" ]]; then
-       cf_proxy="${cf_proxy_map[$full_root]}"
-     fi
-   fi
-
+    cf_proxy="❌"
+    if [[ -n "${cf_proxy_map[$fqdn]}" ]]; then
+      cf_proxy="${cf_proxy_map[$fqdn]}"
+    elif [[ "$fqdn" == *.* ]]; then
+      root_domain="${fqdn##*.}"
+      root_zone="${fqdn#*.}"
+      full_root="${root_zone}.${root_domain}"
+      if [[ -n "${cf_proxy_map[$full_root]}" ]]; then
+        cf_proxy="${cf_proxy_map[$full_root]}"
+      fi
+    fi
 
     repo_name="–"
     if [[ -f "$exec_dir/meta.json" ]]; then
@@ -186,10 +182,15 @@ show_apps() {
     if [[ -d "$exec_dir" ]]; then
       disk_mb="$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')"
     fi
+
     printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%6s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
       "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
 
     app_map["$index"]="$service_name"
+    fqdn_map["$index"]="$fqdn"
+    proxy_map["$index"]="$cf_proxy"
+    has_a_map["$index"]="$has_a"
+    has_aaaa_map["$index"]="$has_aaaa"
     ((index++))
   done < <(find /etc/systemd/system -name "*.service" -type f | sort)
 
@@ -209,10 +210,14 @@ show_apps() {
     return 0
   elif [[ -n "${app_map[$REPLY]}" ]]; then
     export SELECTED_SERVICE="${app_map[$REPLY]}"
-    show_app_details_menu "$SELECTED_SERVICE"
+    show_app_details_menu \
+      "${app_map[$REPLY]}" \
+      "${fqdn_map[$REPLY]}" \
+      "${proxy_map[$REPLY]}" \
+      "${has_a_map[$REPLY]}" \
+      "${has_aaaa_map[$REPLY]}"
   fi
 }
-
 
 show_app_manager_menu() {
   local choice
