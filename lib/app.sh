@@ -456,7 +456,7 @@ show_app_details_menu() {
   local service="$1"
 
   local exec_dir port domain disk_size ram_mb main_dll uptime_readable ssl_status auto_renew
-  local cf_proxy dns_ipv4 dns_ipv6 dns_summary
+  local cf_proxy dns_ipv4 dns_ipv6 dns_summary dns_warning
 
   exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
   port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
@@ -491,12 +491,37 @@ show_app_details_menu() {
 
   refresh_cloudflare_info_for_domain "$domain"
 
-
   while true; do
     _load_dynamic_app_info "$service" "$exec_dir"
+
+  # Split out actual values (not nur "A: ❌")
+  dns_ipv4=$(echo "$dns_summary" | grep -oE "A: [^ ]+" | grep -v "❌" || true)
+  dns_ipv6=$(echo "$dns_summary" | grep -oE "AAAA: [^ ]+" | grep -v "❌" || true)
+  
+  # Falls leer, setzen auf ❌
+  [[ -z "$dns_ipv4" ]] && dns_ipv4="A: ❌"
+  [[ -z "$dns_ipv6" ]] && dns_ipv6="AAAA: ❌"
+  
+  # Jetzt sauber prüfen
+  if [[ "$dns_ipv4" == "A: ❌" && "$dns_ipv6" == "AAAA: ❌" ]]; then
+    dns_warning="⚠️ App is not reachable (no DNS entries found)"
+  elif [[ "$dns_ipv4" == "A: ❌" ]]; then
+    dns_warning="⚠️ App is not reachable via IPv4"
+  elif [[ "$dns_ipv6" == "AAAA: ❌" ]]; then
+    dns_warning="⚠️ App is not reachable via IPv6"
+  else
+    dns_warning=""
+  fi
+
+
     clear
-    printf "🧾 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s\n" "$domain" "$status"
+    if [[ -n "$dns_warning" ]]; then
+      printf "🧩 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s   \e[1;31m%s\e[0m\n" "$domain" "$status" "$dns_warning"
+    else
+      printf "🧩 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s\n" "$domain" "$status"
+    fi
     print_double_line
+
     printf "🔌 %-18s \e[36m%-22s\e[0m   📦 %-17s \e[36m%-30s\e[0m\n" "Port:" "$port" "DLL:" "$main_dll"
     printf "💾 %-18s \e[36m%-22s\e[0m   📁 %-17s \e[2m%-30s\e[0m\n" "Disk Usage:" "$disk_size" "App Directory:" "$exec_dir"
     printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_mb" "Uptime:" "$uptime_readable"
@@ -504,7 +529,8 @@ show_app_details_menu() {
     printf "🌩️ %-18s \e[36m%-23s\e[0m   📡 %-17s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$cf_proxy" "DNS Records:" "$dns_summary"
     printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$domain"
     printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
-    print_line  
+    print_line
+
     printf "\n 1) 📜 Show Logs         2) 🔼 Update App          3) 🔄 Restart App"
     printf "\n 4) 🛑 Stop App          5) 🧨 Delete App          6) 💾 Restore Backup"
     printf "\n 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings      %s$(print_back_to_menu)\n"
@@ -520,13 +546,17 @@ show_app_details_menu() {
         delete_app_interactively "$service" "$domain" "$exec_dir"
         [[ $? -eq 0 ]] && return 0
         ;;
-      6) restore_app_backup "$exec_dir" "$service" 
-         print_press_any_key
-         ;;
-      7) toggle_cloudflare_proxy 
-         refresh_cloudflare_info_for_domain "$domain"
-         ;;
-      8) show_nginx_settings_menu "$domain" ;;
+      6)
+        restore_app_backup "$exec_dir" "$service"
+        print_press_any_key
+        ;;
+      7)
+        toggle_cloudflare_proxy
+        refresh_cloudflare_info_for_domain "$domain"
+        ;;
+      8)
+        show_nginx_settings_menu "$domain"
+        ;;
       q|Q) return 0 ;;
     esac
   done

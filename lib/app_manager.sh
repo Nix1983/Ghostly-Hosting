@@ -121,7 +121,7 @@ show_apps() {
       fi
     fi
 
-    cf_proxy="${cf_proxy_map[$domain]:-–}"
+    cf_proxy="${cf_proxy_map[$domain]:-❌}"
 
     ram_mb="0 MB"
     ram_kb=$(systemctl show "$service_name" -p MemoryCurrent | cut -d= -f2)
