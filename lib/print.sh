@@ -6,8 +6,10 @@ print_cancel(){
 }
 
 print_press_any_key() {
-   echo "↩️ Press any key to continue..."
+  echo "↩️ Press any key to continue..."
+  read -rsn1
 }
+
 
 print_invalid_selection() {
     echo "❗ Invalid selection."

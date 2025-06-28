@@ -421,3 +421,119 @@ setup_cloudflare_dns_for_blazor() {
     done
   done
 }
+
+delete_all_cloudflare_dns_records_for_server() {
+  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" || -z "$SERVER_IPv4" ]]; then
+    echo -e "❌ \e[31mRequired environment variables are missing.\e[0m"
+    print_press_any_key
+    return 1
+  fi
+
+  local ip4_lc ip6_lc
+  ip4_lc=$(echo "$SERVER_IPv4" | tr '[:upper:]' '[:lower:]')
+  ip6_lc=$(echo "$SERVER_IPv6" | tr '[:upper:]' '[:lower:]')
+
+  clear
+  echo -e "\n🧨 \e[1;31mDNS Record Deletion Warning – All Zones\e[0m"
+  print_double_line
+  echo -e "You are about to remove \e[1mALL A/AAAA DNS records\e[0m from Cloudflare\nthat match your current server's public IP addresses:"
+  echo -e "\n 🔹 IPv4: \e[36m$ip4_lc\e[0m"
+  [[ -n "$ip6_lc" ]] && echo -e " 🔹 IPv6: \e[36m$ip6_lc\e[0m"
+
+  echo -e "\n⚠️ \e[1mImpact:\e[0m"
+  echo -e "   ➤ Apps, mail servers, or services using these DNS entries will stop working."
+  echo -e "   ➤ Affects all domains/subdomains pointing to this server."
+  echo -e "\n💣 \e[1mThis action is irreversible.\e[0m"
+
+  echo -e "\n🔍 Fetching zones from Cloudflare..."
+  print_line
+  local zone_response
+  zone_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones?per_page=100" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json")
+
+  if [[ -z "$zone_response" || "$zone_response" == "null" ]]; then
+    echo -e "❌ \e[31mFailed to fetch zones.\e[0m"
+    print_press_any_key
+    return 1
+  fi
+
+  local zone_count deleted=0
+  zone_count=$(echo "$zone_response" | jq '.result | length')
+  if [[ "$zone_count" -eq 0 ]]; then
+    echo -e "ℹ️ No zones found in your Cloudflare account."
+    print_press_any_key
+    return 0
+  fi
+
+  mapfile -t zones < <(echo "$zone_response" | jq -r '.result[] | "\(.id)|\(.name)"')
+  declare -a records_to_delete=()
+
+  for zone in "${zones[@]}"; do
+    local zone_id domain dns_response_a dns_response_aaaa dns_response
+    zone_id="${zone%%|*}"
+    domain="${zone##*|}"
+
+    dns_response_a=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?per_page=500&type=A" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json")
+
+    dns_response_aaaa=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?per_page=500&type=AAAA" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json")
+
+    dns_response=$(jq -s '[.[][]]' <(echo "$dns_response_a" | jq '.result') <(echo "$dns_response_aaaa" | jq '.result'))
+
+    mapfile -t records < <(echo "$dns_response" | jq -c '.[]')
+
+    for record in "${records[@]}"; do
+      local id type name content content_lc
+      id=$(echo "$record" | jq -r '.id')
+      type=$(echo "$record" | jq -r '.type')
+      name=$(echo "$record" | jq -r '.name')
+      content=$(echo "$record" | jq -r '.content')
+      content_lc=$(echo "$content" | tr '[:upper:]' '[:lower:]')
+
+      if [[ "$content_lc" == "$ip4_lc" || "$content_lc" == "$ip6_lc" ]]; then
+        printf "📡 \e[36m%s\e[0m (%s) → %s\n" "$name" "$type" "$content"
+        records_to_delete+=("$zone_id|$id|$type|$name|$content")
+      fi
+    done
+  done
+
+  if [[ "${#records_to_delete[@]}" -eq 0 ]]; then
+    echo -e "\n✅ \e[32mNo matching A/AAAA records found for this server.\e[0m"
+    print_press_any_key
+    return 0
+  fi
+
+  echo -e "\n💥 \e[1;31m${#records_to_delete[@]} DNS record(s) will be deleted if you confirm.\e[0m"
+  if ! confirm_action_code; then
+    return 1
+  fi
+
+  for entry in "${records_to_delete[@]}"; do
+    local zone_id id type name content rest
+    zone_id="${entry%%|*}"
+    rest="${entry#*|}"
+    id="${rest%%|*}"
+    rest="${rest#*|}"
+    type="${rest%%|*}"
+    rest="${rest#*|}"
+    name="${rest%%|*}"
+    content="${rest#*|}"
+
+    printf "❌ Deleting %-4s → \e[36m%-39s\e[0m ... " "$type" "$name"
+    if curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records/$id" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json" >/dev/null; then
+      echo -e "\e[32m✅ done\e[0m"
+      ((deleted++))
+    else
+      echo -e "\e[31m❌ failed\e[0m"
+    fi
+  done
+
+  echo -e "\n✅ \e[1;32m$deleted DNS record(s) deleted across all zones.\e[0m"
+  print_press_any_key
+}

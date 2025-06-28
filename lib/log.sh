@@ -36,7 +36,7 @@ _show_log_file_menu() {
 
   if [[ ! -d "$log_dir" ]]; then
     echo -e "\n❌ No log directory found at: \e[2m$log_dir\e[0m"
-    read -rsn1 -p "$(print_press_any_key)"
+    print_press_any_key
     return
   fi
 

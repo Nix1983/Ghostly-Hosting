@@ -492,27 +492,27 @@ show_upcloud_menu() {
       1)
         _enable_upcloud_firewall
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       2)
         _disable_upcloud_firewall
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       3)
         _show_upcloud_firewall_status
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       4)
         delete_all_upcloud_firewall_rules
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       5)
         apply_upcloud_firewall_rules
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       q|Q)
         break

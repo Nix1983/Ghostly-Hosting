@@ -336,7 +336,6 @@ remove_ip_from_whitelist() {
   else
     print_invalid_selection
     print_press_any_key
-    read -r
     return 1
   fi
 }
@@ -468,24 +467,24 @@ show_f2b_whitelist_menu() {
       1)
         if add_ip_to_whitelist; then
           echo ""
-          read -rsn1 -p "$(print_press_any_key)"
+          print_press_any_key
         fi
         ;;
       2)
         if remove_ip_from_whitelist; then
           echo ""
-          read -rsn1 -p "$(print_press_any_key)"
+          print_press_any_key
         fi
         ;;
       3)
         show_whitelist_raw_entrys
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       4)
         if clear_fail2ban_whitelist; then
           echo ""
-          read -rsn1 -p "$(print_press_any_key)"
+          print_press_any_key
         fi
         ;;
       q|Q)
@@ -653,7 +652,6 @@ remove_ip_from_blocklist() {
   else
     print_invalid_selection
     print_press_any_key
-    read -r
     return 1
   fi
 }
@@ -736,24 +734,24 @@ show_f2b_blocklist_menu() {
       1)
         if add_ip_to_blocklist; then
           echo ""
-          read -rsn1 -p "$(print_press_any_key)"
+          print_press_any_key
         fi
         ;;
       2)
         if remove_ip_from_blocklist; then
           echo ""
-          read -rsn1 -p "$(print_press_any_key)"
+          print_press_any_key
         fi
         ;;
       3)
         grep -RnE '^\s*bannedip\s*=' "$CONFIG_FILE" || echo -e "\n🚫 No bannedip entries found."
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       4)
         if clear_fail2ban_blocklist; then
           echo ""
-          read -rsn1 -p "$(print_press_any_key)"
+          print_press_any_key
         fi
         ;;
       q|Q)
@@ -829,7 +827,7 @@ show_f2b_menu() {
       1)
         show_f2b_status
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       2)
         show_f2b_whitelist_menu
@@ -837,7 +835,7 @@ show_f2b_menu() {
       3)
         show_f2b_explanation
         echo ""
-        read -rsn1 -p "$(print_press_any_key)"
+        print_press_any_key
         ;;
       4)
         show_f2b_blocklist_menu

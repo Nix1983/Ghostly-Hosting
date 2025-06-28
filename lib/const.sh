@@ -37,13 +37,10 @@ declare -gr BACKUP_DIR="backups"
 # Default File names
 declare -gr META_FILE_NAME="meta.json"
 
-# Environment Variables (placeholders)
-declare -g CLOUDFLARE_API_TOKEN=""
-declare -g UPCLOUD_API_USER=""
-declare -g UPCLOUD_API_PASS=""
-declare -g GITHUB_API_TOKEN=""
-
-# Server Info
-declare -g SERVER_IPv4=""
-declare -g SERVER_IPv6=""
-
+# Optional Environment Variables (declared only if not already defined)
+[[ -z "${CLOUDFLARE_API_TOKEN+x}" ]] && declare -g CLOUDFLARE_API_TOKEN
+[[ -z "${UPCLOUD_API_USER+x}" ]]     && declare -g UPCLOUD_API_USER
+[[ -z "${UPCLOUD_API_PASS+x}" ]]     && declare -g UPCLOUD_API_PASS
+[[ -z "${GITHUB_API_TOKEN+x}" ]]     && declare -g GITHUB_API_TOKEN
+[[ -z "${SERVER_IPv4+x}" ]]          && declare -g SERVER_IPv4
+[[ -z "${SERVER_IPv6+x}" ]]          && declare -g SERVER_IPv6

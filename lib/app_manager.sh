@@ -47,7 +47,7 @@ add_new_app() {
   create_kestrel_service || return 1
   setup_nginx_for_blazor_app || return 1
 
-  read -rsn1 -p "$(print_press_any_key)"
+  print_press_any_key
 }
 
 show_apps() {
@@ -143,7 +143,8 @@ show_apps() {
 
   if (( index == 1 )); then
     echo -e "\n⚠️ No .NET Apps found."
-    read -rsn1 -p "$(print_press_any_key)"; return 1
+    print_press_any_key
+    return 1
   fi
 
   read_menu_choice "$((index - 1))"
@@ -180,7 +181,7 @@ show_app_manager_menu() {
         if [[ "$exit_code" -ne 0 ]]; then
           echo -e "\n❌ App deployment aborted."
           [[ "$exit_code" -eq 1 ]] && rollback_app_deployment
-          read -rsn1 -p "$(print_press_any_key)"
+          print_press_any_key
         fi
         ;;
       2)

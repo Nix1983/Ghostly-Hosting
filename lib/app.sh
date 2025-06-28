@@ -169,7 +169,7 @@ delete_app() {
   fi
 
   echo -e "\n✅ \e[1;32mApp $HOSTNAME_FQDN fully deleted.\e[0m"
-  read -rsn1 -p "$(print_press_any_key)"
+  print_press_any_key
 }
 
 
@@ -449,7 +449,7 @@ update_app_interactively() {
 
   check_for_app_update "$exec_dir" "$service"
   local exit_code=$?
-  [[ "$exit_code" -ne 9 ]] && read -rsn1 -p "$(print_press_any_key)"
+  [[ "$exit_code" -ne 9 ]] && print_press_any_key
 }
 
 show_app_details_menu() {
@@ -521,7 +521,7 @@ show_app_details_menu() {
         [[ $? -eq 0 ]] && return 0
         ;;
       6) restore_app_backup "$exec_dir" "$service" 
-         read -rsn1 -p "$(print_press_any_key)"
+         print_press_any_key
          ;;
       7) toggle_cloudflare_proxy 
          refresh_cloudflare_info_for_domain "$domain"
