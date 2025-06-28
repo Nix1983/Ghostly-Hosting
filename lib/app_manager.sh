@@ -70,8 +70,7 @@ show_apps() {
   local -A cf_proxy_map dns_map
 
   clear
-  echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
-  print_double_line
+  echo -e "\n🔍 \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
 
   if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
     local zones_json zone_ids=()
@@ -100,6 +99,9 @@ show_apps() {
     done
   fi
 
+  clear
+  echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
+  print_double_line
   while IFS= read -r service_file; do
     local service_name port domain exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable
     local has_a has_aaaa dns_warning cf_proxy fqdn
@@ -184,7 +186,6 @@ show_apps() {
     if [[ -d "$exec_dir" ]]; then
       disk_mb="$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')"
     fi
-
     printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%6s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
       "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
 
@@ -193,7 +194,11 @@ show_apps() {
   done < <(find /etc/systemd/system -name "*.service" -type f | sort)
 
   if (( index == 1 )); then
-    echo -e "\n⚠️ No .NET Apps deployed."
+    echo -e "\n🧩  \e[1;33mNo .NET apps have been deployed yet.\e[0m"
+    echo -e "\nℹ️  Use the \e[1mDeploy New App\e[0m option in the main menu"
+    echo -e "    to select a Git repository and deploy your application."
+    echo -e "    This will automatically set up a systemd service,"
+    echo -e "    an SSL certificate, and an Nginx reverse proxy."
     print_press_any_key
     return 1
   fi
