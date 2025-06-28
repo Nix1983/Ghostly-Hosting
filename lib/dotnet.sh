@@ -574,13 +574,13 @@ create_kestrel_service() {
 
   local name_base sub
   if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
-    name_base="${DOMAIN//./-}"
+    name_base=""
   else
     sub="${HOSTNAME_FQDN%."$DOMAIN"}"
-    name_base="${sub//./-}-${DOMAIN//./-}"
+    name_base="$sub@"
   fi
 
-  SERVICE_NAME="${name_base}-$KESTREL_PORT.service"
+  SERVICE_NAME="${name_base}${DOMAIN}:$KESTREL_PORT.service"
   SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
 
   if systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
@@ -618,7 +618,7 @@ create_kestrel_service() {
     echo "ExecStart=/opt/dotnet/dotnet $PUBLISH_DIR/$DOTNET_DLL --urls=http://0.0.0.0:$KESTREL_PORT"
     echo "Restart=always"
     echo "RestartSec=10"
-    echo "SyslogIdentifier=$name_base"
+    echo "SyslogIdentifier=$HOSTNAME_FQDN"
     echo "User=www-data"
     echo "Environment=ASPNETCORE_URLS=http://0.0.0.0:$KESTREL_PORT"
     echo "Environment=DOTNET_ENVIRONMENT=Production"
@@ -635,3 +635,4 @@ create_kestrel_service() {
 
   echo -e "✅ \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
 }
+

@@ -260,15 +260,22 @@ resolve_domain_from_service_name() {
     sub="${base%%@*}"
     root="${base#*@}"
     root="${root%%:*}"
+    if [[ -z "$root" ]]; then
+      return 1
+    fi
     if [[ -z "$sub" ]]; then
       fqdn="$root"
     else
       fqdn="${sub}.${root}"
     fi
   elif [[ "$base" == *":"* ]]; then
-    fqdn="${base%%:*}"
+    root="${base%%:*}"
+    if [[ -z "$root" ]]; then
+      return 1
+    fi
+    fqdn="$root"
   else
-    fqdn="$base"
+    return 1
   fi
 
   printf "%s" "$fqdn"
@@ -287,4 +294,58 @@ resolve_port_from_service_name() {
     echo "❌ Invalid service name: missing port → $service" >&2
     return 1
   fi
+}
+
+resolve_exec_dir_from_service_name() {
+  local service="$1"
+  local base sub root
+
+  base="${service%.service}"
+
+  if [[ "$base" == *"@"*":"* ]]; then
+    sub="${base%%@*}"
+    root="${base#*@}"
+    root="${root%%:*}"
+    if [[ -z "$sub" ]]; then
+      printf "$APP_BASE_DIR/%s/root/" "$root"
+    else
+      printf "$APP_BASE_DIR/%s/%s/" "$root" "$sub"
+    fi
+  elif [[ "$base" == *":"* ]]; then
+    root="${base%%:*}"
+    printf "$APP_BASE_DIR/%s/root/" "$root"
+  else
+    echo "❌ Invalid service name: missing domain and port → $service" >&2
+    return 1
+  fi
+}
+
+resolve_url_from_service_name() {
+  local service="$1"
+  local fqdn
+
+  if ! fqdn=$(resolve_domain_from_service_name "$service" 2>/dev/null); then
+    echo "❌ Failed to resolve FQDN from service name: $service" >&2
+    return 1
+  fi
+
+  printf "https://%s" "$fqdn"
+}
+
+is_valid_kestrel_service_name() {
+  local service="$1"
+  local base domain port
+
+  [[ "$service" != *.service ]] && return 1
+
+  base="${service%.service}"
+
+  if [[ "$base" == *":"* ]]; then
+    domain="${base%%:*}"
+    port="${base##*:}"
+    [[ -n "$domain" && "$port" =~ ^[0-9]+$ ]] || return 1
+    return 0
+  fi
+
+  return 1
 }

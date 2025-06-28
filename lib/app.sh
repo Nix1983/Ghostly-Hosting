@@ -10,9 +10,10 @@ source ./lib/github.sh
 source ./lib/log.sh
 
 _redeploy_blazor_app() {
-  local exec_dir="$1"
-  local service_name="$2"
-  local commit="$3"
+  local service_name="$1"
+  local commit="$2"
+  local exec_dir
+  exec_dir=$(resolve_exec_dir_from_service_name "$service_name")
   local backup_dir="$exec_dir/$BACKUP_DIR"
   local log_dir="$exec_dir/$LOGS_DIR"
   local meta_file="$exec_dir/$META_FILE_NAME"
@@ -54,7 +55,8 @@ _redeploy_blazor_app() {
 
 _load_dynamic_app_info() {
   local service="$1"
-  local exec_dir="$2"
+  local exec_dir
+  exec_dir=$(resolve_exec_dir_from_service_name "$service")
 
   status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
 
@@ -86,8 +88,12 @@ _load_dynamic_app_info() {
 
 delete_app() {
   local service="$1"
-  local domain="$2"
-  local exec_dir="$3"
+  local domain 
+  local exec_dir
+
+  domain=$(resolve_domain_from_service_name "$service")
+  exec_dir=$(resolve_exec_dir_from_service_name "$service")
+
 
   if [[ -z "$service" || -z "$domain" || -z "$exec_dir" ]]; then
     echo -e "❌ \e[31mMissing required parameters: service, domain or exec_dir.\e[0m"
@@ -241,8 +247,11 @@ backup_app_metadata() {
 }
 
 check_for_app_update() {
-  local exec_dir="$1"
-  local service_name="$2"
+  local service_name="$1"
+  local exec_dir
+
+  exec_dir=$(resolve_exec_dir_from_service_name "$service_name")
+  
   local meta_file="$exec_dir/$META_FILE_NAME"
 
   clear
@@ -315,7 +324,7 @@ check_for_app_update() {
       export SELECTED_REF_TYPE="$ref_type"
       export SELECTED_REF_NAME="$ref_name"
       clone_repository || return 1
-      _redeploy_blazor_app "$exec_dir" "$service_name" "$latest_commit"
+      _redeploy_blazor_app "$service_name" "$latest_commit"
       return $? ;;
     *) return 9 ;;
   esac
@@ -403,7 +412,7 @@ restore_app_backup() {
       echo -e "\n📦 Restoring from:\n - Repo: \e[36m$owner/$repo\e[0m\n - Ref:  \e[36m$ref_type → $ref_name\e[0m\n - Commit: \e[2m$commit\e[0m"
 
       clone_repository "$commit" || return 1
-      _redeploy_blazor_app "$exec_dir" "$service_name" "$commit"
+      _redeploy_blazor_app "$service_name" "$commit"
       return $?
     else
       print_invalid_selection
@@ -434,19 +443,16 @@ stop_app_service() {
 
 delete_app_interactively() {
   local service="$1"
-  local domain="$2"
-  local exec_dir="$3"
 
-  delete_app "$service" "$domain" "$exec_dir"
+  delete_app "$service"
   [[ $? -ne 1 ]] && return 0
   return 1
 }
 
 update_app_interactively() {
-  local exec_dir="$1"
-  local service="$2"
+  local service="$1"
 
-  check_for_app_update "$exec_dir" "$service"
+  check_for_app_update "$service"
   local exit_code=$?
   [[ "$exit_code" -ne 9 ]] && print_press_any_key
 }
@@ -460,8 +466,8 @@ show_app_details_menu() {
 
   local exec_dir port disk_size ram_mb main_dll uptime_readable ssl_status auto_renew dns_summary dns_warning
 
-  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
-  port=$(systemctl show -p ExecStart "$service" | grep -oP 'http://0\.0\.0\.0:\K[0-9]+')
+  exec_dir=$(resolve_exec_dir_from_service_name "$service")
+  port=$(resolve_port_from_service_name "$service")
   disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
   main_dll=$(systemctl show -p ExecStart "$service" | grep -oP '\s/[^ ]+\.dll' | xargs basename 2>/dev/null)
 
@@ -503,7 +509,7 @@ show_app_details_menu() {
   fi
 
   while true; do
-    _load_dynamic_app_info "$service" "$exec_dir"
+    _load_dynamic_app_info "$service"
 
     clear
     if [[ -n "$dns_warning" ]]; then
@@ -530,11 +536,11 @@ show_app_details_menu() {
 
     case "$REPLY" in
       1) show_log_menu "$service" ;;
-      2) update_app_interactively "$exec_dir" "$service" ;;
+      2) update_app_interactively "$service" ;;
       3) restart_app_service "$service" ;;
       4) stop_app_service "$service" ;;
       5)
-        delete_app_interactively "$service" "$fqdn" "$exec_dir"
+        delete_app_interactively "$service"
         [[ $? -eq 0 ]] && return 0
         ;;
       6)

@@ -111,23 +111,25 @@ show_apps() {
     print_double_line
 
     while IFS= read -r service_file; do
-      local service_name port domain exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable
-      local has_a has_aaaa dns_warning cf_proxy fqdn
+      local service_name port fqdn exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable
+      local has_a has_aaaa dns_warning cf_proxy
 
-      service_name="$(basename "$service_file")"
-      [[ "$service_name" != *.service ]] && continue
+      service_name="$(basename "$service_file")" 
+      is_valid_kestrel_service_name "$service_name" || continue
 
-      local exec_line
-      exec_line=$(systemctl show -p ExecStart "$service_name" 2>/dev/null | cut -d= -f2-)
-      [[ "$exec_line" =~ --urls=http://0.0.0.0:([0-9]{4}) ]] || continue
-      port="${BASH_REMATCH[1]}"
 
-      exec_dir=$(systemctl show -p WorkingDirectory "$service_name" 2>/dev/null | cut -d= -f2)
-      [[ -z "$exec_dir" || ! -d "$exec_dir" ]] && continue
+      if ! port=$(resolve_port_from_service_name "$service_name" 2>/dev/null); then
+        continue
+      fi
 
-      domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/')
-      fqdn=$(echo "$domain" | sed 's/-/\./g')
-      [[ "$fqdn" != *.* ]] && fqdn="$fqdn.ghostlypick.com"
+      if ! fqdn=$(resolve_domain_from_service_name "$service_name" 2>/dev/null); then
+        continue
+      fi
+
+      if ! exec_dir=$(resolve_exec_dir_from_service_name "$service_name" 2>/dev/null); then
+        continue
+      fi     
+      [[ ! -d "$exec_dir" ]] && continue
 
       has_a="${dns_map[$fqdn,A]:-0}"
       has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
@@ -148,14 +150,11 @@ show_apps() {
         status_icon="🔴"
       fi
 
-      cf_proxy="❌"
-      if [[ -n "${cf_proxy_map[$fqdn]}" ]]; then
-        cf_proxy="${cf_proxy_map[$fqdn]}"
-      fi
+      cf_proxy="${cf_proxy_map[$fqdn]:-❌}"
 
       repo_name="–"
-      if [[ -f "$exec_dir/meta.json" ]]; then
-        repo_name=$(jq -r '.repo_name // "–"' "$exec_dir/meta.json")
+      if [[ -f "$exec_dir/$META_FILE_NAME" ]]; then
+        repo_name=$(jq -r '.repo_name // "–"' "$exec_dir/$META_FILE_NAME")
         if [[ ${#repo_name} -gt 20 ]]; then
           repo_name="${repo_name:0:17}..."
         fi
@@ -217,9 +216,8 @@ show_apps() {
         "${has_a_map[$REPLY]}" \
         "${has_aaaa_map[$REPLY]}"
 
-      # Check after returning if any apps are left
       if ! find /etc/systemd/system -name "*.service" -type f | grep -q .; then
-       return 0
+        return 0
       fi
     fi
   done

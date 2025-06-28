@@ -2,6 +2,7 @@
 set -e
 
 source ../lib/common.sh
+source ../lib/const.sh
 
 test_resolve_domain_from_app_dir() {
   local input expected result
@@ -81,6 +82,101 @@ test_resolve_port_from_service_name() {
   run_case "invalid-service-name.service" ""
 }
 
+test_resolve_exec_dir_from_service_name() {
+  local input expected result
+
+  run_case() {
+    input="$1"
+    expected="$2"
+    if result=$(resolve_exec_dir_from_service_name "$input" 2>/dev/null); then
+      if [[ "$result" == "$expected" ]]; then
+        echo "✅ $input => $result"
+      else
+        echo "❌ $input => got '$result', expected '$expected'"
+        return 1
+      fi
+    else
+      if [[ -z "$expected" ]]; then
+        echo "✅ $input => failed as expected"
+      else
+        echo "❌ $input => unexpected failure"
+        return 1
+      fi
+    fi
+  }
+
+  run_case "myapp@ghostlypick.com:5000.service" "/var/www/ghostlypick.com/myapp/"
+  run_case "@ghostlypick.com:5001.service" "/var/www/ghostlypick.com/root/"
+  run_case "ghostly.at:5002.service" "/var/www/ghostly.at/root/"
+  run_case "admin-panel@blog.ghostly.at:5011.service" "/var/www/blog.ghostly.at/admin-panel/"
+  run_case "@example.org:5099.service" "/var/www/example.org/root/"
+  run_case "invalid-service-name.service" ""
+}
+
+test_resolve_url_from_service_name() {
+  local input expected result
+
+  run_case() {
+    input="$1"
+    expected="$2"
+    if result=$(resolve_url_from_service_name "$input" 2>/dev/null); then
+      if [[ "$result" == "$expected" ]]; then
+        echo "✅ $input => $result"
+      else
+        echo "❌ $input => got '$result', expected '$expected'"
+        return 1
+      fi
+    else
+      if [[ -z "$expected" ]]; then
+        echo "✅ $input => failed as expected"
+      else
+        echo "❌ $input => unexpected failure"
+        return 1
+      fi
+    fi
+  }
+
+  run_case "myapp@ghostlypick.com:5000.service" "https://myapp.ghostlypick.com"
+  run_case "@ghostlypick.com:5001.service" "https://ghostlypick.com"
+  run_case "ghostly.at:5002.service" "https://ghostly.at"
+  run_case "admin-panel@blog.ghostly.at:5011.service" "https://admin-panel.blog.ghostly.at"
+  run_case "@example.org:5099.service" "https://example.org"
+  run_case "invalid-service-name.service" ""
+}
+
+test_is_valid_kestrel_service_name() {
+  local input expected result
+
+  run_case() {
+    input="$1"
+    expected="$2"
+
+    if is_valid_kestrel_service_name "$input"; then
+      result="true"
+    else
+      result="false"
+    fi
+
+    if [[ "$result" == "$expected" ]]; then
+      echo "✅ $input => $result"
+    else
+      echo "❌ $input => got '$result', expected '$expected'"
+      return 1
+    fi
+  }
+
+  run_case "myapp@ghostlypick.com:5000.service" "true"
+  run_case "@ghostlypick.com:5001.service" "true"
+  run_case "ghostly.at:5002.service" "true"
+  run_case "admin-panel@blog.ghostly.at:5011.service" "true"
+  run_case "@example.org:5099.service" "true"
+  run_case "invalid-service-name.service" "false"
+  run_case "test@domain.com.service" "false"
+  run_case "justtext" "false"
+  run_case "file.txt" "false"
+  run_case "webapp@ghostlypick.com:notaport.service" "false"
+}
+
 test_is_valid_ipv4() {
   local ip expected result
 
@@ -116,6 +212,9 @@ test_is_valid_ipv4() {
 
 # Run all tests
 test_is_valid_ipv4
+test_is_valid_kestrel_service_name
+test_resolve_url_from_service_name
+test_resolve_exec_dir_from_service_name
 test_resolve_port_from_service_name
 test_resolve_domain_from_service_name
 test_resolve_domain_from_app_dir
