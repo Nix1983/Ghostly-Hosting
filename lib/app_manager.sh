@@ -65,7 +65,7 @@ generate_dns_summary_for_fqdn() {
 }
 
 show_apps() {
-  local index app_choice
+  local index
   local -A app_map=()
   local -A cf_proxy_map dns_map fqdn_map proxy_map has_a_map has_aaaa_map
 
