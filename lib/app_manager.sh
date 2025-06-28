@@ -50,37 +50,61 @@ add_new_app() {
   print_press_any_key
 }
 
+generate_dns_summary_for_fqdn() {
+  local fqdn="$1"
+  local dns_a dns_aaaa
+  dns_a="A: ❌"
+  dns_aaaa="AAAA: ❌"
+
+  for key in "${!dns_map[@]}"; do
+    if [[ "$key" == "$fqdn,A" ]]; then dns_a="A: ✅"; fi
+    if [[ "$key" == "$fqdn,AAAA" ]]; then dns_aaaa="AAAA: ✅"; fi
+  done
+
+  echo "$dns_a  $dns_aaaa"
+}
+
 show_apps() {
   local index=1
   local -A app_map=()
-  local -A cf_proxy_map zone_ids
+  local -A cf_proxy_map dns_map
 
   clear
   echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
   print_double_line
 
+  # 1. Lade alle Zonen
   if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
-    local zones_json
+    local zones_json zone_ids=()
     zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
-
     while IFS=$'\t' read -r name id; do
-      zone_ids["$name"]="$id"
+      zone_ids+=("$id")
     done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
 
-    for domain in "${!zone_ids[@]}"; do
-      local zone_id="${zone_ids[$domain]}"
+    # 2. Für jede Zone alle DNS-Records laden
+    for zone_id in "${zone_ids[@]}"; do
       local dns_json
       dns_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-        "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?type=A&per_page=500")
+        "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?per_page=500")
 
-      while IFS=$'\t' read -r name proxied; do
-        cf_proxy_map["$name"]=$([[ "$proxied" == "true" ]] && echo "✅" || echo "❌")
-      done < <(echo "$dns_json" | jq -r '.result[] | [.name, .proxied] | @tsv')
+      while IFS=$'\t' read -r name type proxied; do
+        [[ -n "$name" && -n "$type" ]] || continue
+        dns_map["$name,$type"]=1
+        if [[ "$type" == "A" || "$type" == "AAAA" ]]; then
+          if [[ "$proxied" == "true" ]]; then
+            cf_proxy_map["$name"]="✅"
+          elif [[ -z "${cf_proxy_map[$name]}" ]]; then
+            cf_proxy_map["$name"]="❌"
+          fi
+        fi
+      done < <(echo "$dns_json" | jq -r '.result[] | [.name, .type, (.proxied // "")] | @tsv')
+
     done
   fi
 
   while IFS= read -r service_file; do
-    local service_name port domain exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable cf_proxy
+    local service_name port domain exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable
+    local has_a has_aaaa dns_warning cf_proxy fqdn
 
     service_name="$(basename "$service_file")"
     [[ "$service_name" != *.service ]] && continue
@@ -93,13 +117,46 @@ show_apps() {
     exec_dir=$(systemctl show -p WorkingDirectory "$service_name" 2>/dev/null | cut -d= -f2)
     [[ -z "$exec_dir" || ! -d "$exec_dir" ]] && continue
 
-    domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
+    domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/')
+    fqdn=$(echo "$domain" | sed 's/-/\./g')
+
+    # Fallback auf Hauptdomain bei Root-App
+    if [[ "$fqdn" != *.* ]]; then
+      fqdn="$fqdn.ghostlypick.com"
+    fi
+
+    # DNS-Status prüfen
+    has_a="${dns_map[$fqdn,A]:-0}"
+    has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
+
+    if [[ "$has_a" -eq 0 && "$has_aaaa" -eq 0 ]]; then
+      dns_warning="⚠️ App is not reachable (no DNS entries found)"
+    elif [[ "$has_a" -eq 0 ]]; then
+      dns_warning="⚠️ App is not reachable via IPv4"
+    elif [[ "$has_aaaa" -eq 0 ]]; then
+      dns_warning="⚠️ App is not reachable via IPv6"
+    else
+      dns_warning=""
+    fi
 
     if systemctl is-active --quiet "$service_name"; then
-      status_icon="🟢"
+      status_icon=$([[ -n "$dns_warning" ]] && echo "⚠️" || echo "🟢")
     else
       status_icon="🔴"
     fi
+
+   cf_proxy="❌"
+   if [[ -n "${cf_proxy_map[$fqdn]}" ]]; then
+     cf_proxy="${cf_proxy_map[$fqdn]}"
+   elif [[ "$fqdn" == *.* ]]; then
+     root_domain="${fqdn##*.}"
+     root_zone="${fqdn#*.}"
+     full_root="${root_zone}.${root_domain}"
+     if [[ -n "${cf_proxy_map[$full_root]}" ]]; then
+       cf_proxy="${cf_proxy_map[$full_root]}"
+     fi
+   fi
+
 
     repo_name="–"
     if [[ -f "$exec_dir/meta.json" ]]; then
@@ -121,8 +178,6 @@ show_apps() {
       fi
     fi
 
-    cf_proxy="${cf_proxy_map[$domain]:-❌}"
-
     ram_mb="0 MB"
     ram_kb=$(systemctl show "$service_name" -p MemoryCurrent | cut -d= -f2)
     if [[ "$ram_kb" =~ ^[0-9]+$ && "$ram_kb" -gt 0 ]]; then
@@ -135,7 +190,7 @@ show_apps() {
     fi
 
     printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%6s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
-      "$index" "$status_icon" "$domain" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
+      "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
 
     app_map["$index"]="$service_name"
     ((index++))
@@ -156,6 +211,7 @@ show_apps() {
     show_app_details_menu "$SELECTED_SERVICE"
   fi
 }
+
 
 show_app_manager_menu() {
   local choice
