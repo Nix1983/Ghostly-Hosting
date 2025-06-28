@@ -225,7 +225,6 @@ show_apps() {
   done
 }
 
-
 show_app_manager_menu() {
   local choice
   while true; do
@@ -262,4 +261,3 @@ show_app_manager_menu() {
     esac
   done
 }
-

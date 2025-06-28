@@ -107,29 +107,6 @@ get_project_root() {
   echo "$dir"
 }
 
-find_free_port() {
-  local base_port=5000
-  local max_port=5099
-  local port
-
-  for ((port = base_port; port <= max_port; port++)); do
-    if ss -tuln | grep -q ":$port\\b"; then
-      continue
-    fi
-
-    if [[ -d /etc/nginx/sites-available ]] && \
-       grep -r "localhost:$port" /etc/nginx/sites-available/ >/dev/null 2>&1; then
-      continue
-    fi
-
-    echo "$port"
-    return 0
-  done
-
-  echo "❌ No free port found between $base_port and $max_port" >&2
-  return 1
-}
-
 confirm_action_code() {
   local confirm_code user_input char
   confirm_code=$((RANDOM % 90000 + 10000))
@@ -257,4 +234,57 @@ read_menu_choice() {
   echo
   REPLY="$input"
   return 0
+}
+
+resolve_domain_from_app_dir() {
+  local app_dir="$1"
+  local subdir domain
+
+  subdir=$(basename "$app_dir")
+  domain=$(basename "$(dirname "$app_dir")")
+
+  if [[ "$subdir" == "root" ]]; then
+    printf "%s" "$domain" #return value
+  else
+    printf "%s.%s" "$subdir" "$domain" #return value
+  fi
+}
+
+resolve_domain_from_service_name() {
+  local service="$1"
+  local base sub root fqdn
+
+  base="${service%.service}"
+
+  if [[ "$base" == *"@"*":"* ]]; then
+    sub="${base%%@*}"
+    root="${base#*@}"
+    root="${root%%:*}"
+    if [[ -z "$sub" ]]; then
+      fqdn="$root"
+    else
+      fqdn="${sub}.${root}"
+    fi
+  elif [[ "$base" == *":"* ]]; then
+    fqdn="${base%%:*}"
+  else
+    fqdn="$base"
+  fi
+
+  printf "%s" "$fqdn"
+}
+
+resolve_port_from_service_name() {
+  local service="$1"
+  local base port
+
+  base="${service%.service}"
+
+  if [[ "$base" == *":"* ]]; then
+    port="${base##*:}"
+    printf "%s" "$port"
+  else
+    echo "❌ Invalid service name: missing port → $service" >&2
+    return 1
+  fi
 }

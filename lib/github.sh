@@ -20,7 +20,6 @@ remove_git() {
   echo -e "🗑️ Removed Git and all related files."
 }
 
-
 resolve_github_user_from_token() {
   if [[ -n "$GITHUB_API_TOKEN" ]]; then
     local user_response
@@ -325,4 +324,3 @@ save_repo_metadata() {
 
   echo -e "📝 Metadata written to \e[2m$meta_file\e[0m"
 }
-
