@@ -73,7 +73,6 @@ show_apps() {
   echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
   print_double_line
 
-  # 1. Lade alle Zonen
   if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
     local zones_json zone_ids=()
     zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
@@ -81,7 +80,6 @@ show_apps() {
       zone_ids+=("$id")
     done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
 
-    # 2. Für jede Zone alle DNS-Records laden
     for zone_id in "${zone_ids[@]}"; do
       local dns_json
       dns_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -120,12 +118,10 @@ show_apps() {
     domain=$(echo "$service_name" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/')
     fqdn=$(echo "$domain" | sed 's/-/\./g')
 
-    # Fallback auf Hauptdomain bei Root-App
     if [[ "$fqdn" != *.* ]]; then
       fqdn="$fqdn.ghostlypick.com"
     fi
 
-    # DNS-Status prüfen
     has_a="${dns_map[$fqdn,A]:-0}"
     has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
 
@@ -197,7 +193,7 @@ show_apps() {
   done < <(find /etc/systemd/system -name "*.service" -type f | sort)
 
   if (( index == 1 )); then
-    echo -e "\n⚠️ No .NET Apps found."
+    echo -e "\n⚠️ No .NET Apps deployed."
     print_press_any_key
     return 1
   fi
@@ -224,13 +220,16 @@ show_app_manager_menu() {
     fi
     print_double_line
 
-    echo -e "\n 1) ➕  Add new App    2) 🔍 Show Apps   3) 🖥️ Server Control Panel"
+    echo -e "\n 1) 🧩 Show Apps    2) ➕ Add new App    3) 🖥️ Server Control Panel"
     echo -e "\n q) 🏃💨 \e[1;31mExit App Control\e[0m"
     
     read_menu_choice 3
 
     case "$REPLY" in
       1)
+        show_apps 
+        ;;
+      2)
         add_new_app
         local exit_code=$?
 
@@ -239,9 +238,6 @@ show_app_manager_menu() {
           [[ "$exit_code" -eq 1 ]] && rollback_app_deployment
           print_press_any_key
         fi
-        ;;
-      2)
-        show_apps
         ;;
       3)
         return ;;
