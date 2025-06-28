@@ -56,46 +56,6 @@ ensure_required_tools_installed() {
   fi
 }
 
-check_system_version_or_warn() {
-  local version codename major_version
-  version=$(lsb_release -ds 2>/dev/null || echo "Unknown")
-  codename=$(lsb_release -cs 2>/dev/null || echo "unknown")
-  major_version=$(lsb_release -rs 2>/dev/null | cut -d. -f1)
-
-  if [[ "$codename" == "focal" ]]; then
-    clear
-    echo -e "\n📦 \e[1;33mLegacy Ubuntu Version Detected\e[0m"
-    print_double_line
-    echo -e "⚠️  \e[1mUbuntu $version ($codename) is outdated and no longer supported.\e[0m"
-    echo -e "   • Brotli support is unavailable in official Nginx packages."
-    echo -e "   • Performance enhancements may be missing."
-    print_line
-    echo -e "💡 \e[1mRecommended:\e[0m"
-    echo -e "   • Use \e[32mUbuntu 22.04 LTS (Jammy)\e[0m for full support"
-    echo -e "   • Or use \e[36mUbuntu 24.04 LTS (Noble)\e[0m – Brotli support coming soon"
-    print_line
-    read -rsn1 -p $'\n↩️  Press any key to exit...'
-    clear
-    exit 1
-  fi
-
-  if [[ "$major_version" -ge 24 ]]; then
-     clear
-     echo -e "\n📦 \e[1;33mNote: Limited Brotli Support on Ubuntu $version ($codename)\e[0m"
-     print_double_line
-     echo -e "⚠️  \e[1mBrotli compression is not available yet on this system.\e[0m"
-     echo -e "   • Standard Gzip will be used temporarily."
-     echo -e "   • Brotli module will be supported as soon as packaging is updated."
-     print_line
-     echo -e "💡 \e[1mYou have two options:\e[0m"
-     echo -e "   • Wait for Brotli support in Ubuntu $codename and enable it later"
-     echo -e "   • Use \e[32mUbuntu 22.04 LTS (Jammy)\e[0m for full Brotli support now"
-     print_line
-     read -rsn1 -p $'\n↩️  Press any key to continue...'
-   fi
-
-}
-
 check_required_env_or_exit() {
   local version codename
   version=$(lsb_release -ds 2>/dev/null || echo "Unknown")
@@ -170,9 +130,6 @@ load_env_once
 
 log_step "Loading server IP"
 load_server_ip_once
-
-log_step "Checking system version"
-check_system_version_or_warn
 
 log_step "Validating required environment variables"
 check_required_env_or_exit
