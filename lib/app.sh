@@ -457,7 +457,7 @@ show_app_details_menu() {
   local has_a="$3"
   local has_aaaa="$4"
 
-  local exec_dir port disk_size ram_mb main_dll uptime_readable ssl_status auto_renew dns_summary dns_warning fqdn
+  local exec_dir port disk_size main_dll uptime_readable ssl_status auto_renew dns_summary dns_warning fqdn
   
   fqdn=$(resolve_domain_from_service_name "$service")
   exec_dir=$(resolve_exec_dir_from_service_name "$service")

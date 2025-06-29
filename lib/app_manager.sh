@@ -110,7 +110,7 @@ show_apps() {
     print_double_line
 
     while IFS= read -r service_file; do
-      local service_name port fqdn exec_dir status_icon repo_name ram_kb ram_mb disk_mb uptime_readable
+      local service_name port fqdn exec_dir status_icon repo_name ram_kb uptime_readable
       local has_a has_aaaa dns_warning cf_proxy
 
       service_name="$(basename "$service_file")" 
@@ -171,12 +171,12 @@ show_apps() {
         fi
       fi
 
-      ram=$(get_service_ram_usage "$service_name")
-      disk="$(get_dir_size "$exec_dir")"
+      ram_size=$(get_service_ram_usage "$service_name")
+      disk_size="$(get_dir_size "$exec_dir")"
       
 
       printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%8s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
-        "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram" "$disk"
+        "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_size" "$disk_size"
 
       app_map["$index"]="$service_name"
       proxy_map["$index"]="$cf_proxy"
