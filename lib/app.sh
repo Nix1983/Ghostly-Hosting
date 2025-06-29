@@ -459,13 +459,13 @@ update_app_interactively() {
 
 show_app_details_menu() {
   local service="$1"
-  local fqdn="$2"
-  local cf_proxy="$3"
-  local has_a="$4"
-  local has_aaaa="$5"
+  local cf_proxy="$2"
+  local has_a="$3"
+  local has_aaaa="$4"
 
-  local exec_dir port disk_size ram_mb main_dll uptime_readable ssl_status auto_renew dns_summary dns_warning
-
+  local exec_dir port disk_size ram_mb main_dll uptime_readable ssl_status auto_renew dns_summary dns_warning fqdn
+  
+  fqdn=$(resolve_domain_from_service_name "$service")
   exec_dir=$(resolve_exec_dir_from_service_name "$service")
   port=$(resolve_port_from_service_name "$service")
   disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')

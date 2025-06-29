@@ -67,12 +67,11 @@ generate_dns_summary_for_fqdn() {
 show_apps() {
   local index
   local -A app_map=()
-  local -A cf_proxy_map dns_map fqdn_map proxy_map has_a_map has_aaaa_map
+  local -A cf_proxy_map dns_map proxy_map has_a_map has_aaaa_map
 
   while true; do
     index=1
     app_map=()
-    fqdn_map=()
     proxy_map=()
     has_a_map=()
     has_aaaa_map=()
@@ -187,7 +186,6 @@ show_apps() {
         "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
 
       app_map["$index"]="$service_name"
-      fqdn_map["$index"]="$fqdn"
       proxy_map["$index"]="$cf_proxy"
       has_a_map["$index"]="$has_a"
       has_aaaa_map["$index"]="$has_aaaa"
@@ -211,7 +209,6 @@ show_apps() {
       export SELECTED_SERVICE="${app_map[$REPLY]}"
       show_app_details_menu \
         "${app_map[$REPLY]}" \
-        "${fqdn_map[$REPLY]}" \
         "${proxy_map[$REPLY]}" \
         "${has_a_map[$REPLY]}" \
         "${has_aaaa_map[$REPLY]}"
