@@ -110,7 +110,7 @@ show_apps() {
     print_double_line
 
     while IFS= read -r service_file; do
-      local service_name port fqdn exec_dir status_icon repo_name uptime
+      local service_name port fqdn exec_dir repo_name uptime
       local has_a has_aaaa dns_warning cf_proxy
 
       service_name="$(basename "$service_file")" 
@@ -142,13 +142,6 @@ show_apps() {
       else
         dns_warning=""
       fi
-
-      if systemctl is-active --quiet "$service_name"; then
-        status_icon=$([[ -n "$dns_warning" ]] && echo "⚠️" || echo "🟢")
-      else
-        status_icon="🔴"
-      fi
-
       cf_proxy="${cf_proxy_map[$fqdn]:-❌}"
 
       repo_name="–"
@@ -162,10 +155,11 @@ show_apps() {
       uptime=$(get_service_uptime "$service_name")
       ram_size=$(get_service_ram_usage "$service_name")
       disk_size="$(get_dir_size "$exec_dir")"
+      status=$(get_service_status_icon "$service_name")
       
 
       printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%8s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
-        "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime" "$cf_proxy" "$ram_size" "$disk_size"
+        "$index" "$status" "$fqdn" "$repo_name" "$uptime" "$cf_proxy" "$ram_size" "$disk_size"
 
       app_map["$index"]="$service_name"
       proxy_map["$index"]="$cf_proxy"

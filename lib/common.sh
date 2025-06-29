@@ -411,12 +411,13 @@ get_service_ram_usage() {
   fi
 
   ram_kb=$(systemctl show "$service" -p MemoryCurrent 2>/dev/null | cut -d= -f2)
-  if [[ -z "$ram_kb" || "$ram_kb" -eq 0 ]]; then
+
+  if [[ ! "$ram_kb" =~ ^[0-9]+$ || "$ram_kb" -eq 0 ]]; then
     echo "0 KB"
     return 0
   fi
 
-  ram_kb=$((ram_kb / 1024)) 
+  ram_kb=$((ram_kb / 1024))
 
   if (( ram_kb < 1024 )); then
     ram_human="${ram_kb} KB"
@@ -450,4 +451,19 @@ get_service_uptime() {
   fi
 
   echo "$uptime_readable"
+}
+
+get_service_status_icon() {
+  local service="$1"
+
+  if [[ -z "$service" || ! "$service" =~ \.service$ ]]; then
+    echo "Invalid service name"
+    return 1
+  fi
+
+  if systemctl is-active --quiet "$service"; then
+    printf '🟢'
+  else
+    printf '🔴'
+  fi
 }

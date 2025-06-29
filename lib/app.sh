@@ -58,7 +58,7 @@ _load_dynamic_app_info() {
   local exec_dir
   exec_dir=$(resolve_exec_dir_from_service_name "$service")
 
-  status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
+  status=$(get_service_status_icon "$service")
 
   ram_size=$(get_service_ram_usage "$service")
 
