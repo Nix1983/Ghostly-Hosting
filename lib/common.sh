@@ -401,3 +401,32 @@ get_dir_size() {
   echo "$size_human"
 }
 
+get_service_ram_usage() {
+  local service="$1"
+  local ram_kb ram_human
+
+  if [[ -z "$service" || ! "$service" =~ \.service$ ]]; then
+    echo "Invalid service name"
+    return 1
+  fi
+
+  ram_kb=$(systemctl show "$service" -p MemoryCurrent 2>/dev/null | cut -d= -f2)
+  if [[ -z "$ram_kb" || "$ram_kb" -eq 0 ]]; then
+    echo "0 KB"
+    return 0
+  fi
+
+  ram_kb=$((ram_kb / 1024)) 
+
+  if (( ram_kb < 1024 )); then
+    ram_human="${ram_kb} KB"
+  elif (( ram_kb < 1048576 )); then
+    ram_human="$(awk "BEGIN {printf \"%.1f MB\", $ram_kb/1024}")"
+  else
+    ram_human="$(awk "BEGIN {printf \"%.2f GB\", $ram_kb/1048576}")"
+  fi
+
+  echo "$ram_human"
+}
+
+
