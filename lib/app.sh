@@ -468,7 +468,7 @@ show_app_details_menu() {
   fqdn=$(resolve_domain_from_service_name "$service")
   exec_dir=$(resolve_exec_dir_from_service_name "$service")
   port=$(resolve_port_from_service_name "$service")
-  disk_size=$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')
+  disk_size=$(get_dir_size "$exec_dir")
   main_dll=$(resolve_main_dll_from_service "$service")
 
   local cert_path="/etc/letsencrypt/live/$fqdn/fullchain.pem"

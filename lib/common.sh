@@ -374,3 +374,30 @@ resolve_main_dll_from_service() {
   dll_name=$(basename "$dll_path")
   echo "$dll_name"
 }
+
+get_dir_size() {
+  local dir="$1"
+  local size_kb size_human
+
+  if [[ -z "$dir" || ! -d "$dir" ]]; then
+    echo "Invalid directory"
+    return 1
+  fi
+
+  size_kb=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
+  if [[ -z "$size_kb" ]]; then
+    echo "0 KB"
+    return 0
+  fi
+
+  if (( size_kb < 1024 )); then
+    size_human="${size_kb} KB"
+  elif (( size_kb < 1048576 )); then
+    size_human="$(awk "BEGIN {printf \"%.1f MB\", $size_kb/1024}")"
+  else
+    size_human="$(awk "BEGIN {printf \"%.2f GB\", $size_kb/1048576}")"
+  fi
+
+  echo "$size_human"
+}
+

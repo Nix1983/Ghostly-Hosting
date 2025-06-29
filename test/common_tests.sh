@@ -210,8 +210,67 @@ test_is_valid_ipv4() {
   run_case "1.2.3.256" "invalid"
 }
 
+test_get_dir_size() {
+  local dir result size unit min max
+
+  run_case() {
+    dir="$1"
+    min="$2"
+    max="$3"
+
+    result=$(get_dir_size "$dir")
+
+    # Extrahiere Größe und Einheit
+    size=$(awk '{print $1}' <<< "$result")
+    unit=$(awk '{print $2}' <<< "$result")
+
+    if [[ "$unit" == "Invalid" ]]; then
+      if [[ "$min" == "invalid" ]]; then
+        echo "✅ $dir => Invalid directory"
+        return 0
+      else
+        echo "❌ $dir => got 'Invalid directory', expected size"
+        return 1
+      fi
+    fi
+
+    # Umrechnen in KB zur Bereichsprüfung
+    case "$unit" in
+      KB) size_kb=$(awk "BEGIN {print $size}") ;;
+      MB) size_kb=$(awk "BEGIN {print $size * 1024}") ;;
+      GB) size_kb=$(awk "BEGIN {print $size * 1048576}") ;;
+      *) echo "❌ Unknown unit: $unit"; return 1 ;;
+    esac
+
+    if awk "BEGIN {exit !($size_kb >= $min && $size_kb <= $max)}"; then
+      echo "✅ $dir => $result (OK: $min–$max KB)"
+    else
+      echo "❌ $dir => got '$result', expected between $min–$max KB"
+      return 1
+    fi
+  }
+
+  tmpdir1=$(mktemp -d)
+  tmpdir2=$(mktemp -d)
+  tmpdir3=$(mktemp -d)
+
+  head -c 512000 /dev/zero > "$tmpdir1/file1"         # ~500 KB
+  head -c 3145728 /dev/zero > "$tmpdir2/file2"        # ~3 MB
+  head -c 1074790400 /dev/zero > "$tmpdir3/file3"     # ~1 GB
+
+  run_case "$tmpdir1" 480 520
+  run_case "$tmpdir2" 3000 3200
+  run_case "$tmpdir3" 1040000 1100000
+
+  run_case "/non/existing/path" "invalid" "invalid"
+
+  rm -rf "$tmpdir1" "$tmpdir2" "$tmpdir3"
+}
+
+
 # Run all tests
 test_is_valid_ipv4
+test_get_dir_size
 test_is_valid_kestrel_service_name
 test_resolve_url_from_service_name
 test_resolve_exec_dir_from_service_name

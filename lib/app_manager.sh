@@ -178,9 +178,8 @@ show_apps() {
       fi
 
       disk_mb="–"
-      if [[ -d "$exec_dir" ]]; then
-        disk_mb="$(du -sm "$exec_dir" 2>/dev/null | awk '{print $1 " MB"}')"
-      fi
+      disk_mb="$(get_dir_size "$exec_dir")"
+      
 
       printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%6s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
         "$index" "$status_icon" "$fqdn" "$repo_name" "$uptime_readable" "$cf_proxy" "$ram_mb" "$disk_mb"
