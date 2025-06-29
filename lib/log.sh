@@ -86,8 +86,8 @@ _show_log_file_menu() {
 show_app_log_files() {
   local service="$1"
   local exec_dir domain log_dir
-  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
-  domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
+  exec_dir=$(resolve_exec_dir_from_service_name "$service")
+  domain=$(resolve_domain_from_service_name "$service")
   log_dir="$exec_dir/$LOGS_DIR"
   _show_log_file_menu "$log_dir" "🧩 Application Logs:" "$domain"
 }
@@ -95,8 +95,8 @@ show_app_log_files() {
 show_webserver_access_logs() {
   local service="$1"
   local exec_dir domain log_dir
-  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
-  domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
+  exec_dir=$(resolve_exec_dir_from_service_name "$service")
+  domain=$(resolve_domain_from_service_name "$service")
   log_dir="$exec_dir/$LOGS_DIR/$WEB_LOGS_ACCESS_DIR"
   _show_log_file_menu "$log_dir" "🌐 Web Server Access Logs:" "$domain"
 }
@@ -104,8 +104,8 @@ show_webserver_access_logs() {
 show_webserver_error_logs() {
   local service="$1"
   local exec_dir domain log_dir
-  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
-  domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
+  exec_dir=$(resolve_exec_dir_from_service_name "$service")
+  domain=$(resolve_domain_from_service_name "$service")
   log_dir="$exec_dir/$LOGS_DIR/$WEB_LOGS_ERROR_DIR"
   _show_log_file_menu "$log_dir" "⚠️ Web Server Error Logs:" "$domain"
 }
@@ -113,8 +113,8 @@ show_webserver_error_logs() {
 show_log_menu() {
   local service="$1"
   local exec_dir domain
-  exec_dir=$(systemctl show -p WorkingDirectory "$service" | cut -d= -f2)
-  domain=$(echo "$service" | sed -E 's/\.service$//' | sed -E 's/(.*)-([0-9]{4})$/\1/' | sed 's/-/\./g')
+  exec_dir=$(resolve_exec_dir_from_service_name "$service")
+  domain=$(resolve_domain_from_service_name "$service")
 
   while true; do
     clear
