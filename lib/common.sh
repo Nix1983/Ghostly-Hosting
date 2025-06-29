@@ -349,3 +349,28 @@ is_valid_kestrel_service_name() {
 
   return 1
 }
+
+resolve_main_dll_from_service() {
+  local service="$1"
+  local exec_line dll_path dll_name
+
+  if [[ -z "$service" ]]; then
+    echo ""
+    return 1
+  fi
+
+  exec_line=$(systemctl show -p ExecStart "$service" 2>/dev/null)
+  if [[ -z "$exec_line" ]]; then
+    echo ""
+    return 1
+  fi
+
+  dll_path=$(grep -oP '\s/[^ ]+\.dll' <<< "$exec_line" | tr -d '[:space:]')
+  if [[ -z "$dll_path" ]]; then
+    echo ""
+    return 1
+  fi
+
+  dll_name=$(basename "$dll_path")
+  echo "$dll_name"
+}
