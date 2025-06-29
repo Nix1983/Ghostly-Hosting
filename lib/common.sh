@@ -429,4 +429,25 @@ get_service_ram_usage() {
   echo "$ram_human"
 }
 
+get_service_uptime() {
+  local service="$1"
+  local uptime_readable="000d 00h 00m 00s"
 
+  if [[ -z "$service" || ! "$service" =~ \.service$ ]]; then
+    echo "Invalid service name"
+    return 1
+  fi
+
+  if systemctl is-active --quiet "$service"; then
+    local up_raw now elapsed_us sec
+    up_raw=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" 2>/dev/null | cut -d= -f2)
+    if [[ "$up_raw" =~ ^[0-9]+$ ]]; then
+      now=$(awk '{printf "%.0f", $1 * 1000000}' /proc/uptime)
+      elapsed_us=$((now - up_raw))
+      sec=$((elapsed_us / 1000000))
+      uptime_readable=$(printf "%03dd %02dh %02dm %02ds" $((sec/86400)) $((sec%86400/3600)) $((sec%3600/60)) $((sec%60)))
+    fi
+  fi
+
+  echo "$uptime_readable"
+}

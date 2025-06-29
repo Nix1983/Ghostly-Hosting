@@ -60,23 +60,9 @@ _load_dynamic_app_info() {
 
   status=$(systemctl is-active "$service" &>/dev/null && printf "\e[32m🟢 running\e[0m" || printf "\e[31m🔴 stopped\e[0m")
 
-  ram=$(get_service_ram_usage "$service")
+  ram_size=$(get_service_ram_usage "$service")
 
-  local uptime_monotonic
-  if systemctl is-active --quiet "$service"; then
-    uptime_monotonic=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" | cut -d= -f2)
-    if [[ "$uptime_monotonic" -gt 0 ]]; then
-      local now elapsed_us seconds
-      now=$(cut -d' ' -f1 /proc/uptime | awk '{printf "%.0f", $1 * 1000000}')
-      elapsed_us=$((now - uptime_monotonic))
-      seconds=$((elapsed_us / 1000000))
-      uptime_readable=$(printf '%02dd %02dh %02dm %02ds' $((seconds/86400)) $((seconds%86400/3600)) $((seconds%3600/60)) $((seconds%60)))
-    else
-      uptime_readable="–"
-    fi
-  else
-    uptime_readable="0d 00h 00m 00s"
-  fi
+  uptime=$(get_service_uptime "$service")
 }
 
 
@@ -457,7 +443,7 @@ show_app_details_menu() {
   local has_a="$3"
   local has_aaaa="$4"
 
-  local exec_dir port disk_size main_dll uptime_readable ssl_status auto_renew dns_summary dns_warning fqdn
+  local exec_dir port disk_size main_dll ssl_status auto_renew dns_summary dns_warning fqdn
   
   fqdn=$(resolve_domain_from_service_name "$service")
   exec_dir=$(resolve_exec_dir_from_service_name "$service")
@@ -515,7 +501,7 @@ show_app_details_menu() {
 
     printf "🔌 %-18s \e[36m%-22s\e[0m   📦 %-17s \e[36m%-30s\e[0m\n" "Port:" "$port" "DLL:" "$main_dll"
     printf "💾 %-18s \e[36m%-22s\e[0m   📁 %-17s \e[2m%-30s\e[0m\n" "Disk Usage:" "$disk_size" "App Directory:" "$exec_dir"
-    printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram" "Uptime:" "$uptime_readable"
+    printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_size" "Uptime:" "$uptime"
     printf "🔒 %-18s \e[36m%-23s\e[0m   ♻️ %-17s \e[36m%-20s\e[0m\n" "SSL Certificate:" "$ssl_status" "SSL Auto Renew:" "$auto_renew"
     printf "🌩️ %-18s \e[36m%-23s\e[0m   📡 %-17s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$cf_proxy" "DNS Records:" "$dns_summary"
     printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$fqdn"
