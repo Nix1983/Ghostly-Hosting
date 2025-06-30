@@ -50,20 +50,6 @@ add_new_app() {
   print_press_any_key
 }
 
-generate_dns_summary_for_fqdn() {
-  local fqdn="$1"
-  local dns_a dns_aaaa
-  dns_a="A: ❌"
-  dns_aaaa="AAAA: ❌"
-
-  for key in "${!dns_map[@]}"; do
-    if [[ "$key" == "$fqdn,A" ]]; then dns_a="A: ✅"; fi
-    if [[ "$key" == "$fqdn,AAAA" ]]; then dns_aaaa="AAAA: ✅"; fi
-  done
-
-  echo "$dns_a  $dns_aaaa"
-}
-
 load_cloudflare_dns_info() {
   dns_map=()
   cf_proxy_map=()
@@ -139,7 +125,8 @@ show_apps() {
       [[ ! -d "$exec_dir" ]] && continue
 
       has_a="${dns_map[$fqdn,A]:-0}"
-      has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
+      has_aaaa="${dns_map[$fqdn,AAAA]:-0}"   
+      cf_proxy="${cf_proxy_map[$fqdn]:-❌}"
 
       if [[ "$has_a" -eq 0 && "$has_aaaa" -eq 0 ]]; then
         dns_warning="⚠️ App is not reachable (no DNS entries found)"
@@ -150,7 +137,7 @@ show_apps() {
       else
         dns_warning=""
       fi
-      cf_proxy="${cf_proxy_map[$fqdn]:-❌}"
+   
 
       repo_name="–"
       if [[ -f "$exec_dir/$META_FILE_NAME" ]]; then
@@ -165,9 +152,12 @@ show_apps() {
       disk_size="$(get_dir_size "$exec_dir")"
       status=$(get_service_status_icon "$service_name")
       
+      local status_icon_display
+      status_icon_display="${dns_warning:+⚠️}"
+      status_icon_display="${status_icon_display:-$status}"
 
       printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%8s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
-        "$index" "$status" "$fqdn" "$repo_name" "$uptime" "$cf_proxy" "$ram_size" "$disk_size"
+        "$index" "$status_icon_display" "$fqdn" "$repo_name" "$uptime" "$cf_proxy" "$ram_size" "$disk_size"
 
       app_map["$index"]="$service_name"
       proxy_map["$index"]="$cf_proxy"
