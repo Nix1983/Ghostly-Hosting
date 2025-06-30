@@ -10,6 +10,7 @@ source ./lib/certbot.sh
 source ./lib/dotnet.sh
 source ./lib/nginx.sh
 source ./lib/app.sh
+source ./lib/meta_data.sh
 
 
 rollback_app_deployment() {
@@ -139,14 +140,7 @@ show_apps() {
       fi
    
 
-      repo_name="–"
-      if [[ -f "$exec_dir/$META_FILE_NAME" ]]; then
-        repo_name=$(jq -r '.repo_name // "–"' "$exec_dir/$META_FILE_NAME")
-        if [[ ${#repo_name} -gt 20 ]]; then
-          repo_name="${repo_name:0:17}..."
-        fi
-      fi
-
+      repo_name=$(get_repo_name_from_meta "$exec_dir" 20)
       uptime=$(get_service_uptime "$service_name")
       ram_size=$(get_service_ram_usage "$service_name")
       disk_size="$(get_dir_size "$exec_dir")"
