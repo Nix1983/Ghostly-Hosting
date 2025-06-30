@@ -64,6 +64,38 @@ generate_dns_summary_for_fqdn() {
   echo "$dns_a  $dns_aaaa"
 }
 
+load_cloudflare_dns_info() {
+  dns_map=()
+  cf_proxy_map=()
+
+  if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
+    local zones_json zone_ids=()
+    zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
+    while IFS=$'\t' read -r name id; do
+      zone_ids+=("$id")
+    done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
+
+    for zone_id in "${zone_ids[@]}"; do
+      local dns_json
+      dns_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?per_page=500")
+
+      while IFS=$'\t' read -r name type proxied; do
+        [[ -n "$name" && -n "$type" ]] || continue
+        dns_map["$name,$type"]=1
+        if [[ "$type" == "A" || "$type" == "AAAA" ]]; then
+          if [[ "$proxied" == "true" ]]; then
+            cf_proxy_map["${name,,}"]="✅"
+          elif [[ -z "${cf_proxy_map[${name,,}]}" ]]; then
+            cf_proxy_map["${name,,}"]="❌"
+          fi
+        fi
+      done < <(echo "$dns_json" | jq -r '.result[] | [.name, .type, (.proxied // "")] | @tsv')
+    done
+  fi
+}
+
+
 show_apps() {
   local index
   local -A app_map=()
@@ -78,32 +110,8 @@ show_apps() {
 
     clear
     echo -e "\n🔍 \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
-
-    if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
-      local zones_json zone_ids=()
-      zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
-      while IFS=$'\t' read -r name id; do
-        zone_ids+=("$id")
-      done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
-
-      for zone_id in "${zone_ids[@]}"; do
-        local dns_json
-        dns_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-          "$CLOUDFLARE_API_BASE/zones/$zone_id/dns_records?per_page=500")
-
-        while IFS=$'\t' read -r name type proxied; do
-          [[ -n "$name" && -n "$type" ]] || continue
-          dns_map["$name,$type"]=1
-          if [[ "$type" == "A" || "$type" == "AAAA" ]]; then
-            if [[ "$proxied" == "true" ]]; then
-              cf_proxy_map["$name"]="✅"
-            elif [[ -z "${cf_proxy_map[$name]}" ]]; then
-              cf_proxy_map["$name"]="❌"
-            fi
-          fi
-        done < <(echo "$dns_json" | jq -r '.result[] | [.name, .type, (.proxied // "")] | @tsv')
-      done
-    fi
+    
+    load_cloudflare_dns_info
 
     clear
     echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
@@ -192,6 +200,7 @@ show_apps() {
       if ! find /etc/systemd/system -name "*.service" -type f | grep -q .; then
         return 0
       fi
+      continue
     fi
   done
 }
