@@ -136,6 +136,51 @@ test_get_commit_from_meta() {
   run_case "$META_DIR3" "–"
 }
 
+test_backup_app_metadata() {
+  local test_dir="/tmp/test_backup_meta"
+  local meta_file="$test_dir/meta.json"
+  local backup_dir="$test_dir/$BACKUP_DIR"
+  local commit="3333333333333333333333333333333333333333"
+
+  mkdir -p "$test_dir"
+  rm -rf "$backup_dir"
+  mkdir -p "$backup_dir"
+
+  {
+    echo '{'
+    echo '  "repo_owner": "BackupTestUser",'
+    echo '  "repo_name": "BackupApp",'
+    echo '  "ref_type": "branch",'
+    echo '  "ref_name": "main",'
+    echo "  \"commit\": \"$commit\""
+    echo '}'
+  } > "$meta_file"
+
+  # Dreimal Backups anlegen
+  backup_app_metadata "$test_dir"
+  sleep 1
+  backup_app_metadata "$test_dir"
+  sleep 1
+  backup_app_metadata "$test_dir"
+
+  # Prüfen wie viele Dateien übrig sind
+  local count
+  count=$(find "$backup_dir" -type f -name 'meta-*.json' | wc -l)
+
+  if [[ "$count" -eq 1 ]]; then
+    echo "✅ backup_app_metadata => only latest backup kept"
+  else
+    echo "❌ backup_app_metadata => expected 1 file, found $count"
+    find "$backup_dir" -type f
+    rm -rf "$test_dir"
+    return 1
+  fi
+
+  # Aufräumen
+  rm -rf "$test_dir"
+}
+
+
 # Hauptablauf
 prepare_meta_test_data
 
@@ -144,6 +189,7 @@ test_get_repo_name_from_meta
 test_get_ref_type_from_meta
 test_get_ref_name_from_meta
 test_get_commit_from_meta
+test_backup_app_metadata
 
 cleanup_meta_test_data
 
