@@ -798,9 +798,8 @@ show_f2b_logs_menu() {
 }
 
 show_f2b_menu() {
-  if ! command -v fail2ban-client >/dev/null 2>&1; then
-    echo -e "\n❌ \e[1;31mFail2Ban is not installed.\e[0m"
-    echo -e "➤ Please install it first: \e[36mapt install fail2ban\e[0m"
+    if ! command -v fail2ban-client >/dev/null 2>&1; then
+    echo -e "➤ Please run the 🪛 \e[36mInit server\e[0m option first to install and configure Fail2Ban."
     sleep 2
     return
   fi

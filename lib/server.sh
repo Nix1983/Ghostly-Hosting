@@ -216,8 +216,11 @@ update_server_and_show_status() {
   pending_updates=$(apt list --upgradable 2>/dev/null || true)
 
   check_package_status() {
-    local pkg_name="$1" label="$2" emoji="$3" check_bin="$4"
-    local status
+   local pkg_name="$1"
+   local label="$2"
+   local emoji="$3"
+   local check_bin="${4:-}"
+   local status
 
     if [[ $# -ge 4 && -n "$check_bin" ]]; then
       if ! command -v "$check_bin" >/dev/null 2>&1; then
@@ -394,9 +397,9 @@ init_server() {
   update_server
 
   echo -e "\n🧩 \e[1mSystemd ready for .NET apps\e[0m"
-  echo -e "   ➤ Apps will run as: \e[36m<sub>-<domain>-<port>.service\e[0m (e.g. blog-ghostlypick-com-5001.service)"
+  echo -e "   ➤ Apps will run as individual system services with unique port assignments"
   echo -e "   ➤ You can add new apps anytime via:"
-  echo -e "      📦 \e[1mApp Manager → Add new App\e[0m"
+  echo -e "      ➕ \e[1mOption 2) Add new App\e[0m in the App Manager"
 
   echo -e "\n✅ \e[1mServer initialization completed.\e[0m"
   print_double_line
@@ -404,10 +407,10 @@ init_server() {
 }
 
 remove_all_kestrel_services() {
-  echo -e "\n🧹 \e[1mRemoving all Blazor (Kestrel) systemd services...\e[0m"
+  echo -e "\n🧹 \e[1mRemoving all .NET (Kestrel) systemd services...\e[0m"
 
   local services
-  mapfile -t services < <(find /etc/systemd/system -type f -name "*-[5-9][0-9][0-9][0-9].service")
+  mapfile -t services < <(find /etc/systemd/system -type f -name "*@*:*[5-9][0-9][0-9][0-9].service")
 
   if [[ ${#services[@]} -eq 0 ]]; then
     echo -e "ℹ️ No Kestrel services found."
@@ -418,7 +421,7 @@ remove_all_kestrel_services() {
     local service_name
     service_name=$(basename "$service_path")
 
-    if systemctl list-units --all --type=service | grep -q "$service_name"; then
+    if systemctl list-units --all --type=service | grep -qF -- "$service_name"; then
       echo -e "\n⏹️ Stopping: \e[36m$service_name\e[0m"
       systemctl stop "$service_name" || true
       echo -e "❌ Disabling: \e[36m$service_name\e[0m"
