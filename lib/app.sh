@@ -309,15 +309,12 @@ restore_app_backup() {
     echo -e "─────────────────────────────────────────────────────────────"
     printf "%s\n" "${options[@]}"
     echo -e "\n  $(print_back_to_menu)"
-    echo "─────────────────────────────────────────────────────────────"
-    print_select_prompt $((i - 1))
-    read -r choice
-    echo ""
+    read_menu_choice $((i - 1))
 
-    if [[ "$choice" =~ ^[Qq]$ ]]; then return 9; fi
+    if [[ "$REPLY" =~ ^[Qq]$ ]]; then return 9; fi
 
-    if [[ "$choice" =~ ^[0-9]+$ && -n "${map_idx[$choice]}" ]]; then
-      local meta_file_restore="${map_idx[$choice]}"
+    if [[ "$REPLY" =~ ^[0-9]+$ && -n "${map_idx[$REPLY]}" ]]; then
+      local meta_file_restore="${map_idx[$REPLY]}"
       echo -e "\n✅ Selected Backup: \e[36m$meta_file_restore\e[0m"
 
       local owner repo ref_type ref_name commit
