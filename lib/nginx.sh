@@ -159,7 +159,8 @@ create_nginx_config() {
     echo "    ssl_certificate_key $key_path;"
     echo "    ssl_protocols TLSv1.2 TLSv1.3;"
     echo "    ssl_ciphers HIGH:!aNULL:!MD5;"
-    echo "    ssl_prefer_server_ciphers on;"
+    echo "    ssl_prefer_server_ciphers off;"
+    echo "    ssl_ecdh_curve X25519:secp384r1:secp256r1;"
     echo "    include /etc/nginx/mime.types;"
     echo
     echo "    access_log $access_dir/access.log timed_combined;"
