@@ -2,8 +2,21 @@
 # shellcheck disable=SC1091
 set -e
 
-source ../lib/const.sh
-source ../lib/meta_data.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if ! source "$ROOT_DIR/lib/meta_data.sh"; then
+  echo "❌ Failed to source meta_data.sh"
+  exit 1
+fi
+
+if ! source "$ROOT_DIR/lib/const.sh"; then
+  echo "❌ Failed to source const.sh"
+  exit 1
+fi
+
+echo "✅ SOURCES LOADED"
+
 
 declare -g META_BASE="/tmp/meta_test"
 declare -g META_DIR1="$META_BASE/app1"

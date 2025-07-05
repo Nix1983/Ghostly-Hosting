@@ -1,21 +1,21 @@
 #!/bin/bash
 set -e
 
-source ../lib/common.sh
-source ../lib/const.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-
-if ! source ../lib/common.sh; then
+if ! source "$ROOT_DIR/lib/common.sh"; then
   echo "❌ Failed to source common.sh"
   exit 1
 fi
 
-if ! source ../lib/const.sh; then
+if ! source "$ROOT_DIR/lib/const.sh"; then
   echo "❌ Failed to source const.sh"
   exit 1
 fi
 
 echo "✅ SOURCES LOADED"
+
 
 test_resolve_domain_from_app_dir() {
   local input expected result
