@@ -274,6 +274,7 @@ restore_app_backup() {
   domain="${domain//-/.}"
  
   backup_dir=$(resolve_backup_folder_from_service_name "$service_name")
+  mkdir -p $backup_dir
   if [[ ! -d "$backup_dir" ]]; then
     echo -e "\n❌ \e[31mBackup folder not found at:\e[2m $backup_dir\e[0m"
     return 1
@@ -281,7 +282,9 @@ restore_app_backup() {
 
   mapfile -t meta_files < <(find "$backup_dir" -maxdepth 1 -type f -name "meta-*.json" | sort -r)
   if (( ${#meta_files[@]} == 0 )); then
-    echo -e "\n❌ \e[31mNo backup metadata files found.\e[0m"
+    echo -e "\n🗃️ \e[33mNo backup metadata found yet.\e[0m"
+    echo -e "   A backup will be created automatically on the first app update."
+    echo -e "📂 Target folder: \e[2m$backup_dir\e[0m"
     return 1
   fi
 
