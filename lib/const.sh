@@ -12,32 +12,41 @@
 # ➤ Use guard check: [[ -z "${__CONSTANTS_SH_LOADED:-}" ]] && source ./lib/constants.sh
 # ==============================================================================
 
+# Guard: prevent re-sourcing
+[[ -n "${__CONSTANTS_SH_LOADED:-}" ]] && return 0
 __CONSTANTS_SH_LOADED=1
 
+# ======================
+# ⚙️ Global Constants
+# ======================
+
 # API Base URLs
-declare -gr CLOUDFLARE_API_BASE="https://api.cloudflare.com/client/v4"
-declare -gr GITHUB_API_BASE="https://api.github.com"
-declare -gr UPCLOUD_API_BASE="https://api.upcloud.com/1.2"
+[[ -z "${CLOUDFLARE_API_BASE+x}" ]] && declare -gr CLOUDFLARE_API_BASE="https://api.cloudflare.com/client/v4"
+[[ -z "${GITHUB_API_BASE+x}" ]]     && declare -gr GITHUB_API_BASE="https://api.github.com"
+[[ -z "${UPCLOUD_API_BASE+x}" ]]    && declare -gr UPCLOUD_API_BASE="https://api.upcloud.com/1.2"
 
 # .NET Support
-declare -agr SUPPORTED_DOTNET_VERSIONS=("6.0" "7.0" "8.0" "9.0")
+[[ -z "${SUPPORTED_DOTNET_VERSIONS+x}" ]] && declare -agr SUPPORTED_DOTNET_VERSIONS=("6.0" "7.0" "8.0" "9.0")
 
 # Base directory for all deployed apps
-declare -gr APP_BASE_DIR="/var/www"
+[[ -z "${APP_BASE_DIR+x}" ]] && declare -gr APP_BASE_DIR="/var/www"
 
 # Default subfolder structure for app-specific logs (used in Blazor deployment)
-declare -gr LOGS_DIR="logs"
-declare -gr WEB_LOGS_ACCESS_DIR="webserver/access"
-declare -gr WEB_LOGS_ERROR_DIR="webserver/error"
+[[ -z "${LOGS_DIR+x}" ]]             && declare -gr LOGS_DIR="logs"
+[[ -z "${WEB_LOGS_ACCESS_DIR+x}" ]]  && declare -gr WEB_LOGS_ACCESS_DIR="webserver/access"
+[[ -z "${WEB_LOGS_ERROR_DIR+x}" ]]   && declare -gr WEB_LOGS_ERROR_DIR="webserver/error"
 
 # Default common folders
-declare -gr CLONE_BASE_DIR="tmp-clone"
-declare -gr BACKUP_DIR="backups"
+[[ -z "${CLONE_BASE_DIR+x}" ]]  && declare -gr CLONE_BASE_DIR="tmp-clone"
+[[ -z "${BACKUP_DIR+x}" ]]      && declare -gr BACKUP_DIR="backups"
 
 # Default File names
-declare -gr META_FILE_NAME="meta.json"
+[[ -z "${META_FILE_NAME+x}" ]]  && declare -gr META_FILE_NAME="meta.json"
 
-# Optional Environment Variables (declared only if not already defined)
+# ======================
+# 🔓 Optional Environment Variables
+# ======================
+
 [[ -z "${CLOUDFLARE_API_TOKEN+x}" ]] && declare -g CLOUDFLARE_API_TOKEN
 [[ -z "${UPCLOUD_API_USER+x}" ]]     && declare -g UPCLOUD_API_USER
 [[ -z "${UPCLOUD_API_PASS+x}" ]]     && declare -g UPCLOUD_API_PASS

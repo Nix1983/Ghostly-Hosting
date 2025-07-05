@@ -375,19 +375,61 @@ resolve_main_dll_from_service() {
   echo "$dll_name"
 }
 
+resolve_log_folder_from_service_name() {
+  local service="$1"
+  local base sub root
+
+  base="${service%.service}"
+
+  if [[ "$base" == *"@"*":"* ]]; then
+    sub="${base%%@*}"
+    root="${base#*@}"
+    root="${root%%:*}"
+    [[ -z "$sub" ]] && sub="root"
+    printf "%s/%s/%s/%s/" "$APP_BASE_DIR" "$root" "$sub" "$LOGS_DIR"
+  elif [[ "$base" == *":"* ]]; then
+    root="${base%%:*}"
+    printf "%s/%s/root/%s/" "$APP_BASE_DIR" "$root" "$LOGS_DIR"
+  else
+    echo "❌ Invalid service name: missing domain and port → $service" >&2
+    return 1
+  fi
+}
+
+resolve_backup_folder_from_service_name() {
+  local service="$1"
+  local base sub root
+
+  base="${service%.service}"
+
+  if [[ "$base" == *"@"*":"* ]]; then
+    sub="${base%%@*}"
+    root="${base#*@}"
+    root="${root%%:*}"
+    [[ -z "$sub" ]] && sub="root"
+    printf "%s/%s/%s/%s/" "$APP_BASE_DIR" "$root" "$sub" "$BACKUP_DIR"
+  elif [[ "$base" == *":"* ]]; then
+    root="${base%%:*}"
+    printf "%s/%s/root/%s/" "$APP_BASE_DIR" "$root" "$BACKUP_DIR"
+  else
+    echo "❌ Invalid service name: missing domain and port → $service" >&2
+    return 1
+  fi
+}
+
 get_dir_size() {
   local dir="$1"
   local size_kb size_human
 
   if [[ -z "$dir" || ! -d "$dir" ]]; then
-    echo "Invalid directory"
+    echo "Invalid"
     return 1
   fi
 
   size_kb=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
-  if [[ -z "$size_kb" ]]; then
-    echo "0 KB"
-    return 0
+  if [[ -z "$size_kb" || "$size_kb" == *[!0-9]* ]]; then
+    echo "Invalid"
+    return 1
   fi
 
   if (( size_kb < 1024 )); then
@@ -400,6 +442,7 @@ get_dir_size() {
 
   echo "$size_human"
 }
+
 
 get_service_ram_usage() {
   local service="$1"

@@ -4,6 +4,19 @@ set -e
 source ../lib/common.sh
 source ../lib/const.sh
 
+
+if ! source ../lib/common.sh; then
+  echo "❌ Failed to source common.sh"
+  exit 1
+fi
+
+if ! source ../lib/const.sh; then
+  echo "❌ Failed to source const.sh"
+  exit 1
+fi
+
+echo "✅ SOURCES LOADED"
+
 test_resolve_domain_from_app_dir() {
   local input expected result
 
@@ -144,6 +157,68 @@ test_resolve_url_from_service_name() {
   run_case "invalid-service-name.service" ""
 }
 
+test_resolve_log_folder_from_service_name() {
+  local input expected result
+
+  run_case() {
+    input="$1"
+    expected="$2"
+    if result=$(resolve_log_folder_from_service_name "$input" 2>/dev/null); then
+      if [[ "$result" == "$expected" ]]; then
+        echo "✅ $input => $result"
+      else
+        echo "❌ $input => got '$result', expected '$expected'"
+        return 1
+      fi
+    else
+      if [[ -z "$expected" ]]; then
+        echo "✅ $input => failed as expected"
+      else
+        echo "❌ $input => unexpected failure"
+        return 1
+      fi
+    fi
+  }
+
+  run_case "myapp@ghostlypick.com:5000.service" "/var/www/ghostlypick.com/myapp/logs/"
+  run_case "@ghostlypick.com:5001.service" "/var/www/ghostlypick.com/root/logs/"
+  run_case "ghostly.at:5002.service" "/var/www/ghostly.at/root/logs/"
+  run_case "admin-panel@blog.ghostly.at:5011.service" "/var/www/blog.ghostly.at/admin-panel/logs/"
+  run_case "@example.org:5099.service" "/var/www/example.org/root/logs/"
+  run_case "invalid.service" ""
+}
+
+test_resolve_backup_folder_from_service_name() {
+  local input expected result
+
+  run_case() {
+    input="$1"
+    expected="$2"
+    if result=$(resolve_backup_folder_from_service_name "$input" 2>/dev/null); then
+      if [[ "$result" == "$expected" ]]; then
+        echo "✅ $input => $result"
+      else
+        echo "❌ $input => got '$result', expected '$expected'"
+        return 1
+      fi
+    else
+      if [[ -z "$expected" ]]; then
+        echo "✅ $input => failed as expected"
+      else
+        echo "❌ $input => unexpected failure"
+        return 1
+      fi
+    fi
+  }
+
+  run_case "myapp@ghostlypick.com:5000.service" "/var/www/ghostlypick.com/myapp/backups/"
+  run_case "@ghostlypick.com:5001.service" "/var/www/ghostlypick.com/root/backups/"
+  run_case "ghostly.at:5002.service" "/var/www/ghostly.at/root/backups/"
+  run_case "admin-panel@blog.ghostly.at:5011.service" "/var/www/blog.ghostly.at/admin-panel/backups/"
+  run_case "@example.org:5099.service" "/var/www/example.org/root/backups/"
+  run_case "invalid" ""
+}
+
 test_is_valid_kestrel_service_name() {
   local input expected result
 
@@ -211,7 +286,7 @@ test_is_valid_ipv4() {
 }
 
 test_get_dir_size() {
-  local dir result size unit min max
+  local dir result size unit size_kb min max
 
   run_case() {
     dir="$1"
@@ -220,11 +295,9 @@ test_get_dir_size() {
 
     result=$(get_dir_size "$dir")
 
-    # Extrahiere Größe und Einheit
-    size=$(awk '{print $1}' <<< "$result")
-    unit=$(awk '{print $2}' <<< "$result")
+    read -r size unit <<< "$result"
 
-    if [[ "$unit" == "Invalid" ]]; then
+    if [[ "$unit" == "Invalid" || "$size" == "Invalid" ]]; then
       if [[ "$min" == "invalid" ]]; then
         echo "✅ $dir => Invalid directory"
         return 0
@@ -234,7 +307,11 @@ test_get_dir_size() {
       fi
     fi
 
-    # Umrechnen in KB zur Bereichsprüfung
+    if [[ -z "$unit" || -z "$size" ]]; then
+      echo "❌ Malformed result: '$result'"
+      return 1
+    fi
+
     case "$unit" in
       KB) size_kb=$(awk "BEGIN {print $size}") ;;
       MB) size_kb=$(awk "BEGIN {print $size * 1024}") ;;
@@ -254,28 +331,37 @@ test_get_dir_size() {
   tmpdir2=$(mktemp -d)
   tmpdir3=$(mktemp -d)
 
-  head -c 512000 /dev/zero > "$tmpdir1/file1"         # ~500 KB
-  head -c 3145728 /dev/zero > "$tmpdir2/file2"        # ~3 MB
-  head -c 1074790400 /dev/zero > "$tmpdir3/file3"     # ~1 GB
+  head -c 512000 /dev/zero > "$tmpdir1/file1"
+  head -c 3145728 /dev/zero > "$tmpdir2/file2"
+  head -c 1074790400 /dev/zero > "$tmpdir3/file3"
 
   run_case "$tmpdir1" 480 520
   run_case "$tmpdir2" 3000 3200
   run_case "$tmpdir3" 1040000 1100000
-
   run_case "/non/existing/path" "invalid" "invalid"
+  run_case "/dev/null" "invalid" "invalid"
 
   rm -rf "$tmpdir1" "$tmpdir2" "$tmpdir3"
 }
 
 
-# Run all tests
-test_is_valid_ipv4
-test_get_dir_size
-test_is_valid_kestrel_service_name
-test_resolve_url_from_service_name
-test_resolve_exec_dir_from_service_name
-test_resolve_port_from_service_name
-test_resolve_domain_from_service_name
-test_resolve_domain_from_app_dir
+run_test() {
+  echo -e "\n🔧 Running $1"
+  if ! "$1"; then
+    echo "❌ Test '$1' failed"
+  fi
+}
 
-echo -e "\n✅ All tests passed."
+run_test test_is_valid_ipv4
+run_test test_get_dir_size
+run_test test_is_valid_kestrel_service_name
+run_test test_resolve_url_from_service_name
+run_test test_resolve_exec_dir_from_service_name
+run_test test_resolve_port_from_service_name
+run_test test_resolve_domain_from_service_name
+run_test test_resolve_domain_from_app_dir
+run_test test_resolve_log_folder_from_service_name
+run_test test_resolve_backup_folder_from_service_name
+
+echo -e "\n✅ All tests finished (some may have failed)"
+

@@ -1,8 +1,9 @@
 #!/bin/bash
 # shellcheck disable=SC1091
-set -e
-source ./lib/print.sh
-source ./lib/common.sh
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/print.sh"
+source "$SCRIPT_DIR/common.sh"
 
 get_repo_name_from_meta() {
   local dir="$1"
