@@ -52,12 +52,15 @@ add_new_app() {
 }
 
 load_cloudflare_dns_info() {
+  declare -gA dns_map
+  declare -gA cf_proxy_map
   dns_map=()
   cf_proxy_map=()
 
   if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
     local zones_json zone_ids=()
     zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
+
     while IFS=$'\t' read -r name id; do
       zone_ids+=("$id")
     done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
@@ -70,10 +73,11 @@ load_cloudflare_dns_info() {
       while IFS=$'\t' read -r name type proxied; do
         [[ -n "$name" && -n "$type" ]] || continue
         dns_map["$name,$type"]=1
+
         if [[ "$type" == "A" || "$type" == "AAAA" ]]; then
           if [[ "$proxied" == "true" ]]; then
             cf_proxy_map["${name,,}"]="✅"
-          elif [[ -z "${cf_proxy_map[${name,,}]}" ]]; then
+          elif [[ -z "${cf_proxy_map[${name,,}]:-}" ]]; then
             cf_proxy_map["${name,,}"]="❌"
           fi
         fi
@@ -83,10 +87,13 @@ load_cloudflare_dns_info() {
 }
 
 
+
 show_apps() {
+  declare -gA dns_map
+  declare -gA cf_proxy_map
   local index
   local -A app_map=()
-  local -A cf_proxy_map dns_map proxy_map has_a_map has_aaaa_map
+  local -A proxy_map has_a_map has_aaaa_map
 
   while true; do
     index=1
@@ -97,7 +104,7 @@ show_apps() {
 
     clear
     echo -e "\n🔍 \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
-    
+
     load_cloudflare_dns_info
 
     clear
@@ -108,26 +115,23 @@ show_apps() {
       local service_name port fqdn exec_dir repo_name uptime
       local has_a has_aaaa dns_warning cf_proxy
 
-      service_name="$(basename "$service_file")" 
+      service_name="$(basename "$service_file")"
       is_valid_kestrel_service_name "$service_name" || continue
-
 
       if ! port=$(resolve_port_from_service_name "$service_name" 2>/dev/null); then
         continue
       fi
-
       if ! fqdn=$(resolve_domain_from_service_name "$service_name" 2>/dev/null); then
         continue
       fi
-
       if ! exec_dir=$(resolve_exec_dir_from_service_name "$service_name" 2>/dev/null); then
         continue
-      fi     
+      fi
       [[ ! -d "$exec_dir" ]] && continue
 
       has_a="${dns_map[$fqdn,A]:-0}"
-      has_aaaa="${dns_map[$fqdn,AAAA]:-0}"   
-      cf_proxy="${cf_proxy_map[$fqdn]:-❌}"
+      has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
+      cf_proxy="${cf_proxy_map[${fqdn,,}]:-❌}"
 
       if [[ "$has_a" -eq 0 && "$has_aaaa" -eq 0 ]]; then
         dns_warning="⚠️ App is not reachable (no DNS entries found)"
@@ -138,14 +142,13 @@ show_apps() {
       else
         dns_warning=""
       fi
-   
 
       repo_name=$(get_repo_name_from_meta "$exec_dir" 20)
       uptime=$(get_service_uptime "$service_name")
       ram_size=$(get_service_ram_usage "$service_name")
       disk_size="$(get_dir_size "$exec_dir")"
       status=$(get_service_status_icon "$service_name")
-      
+
       local status_icon_display
       status_icon_display="${dns_warning:+⚠️}"
       status_icon_display="${status_icon_display:-$status}"
@@ -188,6 +191,7 @@ show_apps() {
     fi
   done
 }
+
 
 show_app_manager_menu() {
   local choice
