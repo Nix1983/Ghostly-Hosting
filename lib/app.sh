@@ -12,11 +12,11 @@ source ./lib/log.sh
 _redeploy_blazor_app() {
   local service_name="$1"
   local commit="$2"
-  local exec_dir
+  local exec_dir backup_dir log_dir
+
   exec_dir=$(resolve_exec_dir_from_service_name "$service_name")
-  local backup_dir="$exec_dir/$BACKUP_DIR"
-  local log_dir="$exec_dir/$LOGS_DIR"
-  local meta_file="$exec_dir/$META_FILE_NAME"
+  backup_dir=$(resolve_backup_folder_from_service_name "$service_name")
+  log_dir=$(resolve_log_folder_from_service_name "$service_name")
 
   detect_required_dotnet_versions || return 1
   install_dotnet_version || return 1
@@ -261,9 +261,8 @@ check_for_app_update() {
 restore_app_backup() {
   local exec_dir="$1"
   local service_name="$2"
-  local backup_dir="$exec_dir/$BACKUP_DIR"
 
-  local subdomain parent domain
+  local subdomain parent domain backup_dir
   subdomain=$(basename "$exec_dir")
   parent=$(basename "$(dirname "$exec_dir")")
 
@@ -273,7 +272,8 @@ restore_app_backup() {
     domain="$subdomain.$parent"
   fi
   domain="${domain//-/.}"
-
+ 
+  backup_dir=$(resolve_backup_folder_from_service_name "$service_name")
   if [[ ! -d "$backup_dir" ]]; then
     echo -e "\n❌ \e[31mBackup folder not found at:\e[2m $backup_dir\e[0m"
     return 1
