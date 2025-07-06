@@ -168,7 +168,7 @@ restore_app_meta_data() {
   local i=1
 
   for file in "${meta_files[@]}"; do
-    local filename timestamp datetime ref commit msg
+    local filename timestamp datetime ref commit msg ref_type icon ref_display
 
     commit=$(get_commit_from_meta "$file")
     [[ "$commit" == "$current_commit" ]] && continue
@@ -179,13 +179,26 @@ restore_app_meta_data() {
     timestamp="${timestamp//T/}"
     datetime=$(date -d "${timestamp:0:8} ${timestamp:8:2}:${timestamp:10:2}:${timestamp:12:2}" "+%H:%M:%S %d-%m-%Y" 2>/dev/null || echo "$timestamp")
     ref=$(get_ref_name_from_meta "$file")
+    ref_type=$(get_ref_type_from_meta "$file")
     msg=$(jq -r '.commit_message // "–"' "$file")
 
-    if [[ ${#msg} -gt 40 ]]; then
-      msg="${msg:0:40}..."
+    [[ ${#msg} -gt 40 ]] && msg="${msg:0:40}..."
+
+    if [[ "$ref_type" == "branch" ]]; then
+      icon="🌿"
+    elif [[ "$ref_type" == "tag" ]]; then
+      icon="🏷️"
+    else
+      icon="❓"
     fi
 
-    options+=("$(printf " %2d) 🕒 %s  |  🌿 %-12s \e[2m(%s)\e[0m | %-43s" "$i" "$datetime" "$ref" "${commit:0:7}" "$msg")")
+    if [[ ${#ref} -gt 17 ]]; then
+      ref_display="${ref:0:17}..."
+    else
+      ref_display="$ref"
+    fi
+
+    options+=("$(printf " %2d) 🕒 %s  |  %s %-17s \e[2m(%s)\e[0m | %-43s" "$i" "$datetime" "$icon" "$ref_display" "${commit:0:7}" "$msg")")
     map_idx["$i"]="$file"
     ((i++))
   done
@@ -234,4 +247,3 @@ restore_app_meta_data() {
     fi
   done
 }
-
