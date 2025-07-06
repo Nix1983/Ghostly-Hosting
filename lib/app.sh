@@ -259,10 +259,10 @@ check_for_app_update() {
 }
 
 restore_app_backup() {
-  local exec_dir="$1"
-  local service_name="$2"
+  local service_name="$1"
+  local subdomain parent domain backup_dir exec_dir
 
-  local subdomain parent domain backup_dir
+  exec_dir=$(resolve_exec_dir_from_service_name "$service_name")
   subdomain=$(basename "$exec_dir")
   parent=$(basename "$(dirname "$exec_dir")")
 
@@ -472,7 +472,7 @@ show_app_details_menu() {
         [[ $? -eq 0 ]] && return 0
         ;;
       6)
-        restore_app_backup "$exec_dir" "$service"
+        restore_app_backup "$service"
         print_press_any_key
         ;;
       7)
