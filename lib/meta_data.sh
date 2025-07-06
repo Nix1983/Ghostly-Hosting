@@ -6,117 +6,51 @@ source "$SCRIPT_DIR/print.sh"
 source "$SCRIPT_DIR/common.sh"
 
 get_repo_name_from_meta() {
-  local dir="$1"
+  local file="$1"
   local maxlen="$2"
-  local meta_file repo_name
+  local repo_name
 
-  if [[ -z "$dir" || ! -d "$dir" ]]; then
-    echo "–"
-    return 1
-  fi
+  [[ -f "$file" ]] || { echo "–"; return 1; }
 
-  meta_file="$dir/$META_FILE_NAME"
+  repo_name=$(jq -r '.repo_name // "–"' "$file")
 
-  if [[ -f "$meta_file" ]]; then
-    repo_name=$(jq -r '.repo_name // "–"' "$meta_file")
-
-    if [[ "$repo_name" != "–" && -n "$maxlen" ]]; then
-      if [[ "$maxlen" =~ ^[0-9]+$ && "$maxlen" -ge 4 ]]; then
-        if [[ ${#repo_name} -gt "$maxlen" ]]; then
-          local cutoff=$((maxlen - 3))
-          repo_name="${repo_name:0:cutoff}..."
-        fi
-      else
-        echo "❌ Invalid max length parameter (must be ≥ 4)." >&2
-        return 1
+  if [[ "$repo_name" != "–" && -n "$maxlen" ]]; then
+    if [[ "$maxlen" =~ ^[0-9]+$ && "$maxlen" -ge 4 ]]; then
+      if [[ ${#repo_name} -gt "$maxlen" ]]; then
+        local cutoff=$((maxlen - 3))
+        repo_name="${repo_name:0:cutoff}..."
       fi
+    else
+      echo "❌ Invalid max length parameter (must be ≥ 4)." >&2
+      return 1
     fi
-
-    echo "$repo_name"
-  else
-    echo "–"
-    return 1
   fi
+
+  echo "$repo_name"
 }
 
 get_repo_owner_from_meta() {
-  local dir="$1"
-  local meta_file repo_owner
-
-  if [[ -z "$dir" || ! -d "$dir" ]]; then
-    echo "–"
-    return 1
-  fi
-
-  meta_file="$dir/$META_FILE_NAME"
-
-  if [[ -f "$meta_file" ]]; then
-    repo_owner=$(jq -r '.repo_owner // "–"' "$meta_file")
-    echo "$repo_owner"
-  else
-    echo "–"
-    return 1
-  fi
+  local file="$1"
+  [[ -f "$file" ]] || { echo "–"; return 1; }
+  jq -r '.repo_owner // "–"' "$file"
 }
 
 get_ref_type_from_meta() {
-  local dir="$1"
-  local meta_file ref_type
-
-  if [[ -z "$dir" || ! -d "$dir" ]]; then
-    echo "–"
-    return 1
-  fi
-
-  meta_file="$dir/$META_FILE_NAME"
-
-  if [[ -f "$meta_file" ]]; then
-    ref_type=$(jq -r '.ref_type // "–"' "$meta_file")
-    echo "$ref_type"
-  else
-    echo "–"
-    return 1
-  fi
+  local file="$1"
+  [[ -f "$file" ]] || { echo "–"; return 1; }
+  jq -r '.ref_type // "–"' "$file"
 }
 
 get_ref_name_from_meta() {
-  local dir="$1"
-  local meta_file ref_name
-
-  if [[ -z "$dir" || ! -d "$dir" ]]; then
-    echo "–"
-    return 1
-  fi
-
-  meta_file="$dir/$META_FILE_NAME"
-
-  if [[ -f "$meta_file" ]]; then
-    ref_name=$(jq -r '.ref_name // "–"' "$meta_file")
-    echo "$ref_name"
-  else
-    echo "–"
-    return 1
-  fi
+  local file="$1"
+  [[ -f "$file" ]] || { echo "–"; return 1; }
+  jq -r '.ref_name // "–"' "$file"
 }
 
 get_commit_from_meta() {
-  local dir="$1"
-  local meta_file commit
-
-  if [[ -z "$dir" || ! -d "$dir" ]]; then
-    echo "–"
-    return 1
-  fi
-
-  meta_file="$dir/$META_FILE_NAME"
-
-  if [[ -f "$meta_file" ]]; then
-    commit=$(jq -r '.commit // "–"' "$meta_file")
-    echo "$commit"
-  else
-    echo "–"
-    return 1
-  fi
+  local file="$1"
+  [[ -f "$file" ]] || { echo "–"; return 1; }
+  jq -r '.commit // "–"' "$file"
 }
 
 backup_app_metadata() {

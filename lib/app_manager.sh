@@ -162,7 +162,7 @@ show_apps() {
         dns_warning=""
       fi
 
-      repo_name=$(get_repo_name_from_meta "$exec_dir" 20)
+      repo_name=$(get_repo_name_from_meta "$exec_dir/$META_FILE_NAME" 20)
       uptime=$(get_service_uptime "$service_name")
       ram_size=$(get_service_ram_usage "$service_name")
       disk_size="$(get_dir_size "$exec_dir")"

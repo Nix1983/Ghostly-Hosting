@@ -258,10 +258,20 @@ check_for_app_update() {
   esac
 }
 
-restore_backup(){
+restore_backup() {
   local service_name="$1"
-  restore_app_meta_data "$service_name"
+
+  restore_app_meta_data "$service_name" || return $?
+
+  echo -e "\n📦 Restoring from:"
+  echo -e " - Repo: \e[36m$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME\e[0m"
+  echo -e " - Ref:  \e[36m$SELECTED_REF_TYPE → $SELECTED_REF_NAME\e[0m"
+  echo -e " - Commit: \e[2m$SELECTED_COMMIT\e[0m"
+
+  clone_repository "$SELECTED_COMMIT" || return 1
+  _redeploy_blazor_app "$service_name" "$SELECTED_COMMIT"
 }
+
 
 restore_app_meta_data() {
   local service_name="$1"
@@ -277,7 +287,7 @@ restore_app_meta_data() {
     domain="$subdomain.$parent"
   fi
   domain="${domain//-/.}"
- 
+
   backup_dir=$(resolve_backup_folder_from_service_name "$service_name")
   mkdir -p "$backup_dir"
   if [[ ! -d "$backup_dir" ]]; then
@@ -323,36 +333,35 @@ restore_app_meta_data() {
 
     if [[ "$REPLY" =~ ^[0-9]+$ && -n "${map_idx[$REPLY]}" ]]; then
       local meta_file_restore="${map_idx[$REPLY]}"
+
       echo -e "\n✅ Selected Backup: \e[36m$meta_file_restore\e[0m"
 
-      local owner repo ref_type ref_name commit
-      owner=$(jq -r '.repo_owner // empty' "$meta_file_restore")
-      repo=$(jq -r '.repo_name // empty' "$meta_file_restore")
-      ref_type=$(jq -r '.ref_type // empty' "$meta_file_restore")
-      ref_name=$(jq -r '.ref_name // empty' "$meta_file_restore")
-      commit=$(jq -r '.commit // empty' "$meta_file_restore")
+      export SELECTED_REPO_OWNER
+      export SELECTED_REPO_NAME
+      export SELECTED_REF_TYPE
+      export SELECTED_REF_NAME
+      export SELECTED_COMMIT
 
-      if [[ -z "$owner" || -z "$repo" || -z "$ref_type" || -z "$ref_name" || -z "$commit" ]]; then
-        echo -e "❌ \e[31mInvalid or incomplete metadata in: $meta_file_restore\e[0m"
-        return 1
-      fi
+      SELECTED_REPO_OWNER=$(get_repo_owner_from_meta "$meta_file_restore")
+      SELECTED_REPO_NAME=$(get_repo_name_from_meta "$meta_file_restore")
+      SELECTED_REF_TYPE=$(get_ref_type_from_meta "$meta_file_restore")
+      SELECTED_REF_NAME=$(get_ref_name_from_meta "$meta_file_restore")
+      SELECTED_COMMIT=$(get_commit_from_meta "$meta_file_restore")
 
-      export SELECTED_REPO_OWNER="$owner"
-      export SELECTED_REPO_NAME="$repo"
-      export SELECTED_REF_TYPE="$ref_type"
-      export SELECTED_REF_NAME="$ref_name"
+     if [[ "$SELECTED_REPO_OWNER" == "–" || "$SELECTED_REPO_NAME" == "–" || "$SELECTED_REF_TYPE" == "–" || "$SELECTED_REF_NAME" == "–" || "$SELECTED_COMMIT" == "–" ]]; then
+       echo -e "❌ \e[31mInvalid or incomplete metadata in: $meta_file_restore\e[0m"
+       return 1
+     fi
 
-      echo -e "\n📦 Restoring from:\n - Repo: \e[36m$owner/$repo\e[0m\n - Ref:  \e[36m$ref_type → $ref_name\e[0m\n - Commit: \e[2m$commit\e[0m"
 
-      clone_repository "$commit" || return 1
-      _redeploy_blazor_app "$service_name" "$commit"
-      return $?
+      return 0
     else
       print_invalid_selection
       sleep 1
     fi
   done
 }
+
 
 restart_app_service() {
   local service="$1"

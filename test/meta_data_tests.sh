@@ -17,7 +17,6 @@ fi
 
 echo "✅ SOURCES LOADED"
 
-
 declare -g META_BASE="/tmp/meta_test"
 declare -g META_DIR1="$META_BASE/app1"
 declare -g META_DIR2="$META_BASE/app2"
@@ -26,21 +25,25 @@ declare -g META_DIR3="$META_BASE/app3"
 prepare_meta_test_data() {
   mkdir -p "$META_DIR1" "$META_DIR2" "$META_DIR3"
 
-  echo '{' > "$META_DIR1/meta.json"
-  echo '  "repo_owner": "TestUser",' >> "$META_DIR1/meta.json"
-  echo '  "repo_name": "ShortNameApp",' >> "$META_DIR1/meta.json"
-  echo '  "ref_type": "branch",' >> "$META_DIR1/meta.json"
-  echo '  "ref_name": "main",' >> "$META_DIR1/meta.json"
-  echo '  "commit": "1111111111111111111111111111111111111111"' >> "$META_DIR1/meta.json"
-  echo '}' >> "$META_DIR1/meta.json"
+  cat > "$META_DIR1/meta.json" <<EOF
+{
+  "repo_owner": "TestUser",
+  "repo_name": "ShortNameApp",
+  "ref_type": "branch",
+  "ref_name": "main",
+  "commit": "1111111111111111111111111111111111111111"
+}
+EOF
 
-  echo '{' > "$META_DIR2/meta.json"
-  echo '  "repo_owner": "AnotherOwner",' >> "$META_DIR2/meta.json"
-  echo '  "repo_name": "VeryLongRepositoryNameThatWillBeShortened",' >> "$META_DIR2/meta.json"
-  echo '  "ref_type": "tag",' >> "$META_DIR2/meta.json"
-  echo '  "ref_name": "v1.0.0",' >> "$META_DIR2/meta.json"
-  echo '  "commit": "2222222222222222222222222222222222222222"' >> "$META_DIR2/meta.json"
-  echo '}' >> "$META_DIR2/meta.json"
+  cat > "$META_DIR2/meta.json" <<EOF
+{
+  "repo_owner": "AnotherOwner",
+  "repo_name": "VeryLongRepositoryNameThatWillBeShortened",
+  "ref_type": "tag",
+  "ref_name": "v1.0.0",
+  "commit": "2222222222222222222222222222222222222222"
+}
+EOF
 
   echo '{ "repo_owner": "MissingFieldsInc" }' > "$META_DIR3/meta.json"
 }
@@ -50,12 +53,11 @@ cleanup_meta_test_data() {
 }
 
 test_get_repo_owner_from_meta() {
-  local input expected result
-
   run_case() {
-    input="$1"
-    expected="$2"
-    result=$(get_repo_owner_from_meta "$input")
+    local file="$1"
+    local expected="$2"
+    local result
+    result=$(get_repo_owner_from_meta "$file")
     if [[ "$result" == "$expected" ]]; then
       echo "✅ get_repo_owner_from_meta => $result"
     else
@@ -64,48 +66,45 @@ test_get_repo_owner_from_meta() {
     fi
   }
 
-  run_case "$META_DIR1" "TestUser"
-  run_case "$META_DIR2" "AnotherOwner"
-  run_case "$META_DIR3" "MissingFieldsInc"
+  run_case "$META_DIR1/meta.json" "TestUser"
+  run_case "$META_DIR2/meta.json" "AnotherOwner"
+  run_case "$META_DIR3/meta.json" "MissingFieldsInc"
 }
 
 test_get_repo_name_from_meta() {
-  local input expected result
-
   run_case() {
-    local dir="$1"
+    local file="$1"
     local maxlen="$2"
     local expected="$3"
+    local result
 
     if [[ -n "$maxlen" ]]; then
-      result=$(get_repo_name_from_meta "$dir" "$maxlen")
+      result=$(get_repo_name_from_meta "$file" "$maxlen")
     else
-      result=$(get_repo_name_from_meta "$dir")
+      result=$(get_repo_name_from_meta "$file")
     fi
 
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ get_repo_name_from_meta ($dir, $maxlen) => '$result'"
+      echo "✅ get_repo_name_from_meta ($file, $maxlen) => '$result'"
     else
-      echo "❌ get_repo_name_from_meta ($dir, $maxlen): got '$result', expected '$expected'"
+      echo "❌ get_repo_name_from_meta ($file, $maxlen): got '$result', expected '$expected'"
       return 1
     fi
   }
 
-  run_case "$META_DIR1" 20 "ShortNameApp"
-  run_case "$META_DIR2" 20 "VeryLongRepositor..."
-  run_case "$META_DIR2" "" "VeryLongRepositoryNameThatWillBeShortened"
-  run_case "$META_DIR3" 20 "–"
-  run_case "$META_DIR3" "" "–"
+  run_case "$META_DIR1/meta.json" 20 "ShortNameApp"
+  run_case "$META_DIR2/meta.json" 20 "VeryLongRepositor..."
+  run_case "$META_DIR2/meta.json" "" "VeryLongRepositoryNameThatWillBeShortened"
+  run_case "$META_DIR3/meta.json" 20 "–"
+  run_case "$META_DIR3/meta.json" "" "–"
 }
 
-
 test_get_ref_type_from_meta() {
-  local input expected result
-
   run_case() {
-    input="$1"
-    expected="$2"
-    result=$(get_ref_type_from_meta "$input")
+    local file="$1"
+    local expected="$2"
+    local result
+    result=$(get_ref_type_from_meta "$file")
     if [[ "$result" == "$expected" ]]; then
       echo "✅ get_ref_type_from_meta => $result"
     else
@@ -114,18 +113,17 @@ test_get_ref_type_from_meta() {
     fi
   }
 
-  run_case "$META_DIR1" "branch"
-  run_case "$META_DIR2" "tag"
-  run_case "$META_DIR3" "–"
+  run_case "$META_DIR1/meta.json" "branch"
+  run_case "$META_DIR2/meta.json" "tag"
+  run_case "$META_DIR3/meta.json" "–"
 }
 
 test_get_ref_name_from_meta() {
-  local input expected result
-
   run_case() {
-    input="$1"
-    expected="$2"
-    result=$(get_ref_name_from_meta "$input")
+    local file="$1"
+    local expected="$2"
+    local result
+    result=$(get_ref_name_from_meta "$file")
     if [[ "$result" == "$expected" ]]; then
       echo "✅ get_ref_name_from_meta => $result"
     else
@@ -134,18 +132,17 @@ test_get_ref_name_from_meta() {
     fi
   }
 
-  run_case "$META_DIR1" "main"
-  run_case "$META_DIR2" "v1.0.0"
-  run_case "$META_DIR3" "–"
+  run_case "$META_DIR1/meta.json" "main"
+  run_case "$META_DIR2/meta.json" "v1.0.0"
+  run_case "$META_DIR3/meta.json" "–"
 }
 
 test_get_commit_from_meta() {
-  local input expected result
-
   run_case() {
-    input="$1"
-    expected="$2"
-    result=$(get_commit_from_meta "$input")
+    local file="$1"
+    local expected="$2"
+    local result
+    result=$(get_commit_from_meta "$file")
     if [[ "$result" == "$expected" ]]; then
       echo "✅ get_commit_from_meta => $result"
     else
@@ -154,9 +151,9 @@ test_get_commit_from_meta() {
     fi
   }
 
-  run_case "$META_DIR1" "1111111111111111111111111111111111111111"
-  run_case "$META_DIR2" "2222222222222222222222222222222222222222"
-  run_case "$META_DIR3" "–"
+  run_case "$META_DIR1/meta.json" "1111111111111111111111111111111111111111"
+  run_case "$META_DIR2/meta.json" "2222222222222222222222222222222222222222"
+  run_case "$META_DIR3/meta.json" "–"
 }
 
 test_backup_app_metadata() {
@@ -169,24 +166,22 @@ test_backup_app_metadata() {
   rm -rf "$backup_dir"
   mkdir -p "$backup_dir"
 
-  {
-    echo '{'
-    echo '  "repo_owner": "BackupTestUser",'
-    echo '  "repo_name": "BackupApp",'
-    echo '  "ref_type": "branch",'
-    echo '  "ref_name": "main",'
-    echo "  \"commit\": \"$commit\""
-    echo '}'
-  } > "$meta_file"
+  cat > "$meta_file" <<EOF
+{
+  "repo_owner": "BackupTestUser",
+  "repo_name": "BackupApp",
+  "ref_type": "branch",
+  "ref_name": "main",
+  "commit": "$commit"
+}
+EOF
 
-  # Dreimal Backups anlegen
   backup_app_metadata "$test_dir"
   sleep 1
   backup_app_metadata "$test_dir"
   sleep 1
   backup_app_metadata "$test_dir"
 
-  # Prüfen wie viele Dateien übrig sind
   local count
   count=$(find "$backup_dir" -type f -name 'meta-*.json' | wc -l)
 
@@ -199,10 +194,8 @@ test_backup_app_metadata() {
     return 1
   fi
 
-  # Aufräumen
   rm -rf "$test_dir"
 }
-
 
 # Hauptablauf
 prepare_meta_test_data
