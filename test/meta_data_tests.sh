@@ -73,21 +73,31 @@ test_get_repo_name_from_meta() {
   local input expected result
 
   run_case() {
-    input="$1"
-    expected="$2"
-    result=$(get_repo_name_from_meta "$input" 20)
-    if [[ "$result" == "$expected" ]]; then
-      echo "✅ get_repo_name_from_meta => $result"
+    local dir="$1"
+    local maxlen="$2"
+    local expected="$3"
+
+    if [[ -n "$maxlen" ]]; then
+      result=$(get_repo_name_from_meta "$dir" "$maxlen")
     else
-      echo "❌ get_repo_name_from_meta: got '$result', expected '$expected'"
+      result=$(get_repo_name_from_meta "$dir")
+    fi
+
+    if [[ "$result" == "$expected" ]]; then
+      echo "✅ get_repo_name_from_meta ($dir, $maxlen) => '$result'"
+    else
+      echo "❌ get_repo_name_from_meta ($dir, $maxlen): got '$result', expected '$expected'"
       return 1
     fi
   }
 
-  run_case "$META_DIR1" "ShortNameApp"
-  run_case "$META_DIR2" "VeryLongRepositor..."
-  run_case "$META_DIR3" "–"
+  run_case "$META_DIR1" 20 "ShortNameApp"
+  run_case "$META_DIR2" 20 "VeryLongRepositor..."
+  run_case "$META_DIR2" "" "VeryLongRepositoryNameThatWillBeShortened"
+  run_case "$META_DIR3" 20 "–"
+  run_case "$META_DIR3" "" "–"
 }
+
 
 test_get_ref_type_from_meta() {
   local input expected result

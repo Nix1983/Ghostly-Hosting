@@ -15,19 +15,21 @@ get_repo_name_from_meta() {
     return 1
   fi
 
-  if [[ -z "$maxlen" || ! "$maxlen" =~ ^[0-9]+$ || "$maxlen" -lt 4 ]]; then
-    echo "❌ Invalid or missing max length parameter (must be ≥ 4)." >&2
-    return 1
-  fi
-
   meta_file="$dir/$META_FILE_NAME"
 
   if [[ -f "$meta_file" ]]; then
     repo_name=$(jq -r '.repo_name // "–"' "$meta_file")
 
-    if [[ "$repo_name" != "–" && ${#repo_name} -gt "$maxlen" ]]; then
-      local cutoff=$((maxlen - 3))
-      repo_name="${repo_name:0:cutoff}..."
+    if [[ "$repo_name" != "–" && -n "$maxlen" ]]; then
+      if [[ "$maxlen" =~ ^[0-9]+$ && "$maxlen" -ge 4 ]]; then
+        if [[ ${#repo_name} -gt "$maxlen" ]]; then
+          local cutoff=$((maxlen - 3))
+          repo_name="${repo_name:0:cutoff}..."
+        fi
+      else
+        echo "❌ Invalid max length parameter (must be ≥ 4)." >&2
+        return 1
+      fi
     fi
 
     echo "$repo_name"
