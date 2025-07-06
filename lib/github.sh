@@ -42,6 +42,34 @@ check_github_env_vars() {
   return 0
 }
 
+count_alternative_refs() {
+  local repo_owner="$1"
+  local repo_name="$2"
+  local current_type="$3"
+  local current_name="$4"
+
+  local count=0
+  local b t
+
+  local branches tags
+  branches=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/repos/$repo_owner/$repo_name/branches" | jq -r '.[].name' | grep .)
+  tags=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/repos/$repo_owner/$repo_name/tags" | jq -r '.[].name' | grep .)
+
+  while read -r b; do
+    [[ -z "$b" || ( "$current_type" == "branch" && "$current_name" == "$b" ) ]] && continue
+    ((count++))
+  done <<< "$branches"
+
+  while read -r t; do
+    [[ -z "$t" || ( "$current_type" == "tag" && "$current_name" == "$t" ) ]] && continue
+    ((count++))
+  done <<< "$tags"
+
+  echo "$count"
+}
+
 load_github_repositories() {
   local response
   response=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \

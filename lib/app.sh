@@ -214,35 +214,40 @@ check_for_app_update() {
   echo -e "🔗 \e[1mReference:\e[0m    \e[36m$ref_type → $ref_name\e[0m"
   echo -e "🔖 \e[1mDeployed:\e[0m     \e[2m${current_commit:0:7}\e[0m – $current_message"
 
+  local alt_refs_count
+  alt_refs_count=$(count_alternative_refs "$repo_owner" "$repo_name" "$ref_type" "$ref_name")
+
   if [[ "$ref_type" == "tag" ]]; then
     echo -e "\n⚠️  \e[33mThis app was deployed from a Git tag.\e[0m"
     echo -e "📌 Tags are fixed and cannot receive updates."
 
-    echo -e "\n❓ \e[1mWould you like to switch to a branch or another tag?\e[0m"
-    echo -e "\n 1) 🔀 Switch Branch or Tag       q) 🔙 Return to Menu"
-    read_menu_choice 1
-    case "$REPLY" in
-      1)
-        export SELECTED_REPO_OWNER="$repo_owner"
-        export SELECTED_REPO_NAME="$repo_name"
-        if select_branch_or_tag; then
-          local new_commit
-          new_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-            "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$SELECTED_REF_NAME" |
-            jq -r '.sha // empty')
-          if [[ "$new_commit" == "$current_commit" ]]; then
-            echo -e "\n🔁 \e[33mYou already deployed this commit – nothing to update.\e[0m"
-            return 0
-          fi
-          clone_repository || return 1
-          _redeploy_blazor_app "$service_name" "$SELECTED_COMMIT_HASH"
-          return $?
-        else
-          clear
-          return 9
-        fi ;;
-      q|Q) return 9 ;;
-    esac
+    if (( alt_refs_count > 0 )); then
+      echo -e "\n❓ \e[1mWould you like to switch to a branch or another tag?\e[0m"
+      echo -e "\n 1) 🔀 Switch Branch or Tag       q) 🔙 Return to Menu"
+      read_menu_choice 1
+      case "$REPLY" in
+        1)
+          export SELECTED_REPO_OWNER="$repo_owner"
+          export SELECTED_REPO_NAME="$repo_name"
+          if select_branch_or_tag; then
+            local new_commit
+            new_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+              "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$SELECTED_REF_NAME" |
+              jq -r '.sha // empty')
+            if [[ "$new_commit" == "$current_commit" ]]; then
+              echo -e "\n🔁 \e[33mYou already deployed this commit – nothing to update.\e[0m"
+              return 0
+            fi
+            clone_repository || return 1
+            _redeploy_blazor_app "$service_name" "$SELECTED_COMMIT_HASH"
+            return $?
+          else
+            clear
+            return 9
+          fi ;;
+        q|Q) return 9 ;;
+      esac
+    fi
     return 0
   fi
 
@@ -264,40 +269,42 @@ check_for_app_update() {
 
   if [[ "$current_commit" == "$latest_commit" ]]; then
     echo -e "\n✅ \e[1mThis app is already up to date.\e[0m"
-    echo -e "\n❓ \e[1mWould you like to switch to a different branch or tag anyway?\e[0m"
-    echo -e "\n 1) 🔀 Switch Branch or Tag       q) 🔙 Return to Menu"
-    read_menu_choice 1
-    case "$REPLY" in
-      1)
-        export SELECTED_REPO_OWNER="$repo_owner"
-        export SELECTED_REPO_NAME="$repo_name"
-        if select_branch_or_tag; then
-          local new_commit
-          new_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-            "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$SELECTED_REF_NAME" |
-            jq -r '.sha // empty')
-          if [[ "$new_commit" == "$current_commit" ]]; then
-            echo -e "\n🔁 \e[33mYou already deployed this commit – nothing to update.\e[0m"
-            return 0
-          fi
-          clone_repository || return 1
-          _redeploy_blazor_app "$service_name" "$SELECTED_COMMIT_HASH"
-          return $?
-        else
-          clear
-          return 9
-        fi ;;
-      q|Q) return 9 ;;
-    esac
+    if (( alt_refs_count > 0 )); then
+      echo -e "\n❓ \e[1mWould you like to switch to a different branch or tag anyway?\e[0m"
+      echo -e "\n 1) 🔀 Switch Branch or Tag       q) 🔙 Return to Menu"
+      read_menu_choice 1
+      case "$REPLY" in
+        1)
+          export SELECTED_REPO_OWNER="$repo_owner"
+          export SELECTED_REPO_NAME="$repo_name"
+          if select_branch_or_tag; then
+            local new_commit
+            new_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+              "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$SELECTED_REF_NAME" |
+              jq -r '.sha // empty')
+            if [[ "$new_commit" == "$current_commit" ]]; then
+              echo -e "\n🔁 \e[33mYou already deployed this commit – nothing to update.\e[0m"
+              return 0
+            fi
+            clone_repository || return 1
+            _redeploy_blazor_app "$service_name" "$SELECTED_COMMIT_HASH"
+            return $?
+          else
+            clear
+            return 9
+          fi ;;
+        q|Q) return 9 ;;
+      esac
+    fi
     return 0
   fi
 
   echo -e "\n🆕 \e[1;32mA newer version is available!\e[0m"
 
   echo -e "\n❓ \e[1mWhat would you like to do?\e[0m"
-  echo -e "\n 1) 🔄 Yes, update now     2) 🔀 Switch Branch or Tag"
+  echo -e "\n 1) 🔄 Yes, update now     $( (( alt_refs_count > 0 )) && echo "2) 🔀 Switch Branch or Tag" )"
   echo -e " q) 🔙 Return to Menu"
-  read_menu_choice 2
+  read_menu_choice $(( alt_refs_count > 0 ? 2 : 1 ))
 
   case "$REPLY" in
     1)
