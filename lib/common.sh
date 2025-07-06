@@ -7,14 +7,10 @@ load_env_once() {
     return 0
   fi
 
-  # Ermittle den Ursprungs-Ordner der Binary (also wo .env liegt)
-  local base_dir
-  base_dir="$(dirname "$(readlink -f "$(command -v "$0")")")"
-
-  local env_file="$base_dir/.env"
+  local env_file="./.env"
 
   if [[ ! -f "$env_file" ]]; then
-    echo "⚠️  Keine .env gefunden unter $env_file"
+    echo "⚠️  No .env file found in working directory (expected at $env_file)"
     return 1
   fi
 
