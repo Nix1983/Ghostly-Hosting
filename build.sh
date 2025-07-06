@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -euo pipefail
 
 install_if_missing() {
@@ -33,7 +32,8 @@ fix_permissions_if_needed() {
 read_expiry_date() {
   local date_input
   while true; do
-    read -r -p "Bis wann soll die Binary gültig sein? (YYYY-MM-DD, Enter = unbegrenzt): " date_input
+    printf "Bis wann soll die Binary gültig sein? (YYYY-MM-DD, Enter = unbegrenzt): "
+    read -r date_input
     if [[ -z "$date_input" ]]; then
       EXPIRY=""
       break
@@ -66,33 +66,34 @@ prepare_payload() {
 create_launcher_script() {
   echo "🚀 Erstelle run.sh..."
 
-  cat > run.sh <<'EOF'
-#!/bin/bash
-set -e
-
-SCRIPT_SOURCE_DIR="$(cd "$(dirname "$0")" && pwd)"
-PAYLOAD="$SCRIPT_SOURCE_DIR/payload.tar.gz"
-
-if [[ ! -f "$PAYLOAD" ]]; then
-  echo "❌ payload.tar.gz fehlt."
-  exit 1
-fi
-
-TMPDIR="$(mktemp -d)"
-tar -xzf "$PAYLOAD" -C "$TMPDIR"
-
-# .env vom Ursprungsverzeichnis mitkopieren
-if [[ -f "$SCRIPT_SOURCE_DIR/.env" ]]; then
-  cp "$SCRIPT_SOURCE_DIR/.env" "$TMPDIR/.env"
-fi
-
-cd "$TMPDIR"
-chmod +x start.sh
-./start.sh
-EOF
+  {
+    echo "#!/bin/bash"
+    echo "set -e"
+    echo
+    echo "SCRIPT_SOURCE_DIR=\"\$(cd \"\$(dirname \"\$0\")\" && pwd)\""
+    echo "PAYLOAD=\"\$SCRIPT_SOURCE_DIR/payload.tar.gz\""
+    echo
+    echo "if [[ ! -f \"\$PAYLOAD\" ]]; then"
+    echo "  echo \"❌ payload.tar.gz fehlt.\""
+    echo "  exit 1"
+    echo "fi"
+    echo
+    echo "TMPDIR=\"\$(mktemp -d)\""
+    echo "tar -xzf \"\$PAYLOAD\" -C \"\$TMPDIR\""
+    echo
+    echo "# .env vom Ursprungsverzeichnis mitkopieren"
+    echo "if [[ -f \"\$SCRIPT_SOURCE_DIR/.env\" ]]; then"
+    echo "  cp \"\$SCRIPT_SOURCE_DIR/.env\" \"\$TMPDIR/.env\""
+    echo "fi"
+    echo
+    echo "cd \"\$TMPDIR\""
+    echo "chmod +x start.sh"
+    echo "./start.sh"
+  } > run.sh
 
   chmod +x run.sh
 }
+
 
 compile_binary() {
   local outfile="deploy/blazor_hosting_suite"
