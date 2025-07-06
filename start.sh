@@ -1,6 +1,5 @@
 #!/bin/bash
 # shellcheck disable=SC1091
-
 source ./lib/const.sh
 source ./lib/common.sh
 source ./lib/server_manager.sh

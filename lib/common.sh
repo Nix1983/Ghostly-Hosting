@@ -7,8 +7,14 @@ load_env_once() {
     return 0
   fi
 
-  local env_file="./.env"
+  # Ermittle den Ursprungs-Ordner der Binary (also wo .env liegt)
+  local base_dir
+  base_dir="$(dirname "$(readlink -f "$(command -v "$0")")")"
+
+  local env_file="$base_dir/.env"
+
   if [[ ! -f "$env_file" ]]; then
+    echo "⚠️  Keine .env gefunden unter $env_file"
     return 1
   fi
 
@@ -19,6 +25,7 @@ load_env_once() {
 
   __ENV_LOADED_ALREADY=1
 }
+
 
 is_valid_ipv4() {
   local ip=$1
