@@ -270,6 +270,7 @@ restore_backup() {
 
   clone_repository "$SELECTED_COMMIT" || return 1
   _redeploy_blazor_app "$service_name" "$SELECTED_COMMIT"
+  print_press_any_key
 }
 
 
@@ -397,7 +398,6 @@ show_app_details_menu() {
         ;;
       6)
         restore_backup "$service"
-        print_press_any_key
         ;;
       7)
         toggle_cloudflare_proxy "$fqdn"

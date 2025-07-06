@@ -131,7 +131,15 @@ restore_app_meta_data() {
     echo -e "\n🗃️ \e[33mNo backup metadata found yet.\e[0m"
     echo -e "   A backup will be created automatically on the first app update."
     echo -e "📂 Target folder: \e[2m$backup_dir\e[0m"
+    print_press_any_key
     return 1
+  fi
+
+  # Aktuellen Commit aus laufender App lesen (falls vorhanden)
+  local current_meta_file="$exec_dir/meta.json"
+  local current_commit=""
+  if [[ -f "$current_meta_file" ]]; then
+    current_commit=$(get_commit_from_meta "$current_meta_file")
   fi
 
   local options=()
@@ -140,17 +148,26 @@ restore_app_meta_data() {
 
   for file in "${meta_files[@]}"; do
     local filename timestamp datetime ref commit
+
+    commit=$(get_commit_from_meta "$file")
+    [[ "$commit" == "$current_commit" ]] && continue  # identisches Build → überspringen
+
     filename=$(basename "$file")
     timestamp="${filename//meta-/}"
     timestamp="${timestamp//.json/}"
     timestamp="${timestamp//T/}"
     datetime=$(date -d "${timestamp:0:8} ${timestamp:8:2}:${timestamp:10:2}:${timestamp:12:2}" "+%H:%M:%S %d-%m-%Y" 2>/dev/null || echo "$timestamp")
-    ref=$(jq -r '.ref_name // "-" ' "$file")
-    commit=$(jq -r '.commit // ""' "$file")
+    ref=$(get_ref_name_from_meta "$file")
+
     options+=("$(printf " %2d) 🕒 %s  |  🌿 %s \e[2m(%s)\e[0m" "$i" "$datetime" "$ref" "${commit:0:7}")")
     map_idx["$i"]="$file"
     ((i++))
   done
+
+  if (( ${#options[@]} == 0 )); then
+    echo -e "\n🛑 \e[33mNo other backups available (only same commit as current).\e[0m"
+    return 1
+  fi
 
   while true; do
     clear
@@ -179,11 +196,10 @@ restore_app_meta_data() {
       SELECTED_REF_NAME=$(get_ref_name_from_meta "$meta_file_restore")
       SELECTED_COMMIT=$(get_commit_from_meta "$meta_file_restore")
 
-     if [[ "$SELECTED_REPO_OWNER" == "–" || "$SELECTED_REPO_NAME" == "–" || "$SELECTED_REF_TYPE" == "–" || "$SELECTED_REF_NAME" == "–" || "$SELECTED_COMMIT" == "–" ]]; then
-       echo -e "❌ \e[31mInvalid or incomplete metadata in: $meta_file_restore\e[0m"
-       return 1
-     fi
-
+      if [[ "$SELECTED_REPO_OWNER" == "–" || "$SELECTED_REPO_NAME" == "–" || "$SELECTED_REF_TYPE" == "–" || "$SELECTED_REF_NAME" == "–" || "$SELECTED_COMMIT" == "–" ]]; then
+        echo -e "❌ \e[31mInvalid or incomplete metadata in: $meta_file_restore\e[0m"
+        return 1
+      fi
 
       return 0
     else
