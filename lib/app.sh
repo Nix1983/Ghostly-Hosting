@@ -274,7 +274,7 @@ restore_app_backup() {
   domain="${domain//-/.}"
  
   backup_dir=$(resolve_backup_folder_from_service_name "$service_name")
-  mkdir -p $backup_dir
+  mkdir -p "$backup_dir"
   if [[ ! -d "$backup_dir" ]]; then
     echo -e "\n❌ \e[31mBackup folder not found at:\e[2m $backup_dir\e[0m"
     return 1
