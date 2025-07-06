@@ -23,6 +23,39 @@ remove_fail2ban() {
   echo -e "🗑️ Removed Fail2Ban configuration, binaries and Python modules."
 }
 
+intsall_fail2ban(){
+    echo -e "\n🛡️ \e[1mInstalling Fail2Ban (security)...\e[0m"
+  if ! command -v fail2ban-client >/dev/null 2>&1; then
+    if apt-get install -y fail2ban >/dev/null 2>&1; then
+      echo "✅ Fail2Ban installed."
+    else
+      echo -e "❌ \e[31mFailed to install Fail2Ban.\e[0m"
+      exit 1
+    fi
+  else
+    echo "✅ Fail2Ban is already installed."
+  fi
+
+  if [[ ! -d /etc/fail2ban ]]; then
+    echo -e "⚠️ \e[33mFail2Ban config missing – repairing broken installation (Ubuntu 20 workaround)...\e[0m"
+    apt-get purge -y fail2ban >/dev/null 2>&1
+    rm -rf /etc/fail2ban /var/lib/fail2ban /var/log/fail2ban*
+    if apt-get install -y fail2ban >/dev/null 2>&1; then
+      echo "✅ Fail2Ban reinstalled and fixed."
+    else
+      echo -e "❌ \e[31mRepair failed – aborting.\e[0m"
+      exit 1
+    fi
+  fi
+
+  echo -e "\n🔐 \e[1mEnabling and starting Fail2Ban...\e[0m"
+  if systemctl enable fail2ban >/dev/null 2>&1 && systemctl start fail2ban >/dev/null 2>&1; then
+    echo "✅ Fail2Ban service is running."
+  else
+    echo -e "❌ \e[31mFailed to start or enable Fail2Ban.\e[0m"
+    exit 1
+  fi
+}
 
 configure_f2b() {
 

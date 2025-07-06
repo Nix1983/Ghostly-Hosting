@@ -13,6 +13,27 @@ remove_certbot() {
   echo -e "🗑️ Removed Certbot and all certificate data."
 }
 
+install_certbot(){
+   echo -e "\n📜 \e[1mInstalling Certbot (for HTTPS)...\e[0m"
+  if ! command -v certbot >/dev/null 2>&1; then
+    if apt-get install -y certbot python3-certbot >/dev/null 2>&1; then
+      echo "✅ Certbot installed."
+    else
+      echo -e "❌ \e[31mFailed to install Certbot.\e[0m"
+      exit 1
+    fi
+  else
+    echo "✅ Certbot is already installed."
+  fi
+
+  if systemctl list-unit-files --type=timer | grep -q '^certbot.timer'; then
+    systemctl enable certbot.timer >/dev/null 2>&1
+    systemctl start certbot.timer >/dev/null 2>&1
+    echo -e "✅ certbot.timer enabled."
+  else
+    echo -e "⚠️  \e[33mcertbot.timer not available on this system – skipping.\e[0m"
+  fi
+}
 
 _check_required_tools() {
   for tool in openssl systemctl grep cut xargs; do

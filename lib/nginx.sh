@@ -20,17 +20,27 @@ remove_nginx() {
   echo -e "🗑️ Removed NGINX configuration, binaries and related files."
 }
 
+install_nginx() {
+  echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
 
-install_nginx_if_missing() {
   if ! command -v nginx >/dev/null 2>&1; then
-    echo -e "\n📦 Installing Nginx (non-interactive)..."
-    apt update -y
-    apt install -y nginx
-    systemctl enable nginx
-    systemctl start nginx
-    echo -e "✅ Nginx installed and started."
+    apt-get update -y >/dev/null 2>&1
+    if apt-get install -y nginx >/dev/null 2>&1; then
+      echo "✅ Nginx installed."
+    else
+      echo -e "❌ \e[31mFailed to install Nginx – aborting setup.\e[0m"
+      exit 1
+    fi
   else
-    echo -e "✅ Nginx is already installed."
+    echo "✅ Nginx is already installed."
+  fi
+
+  echo -e "\n🔌 \e[1mEnabling and starting Nginx...\e[0m"
+  if systemctl enable nginx >/dev/null 2>&1 && systemctl start nginx >/dev/null 2>&1; then
+    echo "✅ Nginx service is running."
+  else
+    echo -e "❌ \e[31mFailed to start or enable Nginx.\e[0m"
+    exit 1
   fi
 }
 
@@ -232,8 +242,6 @@ setup_nginx_for_blazor_app() {
     echo "❌ Required variables HOSTNAME_FQDN or KESTREL_PORT are missing." >&2
     return 1
   fi
-
-  install_nginx_if_missing
   create_nginx_config || return 1
   setup_nginx_log_timer
 

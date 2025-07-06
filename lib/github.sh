@@ -11,15 +11,6 @@ declare -g SELECTED_REPO_NAME=""
 declare -g SELECTED_REPO_OWNER=""
 declare -g TMP_CLONE_DIR=""
 
-remove_git() {
-  apt-get purge -y git git-core git-man git-all git-doc >/dev/null 2>&1
-
-  rm -f /usr/bin/git /usr/local/bin/git /snap/bin/git
-  rm -rf /etc/gitconfig /usr/share/doc/git* /usr/share/man/man1/git* /var/lib/snapd/snap/git*
-
-  echo -e "🗑️ Removed Git and all related files."
-}
-
 resolve_github_user_from_token() {
   if [[ -n "$GITHUB_API_TOKEN" ]]; then
     local user_response

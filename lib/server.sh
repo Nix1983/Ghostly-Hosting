@@ -11,6 +11,7 @@ source ./lib/github.sh
 source ./lib/timezone.sh
 source ./lib/nginx.sh
 source ./lib/dotnet.sh
+source ./lib/git.sh
 
 remove_snapd() {
   apt-get purge -y snapd >/dev/null 2>&1
@@ -288,106 +289,10 @@ init_server() {
   echo -e "\n🚀 \e[1;34mInitialize Server for .NET Hosting\e[0m"
   print_double_line
 
-  echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
-  if ! command -v nginx >/dev/null 2>&1; then
-    apt-get update -y >/dev/null 2>&1
-    if apt-get install -y nginx >/dev/null 2>&1; then
-      echo "✅ Nginx installed."
-    else
-      echo -e "❌ \e[31mFailed to install Nginx – aborting setup.\e[0m"
-      exit 1
-    fi
-  else
-    echo "✅ Nginx is already installed."
-  fi
-
-  echo -e "\n🔌 \e[1mEnabling and starting Nginx...\e[0m"
-  if systemctl enable nginx >/dev/null 2>&1 && systemctl start nginx >/dev/null 2>&1; then
-    echo "✅ Nginx service is running."
-  else
-    echo -e "❌ \e[31mFailed to start or enable Nginx.\e[0m"
-    exit 1
-  fi
-
-  echo -e "\n🛡️ \e[1mInstalling Fail2Ban (security)...\e[0m"
-  if ! command -v fail2ban-client >/dev/null 2>&1; then
-    if apt-get install -y fail2ban >/dev/null 2>&1; then
-      echo "✅ Fail2Ban installed."
-    else
-      echo -e "❌ \e[31mFailed to install Fail2Ban.\e[0m"
-      exit 1
-    fi
-  else
-    echo "✅ Fail2Ban is already installed."
-  fi
-
-  if [[ ! -d /etc/fail2ban ]]; then
-    echo -e "⚠️ \e[33mFail2Ban config missing – repairing broken installation (Ubuntu 20 workaround)...\e[0m"
-    apt-get purge -y fail2ban >/dev/null 2>&1
-    rm -rf /etc/fail2ban /var/lib/fail2ban /var/log/fail2ban*
-    if apt-get install -y fail2ban >/dev/null 2>&1; then
-      echo "✅ Fail2Ban reinstalled and fixed."
-    else
-      echo -e "❌ \e[31mRepair failed – aborting.\e[0m"
-      exit 1
-    fi
-  fi
-
-  echo -e "\n🔐 \e[1mEnabling and starting Fail2Ban...\e[0m"
-  if systemctl enable fail2ban >/dev/null 2>&1 && systemctl start fail2ban >/dev/null 2>&1; then
-    echo "✅ Fail2Ban service is running."
-  else
-    echo -e "❌ \e[31mFailed to start or enable Fail2Ban.\e[0m"
-    exit 1
-  fi
-
-  echo -e "\n📜 \e[1mInstalling Certbot (for HTTPS)...\e[0m"
-  if ! command -v certbot >/dev/null 2>&1; then
-    if apt-get install -y certbot python3-certbot >/dev/null 2>&1; then
-      echo "✅ Certbot installed."
-    else
-      echo -e "❌ \e[31mFailed to install Certbot.\e[0m"
-      exit 1
-    fi
-  else
-    echo "✅ Certbot is already installed."
-  fi
-
-  if systemctl list-unit-files --type=timer | grep -q '^certbot.timer'; then
-    systemctl enable certbot.timer >/dev/null 2>&1
-    systemctl start certbot.timer >/dev/null 2>&1
-    echo -e "✅ certbot.timer enabled."
-  else
-    echo -e "⚠️  \e[33mcertbot.timer not available on this system – skipping.\e[0m"
-  fi
-
-  echo -e "\n🔧 \e[1mInstalling Git (for deployments)...\e[0m"
-  if ! command -v git >/dev/null 2>&1; then
-    if apt-get install -y git git-core git-man >/dev/null 2>&1; then
-      echo "✅ Git installed."
-    else
-      echo -e "❌ \e[31mFailed to install Git.\e[0m"
-      exit 1
-    fi
-  else
-    echo "✅ Git is already installed."
-  fi
-
-  # 🔍 Git-Installation validieren
-  if ! command -v git >/dev/null 2>&1; then
-    # 🧪 Fallback: manuell verlinken falls git existiert aber nicht im PATH ist
-    if [[ -x /usr/lib/git-core/git && ! -x /usr/bin/git ]]; then
-      ln -sf /usr/lib/git-core/git /usr/bin/git
-    fi
-  fi
-
-  # 🛑 Noch immer kein Git – harter Abbruch
-  if ! command -v git >/dev/null 2>&1; then
-    echo -e "❌ \e[31mGit binary not found after installation – aborting.\e[0m"
-    exit 1
-  fi
-
-  echo "✅ Git binary verified: $(command -v git)"
+  install_nginx
+  intsall_fail2ban
+  install_certbot
+  install_git
 
 
   export DISABLE_CLEAR=true
@@ -403,7 +308,7 @@ init_server() {
 
   echo -e "\n✅ \e[1mServer initialization completed.\e[0m"
   print_double_line
-  read -rsn1 -p $'\nPress any key to return to menu...'
+  print_press_any_key
 }
 
 remove_all_kestrel_services() {
