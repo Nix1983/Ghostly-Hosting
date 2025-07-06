@@ -4,7 +4,7 @@ set -euo pipefail
 install_if_missing() {
   local package="$1"
   if ! dpkg -s "$package" >/dev/null 2>&1; then
-    echo "📦 Installiere $package..."
+    echo "📦 Installing $package..."
     sudo apt-get update
     sudo apt-get install -y "$package"
   fi
@@ -16,14 +16,14 @@ check_and_install_dependencies() {
   install_if_missing tar
 
   if ! command -v gcc >/dev/null && ! command -v cc >/dev/null; then
-    echo "❌ Kein funktionsfähiger C-Compiler gefunden, obwohl build-essential installiert ist."
+    echo "❌ No working C compiler found, even though build-essential is installed."
     exit 1
   fi
 }
 
 fix_permissions_if_needed() {
   if [[ -e deploy && ! -w deploy ]]; then
-    echo "⚠️  Kein Schreibzugriff auf deploy/. Setze Rechte mit sudo..."
+    echo "⚠️  No write access to deploy/. Fixing permissions with sudo..."
     sudo chown -R "$USER":"$USER" deploy || true
     sudo chmod -R u+rw deploy || true
   fi
@@ -32,7 +32,7 @@ fix_permissions_if_needed() {
 read_expiry_date() {
   local date_input
   while true; do
-    printf "Bis wann soll die Binary gültig sein? (YYYY-MM-DD, Enter = unbegrenzt): "
+    printf "Enter expiration date for the binary (YYYY-MM-DD, Enter = no limit): "
     read -r date_input
     if [[ -z "$date_input" ]]; then
       EXPIRY=""
@@ -40,18 +40,18 @@ read_expiry_date() {
     elif [[ "$date_input" =~ ^20[2-9][0-9]-[01][0-9]-[0-3][0-9]$ ]]; then
       EXPIRY="$date_input"
       if ! SHC_EXPIRY=$(date -d "$EXPIRY" +%m/%d/%Y 2>/dev/null); then
-        echo "❌ Ungültiges Datum. Format korrekt, aber Datum existiert nicht."
+        echo "❌ Invalid date. Format is correct, but date does not exist."
       else
         break
       fi
     else
-      echo "❌ Ungültiges Format. Bitte YYYY-MM-DD verwenden."
+      echo "❌ Invalid format. Please use YYYY-MM-DD."
     fi
   done
 }
 
 prepare_payload() {
-  echo "🧩 Erstelle Payload..."
+  echo "🧩 Creating payload..."
   rm -rf .bin_tmp deploy/ run.sh run.sh.x.c
   mkdir -p .bin_tmp deploy
 
@@ -64,7 +64,7 @@ prepare_payload() {
 }
 
 create_launcher_script() {
-  echo "🚀 Erstelle run.sh..."
+  echo "🚀 Creating run.sh..."
 
   {
     echo "#!/bin/bash"
@@ -74,14 +74,14 @@ create_launcher_script() {
     echo "PAYLOAD=\"\$SCRIPT_SOURCE_DIR/payload.tar.gz\""
     echo
     echo "if [[ ! -f \"\$PAYLOAD\" ]]; then"
-    echo "  echo \"❌ payload.tar.gz fehlt.\""
+    echo "  echo \"❌ payload.tar.gz is missing.\""
     echo "  exit 1"
     echo "fi"
     echo
     echo "TMPDIR=\"\$(mktemp -d)\""
     echo "tar -xzf \"\$PAYLOAD\" -C \"\$TMPDIR\""
     echo
-    echo "# .env vom Ursprungsverzeichnis mitkopieren"
+    echo "# Copy .env from source directory if present"
     echo "if [[ -f \"\$SCRIPT_SOURCE_DIR/.env\" ]]; then"
     echo "  cp \"\$SCRIPT_SOURCE_DIR/.env\" \"\$TMPDIR/.env\""
     echo "fi"
@@ -94,23 +94,22 @@ create_launcher_script() {
   chmod +x run.sh
 }
 
-
 compile_binary() {
   local outfile="deploy/blazor_hosting_suite"
   if [[ -n "${EXPIRY:-}" ]]; then
     outfile="deploy/blazor_hosting_suite_trial_${EXPIRY}"
-    echo "🛡️  Kompiliere Binary mit Ablaufdatum $SHC_EXPIRY..."
+    echo "🛡️  Compiling binary with expiration date $SHC_EXPIRY..."
     shc -e "$SHC_EXPIRY" -f run.sh -o "$outfile"
   else
-    echo "🛡️  Kompiliere Binary ohne Ablaufdatum..."
+    echo "🛡️  Compiling binary without expiration date..."
     shc -f run.sh -o "$outfile"
   fi
 
-  echo "✅ Binary erstellt: $outfile"
+  echo "✅ Binary created: $outfile"
 }
 
 cleanup() {
-  echo "🧼 Aufräumen..."
+  echo "🧼 Cleaning up..."
   rm -rf .bin_tmp run.sh run.sh.x.c
 }
 
