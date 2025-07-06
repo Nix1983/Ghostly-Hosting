@@ -63,6 +63,7 @@ _load_dynamic_app_info() {
   ram_size=$(get_service_ram_usage "$service")
 
   uptime=$(get_service_uptime "$service")
+
 }
 
 delete_app() {
@@ -443,6 +444,27 @@ show_app_details_menu() {
   while true; do
     _load_dynamic_app_info "$service"
 
+   meta_file="$exec_dir/$META_FILE_NAME"
+   repo_name=$(get_repo_name_from_meta "$meta_file" 22)
+   ref_type=$(get_ref_type_from_meta "$meta_file")
+   ref_name=$(get_ref_name_from_meta "$meta_file")
+   commit=$(get_commit_from_meta "$meta_file")
+   
+   [[ ${#ref_name} -gt 30 ]] && ref_display="${ref_name:0:30}..." || ref_display="$ref_name"
+   [[ -z "$commit" || "$commit" == "–" ]] && commit="0000000"
+   
+   if [[ "$ref_type" == "branch" ]]; then
+     icon="🌿"
+     ref_type_display="Branch"
+   elif [[ "$ref_type" == "tag" ]]; then
+     icon="🏷️"
+     ref_type_display="Tag"
+   else
+     icon="❓"
+     ref_type_display="Unknown"
+   fi
+
+
     clear
     if [[ -n "$dns_warning" ]]; then
       printf "🧩 \033[1mApp Overview:\033[0m \033[36m%s\033[0m   %s   \e[1;31m%s\e[0m\n" "$fqdn" "$status" "$dns_warning"
@@ -451,6 +473,7 @@ show_app_details_menu() {
     fi
     print_double_line
 
+    printf "🔖 %-18s \e[36m%-22s\e[0m   %s %-17s \e[36m%-25s\e[0m \e[2m(%s)\e[0m\n" "Repository:" "$repo_name" "$icon" "$ref_type_display" "$ref_display" "${commit:0:7}"
     printf "🔌 %-18s \e[36m%-22s\e[0m   📦 %-17s \e[36m%-30s\e[0m\n" "Port:" "$port" "DLL:" "$main_dll"
     printf "💾 %-18s \e[36m%-22s\e[0m   📁 %-17s \e[2m%-30s\e[0m\n" "Disk Usage:" "$disk_size" "App Directory:" "$exec_dir"
     printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_size" "Uptime:" "$uptime"
