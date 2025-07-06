@@ -34,29 +34,6 @@ install_nginx_if_missing() {
   fi
 }
 
-get_http_version_from_nginx_config() {
-  local fqdn="$1"
-  local config_path="/etc/nginx/sites-available/$fqdn"
-
-  if [[ ! -f "$config_path" ]]; then
-    echo "unknown"
-    return 1
-  fi
-
-  local line
-  line=$(awk '/^\s*listen.*443/ && /ssl/ { print }' "$config_path" | head -n 1)
-
-  if [[ "$line" == *http3* ]]; then
-    echo "HTTP/3"
-  elif [[ "$line" == *http2* ]]; then
-    echo "HTTP/2"
-  elif [[ "$line" == *443* && "$line" == *ssl* ]]; then
-    echo "HTTP/1.1"
-  else
-    echo "unknown"
-  fi
-}
-
 force_nginx_log_symlink_rotation() {
   local log_dir="$1"
   local today

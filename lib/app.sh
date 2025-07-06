@@ -436,8 +436,6 @@ show_app_details_menu() {
     dns_warning=""
   fi
 
-  http_version=$(get_http_version_from_nginx_config "$fqdn")
-
   while true; do
     _load_dynamic_app_info "$service"
 
@@ -454,7 +452,7 @@ show_app_details_menu() {
     printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_size" "Uptime:" "$uptime"
     printf "🔒 %-18s \e[36m%-23s\e[0m   ♻️ %-17s \e[36m%-20s\e[0m\n" "SSL Certificate:" "$ssl_status" "SSL Auto Renew:" "$auto_renew"
     printf "🌩️ %-18s \e[36m%-23s\e[0m   📡 %-17s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$cf_proxy" "DNS Records:" "$dns_summary"
-    printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "$http_version" "Access URL:" "$fqdn"
+    printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$fqdn"
     printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
     print_line
 
