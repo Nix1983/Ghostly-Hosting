@@ -12,11 +12,16 @@ install_if_missing() {
 
 check_and_install_dependencies() {
   install_if_missing build-essential
-  install_if_missing shc
   install_if_missing tar
+  install_if_missing coreutils
 
   if ! command -v gcc >/dev/null && ! command -v cc >/dev/null; then
     echo "❌ No working C compiler found, even though build-essential is installed."
+    exit 1
+  fi
+
+  if ! command -v base64 >/dev/null; then
+    echo "❌ base64 command is missing. Please ensure coreutils is installed."
     exit 1
   fi
 }
@@ -39,7 +44,7 @@ read_expiry_date() {
       break
     elif [[ "$date_input" =~ ^20[2-9][0-9]-[01][0-9]-[0-3][0-9]$ ]]; then
       EXPIRY="$date_input"
-      if ! SHC_EXPIRY=$(date -d "$EXPIRY" +%m/%d/%Y 2>/dev/null); then
+      if ! date -d "$EXPIRY" +%Y-%m-%d >/dev/null 2>&1; then
         echo "❌ Invalid date. Format is correct, but date does not exist."
       else
         break
@@ -52,7 +57,7 @@ read_expiry_date() {
 
 prepare_payload() {
   echo "🧩 Creating payload..."
-  rm -rf .bin_tmp deploy/ run.sh run.sh.x.c
+  rm -rf .bin_tmp deploy/ run.sh
   mkdir -p .bin_tmp deploy
 
   cp -r config .bin_tmp/
@@ -63,54 +68,59 @@ prepare_payload() {
   tar -czf deploy/payload.tar.gz -C .bin_tmp .
 }
 
-create_launcher_script() {
-  echo "🚀 Creating run.sh..."
+create_embedded_launcher() {
+  echo "🚀 Creating self-contained launcher with embedded payload..."
 
   {
     echo "#!/bin/bash"
     echo "set -e"
     echo
-    echo "SCRIPT_SOURCE_DIR=\"\$(cd \"\$(dirname \"\$0\")\" && pwd)\""
-    echo "PAYLOAD=\"\$SCRIPT_SOURCE_DIR/payload.tar.gz\""
+    echo "SCRIPT_DIR=\"\$(cd \"\$(dirname \"\$0\")\" && pwd)\""
+    echo "TMPDIR=\"\$(mktemp -d)\""
     echo
-    echo "if [[ ! -f \"\$PAYLOAD\" ]]; then"
-    echo "  echo \"❌ payload.tar.gz is missing.\""
+    echo "# Extract payload from this file after the marker"
+    echo "SCRIPT_FILE=\"\$0\""
+    echo "PAYLOAD_LINE=\$(awk '/^__PAYLOAD_BELOW__/{ print NR + 1; exit }' \"\$SCRIPT_FILE\")"
+    echo "if [[ -z \"\$PAYLOAD_LINE\" || ! \"\$PAYLOAD_LINE\" =~ ^[0-9]+\$ ]]; then"
+    echo "  echo \"❌ Failed to locate payload marker in script.\""
     echo "  exit 1"
     echo "fi"
+    echo "tail -n +\"\$PAYLOAD_LINE\" \"\$SCRIPT_FILE\" > \"\$TMPDIR/payload.tar.gz.b64\""
+    echo "base64 -d \"\$TMPDIR/payload.tar.gz.b64\" > \"\$TMPDIR/payload.tar.gz\""
+    echo "tar -xzf \"\$TMPDIR/payload.tar.gz\" -C \"\$TMPDIR\""
     echo
-    echo "TMPDIR=\"\$(mktemp -d)\""
-    echo "tar -xzf \"\$PAYLOAD\" -C \"\$TMPDIR\""
-    echo
-    echo "# Copy .env from source directory if present"
-    echo "if [[ -f \"\$SCRIPT_SOURCE_DIR/.env\" ]]; then"
-    echo "  cp \"\$SCRIPT_SOURCE_DIR/.env\" \"\$TMPDIR/.env\""
+    echo "# Optional .env copy"
+    echo "if [[ -f \"\$SCRIPT_DIR/.env\" ]]; then"
+    echo "  cp \"\$SCRIPT_DIR/.env\" \"\$TMPDIR/.env\""
     echo "fi"
     echo
     echo "cd \"\$TMPDIR\""
     echo "chmod +x start.sh"
     echo "./start.sh"
-  } > run.sh
+    echo
+    echo "exit 0"
+    echo "__PAYLOAD_BELOW__"
+    base64 deploy/payload.tar.gz
+  } > deploy/run.sh
 
-  chmod +x run.sh
+  chmod +x deploy/run.sh
 }
 
-compile_binary() {
-  local outfile="deploy/blazor_hosting_suite"
+finalize_binary() {
+  local outfile
   if [[ -n "${EXPIRY:-}" ]]; then
     outfile="deploy/blazor_hosting_suite_trial_${EXPIRY}"
-    echo "🛡️  Compiling binary with expiration date $SHC_EXPIRY..."
-    shc -e "$SHC_EXPIRY" -f run.sh -o "$outfile"
   else
-    echo "🛡️  Compiling binary without expiration date..."
-    shc -f run.sh -o "$outfile"
+    outfile="deploy/blazor_hosting_suite"
   fi
 
-  echo "✅ Binary created: $outfile"
+  mv deploy/run.sh "$outfile"
+  echo "✅ Self-contained binary created: $outfile"
 }
 
 cleanup() {
   echo "🧼 Cleaning up..."
-  rm -rf .bin_tmp run.sh run.sh.x.c
+  rm -rf .bin_tmp deploy/payload.tar.gz
 }
 
 # MAIN
@@ -118,6 +128,6 @@ check_and_install_dependencies
 read_expiry_date
 fix_permissions_if_needed
 prepare_payload
-create_launcher_script
-compile_binary
+create_embedded_launcher
+finalize_binary
 cleanup
