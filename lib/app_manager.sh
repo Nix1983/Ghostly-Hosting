@@ -58,6 +58,7 @@ load_cloudflare_dns_info() {
   if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_API_BASE" ]]; then
     local zones_json zone_ids=()
     zones_json=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_BASE/zones")
+
     while IFS=$'\t' read -r name id; do
       zone_ids+=("$id")
     done < <(echo "$zones_json" | jq -r '.result[] | [.name, .id] | @tsv')
@@ -73,7 +74,7 @@ load_cloudflare_dns_info() {
         if [[ "$type" == "A" || "$type" == "AAAA" ]]; then
           if [[ "$proxied" == "true" ]]; then
             cf_proxy_map["${name,,}"]="✅"
-          elif [[ -z "${cf_proxy_map[${name,,}]}" ]]; then
+          elif [[ ! ${cf_proxy_map[${name,,}]+_} ]]; then
             cf_proxy_map["${name,,}"]="❌"
           fi
         fi
@@ -82,11 +83,34 @@ load_cloudflare_dns_info() {
   fi
 }
 
-
 show_apps() {
   local index
   local -A app_map=()
   local -A cf_proxy_map dns_map proxy_map has_a_map has_aaaa_map
+
+  local service_files
+  mapfile -t service_files < <(find /etc/systemd/system -name "*.service" -type f | sort)
+
+  local has_app=0
+  for file in "${service_files[@]}"; do
+    local name
+    name="$(basename "$file")"
+    if is_valid_kestrel_service_name "$name"; then
+      has_app=1
+      break
+    fi
+  done
+
+  if (( has_app == 0 )); then
+    clear
+    echo -e "\n🧩  \e[1;33mNo .NET apps have been deployed yet.\e[0m"
+    echo -e "\nℹ️  Use the \e[1mDeploy New App\e[0m option in the main menu"
+    echo -e "    to select a Git repository and deploy your application."
+    echo -e "    This will automatically set up a systemd service,"
+    echo -e "    an SSL certificate, and an Nginx reverse proxy."
+    print_press_any_key
+    return 1
+  fi
 
   while true; do
     index=1
@@ -97,20 +121,19 @@ show_apps() {
 
     clear
     echo -e "\n🔍 \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
-    
+
     load_cloudflare_dns_info
 
     clear
     echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
     print_double_line
 
-    while IFS= read -r service_file; do
+    for service_file in "${service_files[@]}"; do
       local service_name port fqdn exec_dir repo_name uptime
       local has_a has_aaaa dns_warning cf_proxy
 
-      service_name="$(basename "$service_file")" 
+      service_name="$(basename "$service_file")"
       is_valid_kestrel_service_name "$service_name" || continue
-
 
       if ! port=$(resolve_port_from_service_name "$service_name" 2>/dev/null); then
         continue
@@ -122,11 +145,11 @@ show_apps() {
 
       if ! exec_dir=$(resolve_exec_dir_from_service_name "$service_name" 2>/dev/null); then
         continue
-      fi     
+      fi
       [[ ! -d "$exec_dir" ]] && continue
 
       has_a="${dns_map[$fqdn,A]:-0}"
-      has_aaaa="${dns_map[$fqdn,AAAA]:-0}"   
+      has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
       cf_proxy="${cf_proxy_map[$fqdn]:-❌}"
 
       if [[ "$has_a" -eq 0 && "$has_aaaa" -eq 0 ]]; then
@@ -138,14 +161,13 @@ show_apps() {
       else
         dns_warning=""
       fi
-   
 
       repo_name=$(get_repo_name_from_meta "$exec_dir" 20)
       uptime=$(get_service_uptime "$service_name")
       ram_size=$(get_service_ram_usage "$service_name")
       disk_size="$(get_dir_size "$exec_dir")"
       status=$(get_service_status_icon "$service_name")
-      
+
       local status_icon_display
       status_icon_display="${dns_warning:+⚠️}"
       status_icon_display="${status_icon_display:-$status}"
@@ -158,17 +180,7 @@ show_apps() {
       has_a_map["$index"]="$has_a"
       has_aaaa_map["$index"]="$has_aaaa"
       ((index++))
-    done < <(find /etc/systemd/system -name "*.service" -type f | sort)
-
-    if (( index == 1 )); then
-      echo -e "\n🧩  \e[1;33mNo .NET apps have been deployed yet.\e[0m"
-      echo -e "\nℹ️  Use the \e[1mDeploy New App\e[0m option in the main menu"
-      echo -e "    to select a Git repository and deploy your application."
-      echo -e "    This will automatically set up a systemd service,"
-      echo -e "    an SSL certificate, and an Nginx reverse proxy."
-      print_press_any_key
-      return 1
-    fi
+    done
 
     read_menu_choice "$((index - 1))"
     if [[ "$REPLY" =~ ^[Qq]$ ]]; then
@@ -184,7 +196,6 @@ show_apps() {
       if ! find /etc/systemd/system -name "*.service" -type f | grep -q .; then
         return 0
       fi
-      continue
     fi
   done
 }
