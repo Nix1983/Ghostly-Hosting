@@ -135,8 +135,7 @@ restore_app_meta_data() {
     return 1
   fi
 
-  # Aktuellen Commit aus laufender App lesen (falls vorhanden)
-  local current_meta_file="$exec_dir/meta.json"
+  local current_meta_file="$exec_dir/$META_FILE_NAME"
   local current_commit=""
   if [[ -f "$current_meta_file" ]]; then
     current_commit=$(get_commit_from_meta "$current_meta_file")
