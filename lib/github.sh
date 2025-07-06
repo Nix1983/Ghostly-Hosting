@@ -296,6 +296,17 @@ save_repo_metadata() {
     export SELECTED_COMMIT_HASH="$commit_to_save"
   fi
 
+  local commit_message=""
+  if [[ -n "$commit_to_save" && -d "$TMP_CLONE_DIR/.git" ]]; then
+    commit_message=$(git -C "$TMP_CLONE_DIR" log -1 --pretty=%s "$commit_to_save" 2>/dev/null)
+  fi
+
+  if [[ -z "$commit_message" ]]; then
+    commit_message=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+      "$GITHUB_API_BASE/repos/$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME/commits/$commit_to_save" |
+      jq -r '.commit.message // empty')
+  fi
+
   if [[ -z "$commit_to_save" ]]; then
     echo -e "⚠️ \e[33mCould not determine commit hash – continuing without.\e[0m"
   fi
@@ -305,13 +316,15 @@ save_repo_metadata() {
         --arg type "$SELECTED_REF_TYPE" \
         --arg ref "$SELECTED_REF_NAME" \
         --arg sha "$commit_to_save" \
+        --arg message "$commit_message" \
         '{
           repo_owner: $owner,
           repo_name: $name,
           ref_type: $type,
           ref_name: $ref,
-          commit: $sha
+          commit: $sha,
+          commit_message: $message
         }' > "$meta_file"
 
-  echo -e "📝 Metadata written to \e[2m$meta_file\e[0m"
+  echo -e "📝 Metadata written to \e[2m$]()"
 }

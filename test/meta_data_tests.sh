@@ -25,25 +25,9 @@ declare -g META_DIR3="$META_BASE/app3"
 prepare_meta_test_data() {
   mkdir -p "$META_DIR1" "$META_DIR2" "$META_DIR3"
 
-  cat > "$META_DIR1/meta.json" <<EOF
-{
-  "repo_owner": "TestUser",
-  "repo_name": "ShortNameApp",
-  "ref_type": "branch",
-  "ref_name": "main",
-  "commit": "1111111111111111111111111111111111111111"
-}
-EOF
+  printf '{\n  "repo_owner": "TestUser",\n  "repo_name": "ShortNameApp",\n  "ref_type": "branch",\n  "ref_name": "main",\n  "commit": "1111111111111111111111111111111111111111",\n  "commit_message": "Initial commit from test"\n}\n' > "$META_DIR1/meta.json"
 
-  cat > "$META_DIR2/meta.json" <<EOF
-{
-  "repo_owner": "AnotherOwner",
-  "repo_name": "VeryLongRepositoryNameThatWillBeShortened",
-  "ref_type": "tag",
-  "ref_name": "v1.0.0",
-  "commit": "2222222222222222222222222222222222222222"
-}
-EOF
+  printf '{\n  "repo_owner": "AnotherOwner",\n  "repo_name": "VeryLongRepositoryNameThatWillBeShortened",\n  "ref_type": "tag",\n  "ref_name": "v1.0.0",\n  "commit": "2222222222222222222222222222222222222222",\n  "commit_message": "Release version 1.0.0"\n}\n' > "$META_DIR2/meta.json"
 
   echo '{ "repo_owner": "MissingFieldsInc" }' > "$META_DIR3/meta.json"
 }
@@ -156,25 +140,34 @@ test_get_commit_from_meta() {
   run_case "$META_DIR3/meta.json" "–"
 }
 
+test_get_commit_message_from_meta_local() {
+  run_case() {
+    local file="$1"
+    local expected="$2"
+    local result
+    result=$(jq -r '.commit_message // "–"' "$file")
+    if [[ "$result" == "$expected" ]]; then
+      echo "✅ get_commit_message_from_meta_local => $result"
+    else
+      echo "❌ get_commit_message_from_meta_local: got '$result', expected '$expected'"
+      return 1
+    fi
+  }
+
+  run_case "$META_DIR1/meta.json" "Initial commit from test"
+  run_case "$META_DIR2/meta.json" "Release version 1.0.0"
+  run_case "$META_DIR3/meta.json" "–"
+}
+
 test_backup_app_metadata() {
   local test_dir="/tmp/test_backup_meta"
   local meta_file="$test_dir/meta.json"
   local backup_dir="$test_dir/$BACKUP_DIR"
   local commit="3333333333333333333333333333333333333333"
 
-  mkdir -p "$test_dir"
-  rm -rf "$backup_dir"
   mkdir -p "$backup_dir"
 
-  cat > "$meta_file" <<EOF
-{
-  "repo_owner": "BackupTestUser",
-  "repo_name": "BackupApp",
-  "ref_type": "branch",
-  "ref_name": "main",
-  "commit": "$commit"
-}
-EOF
+  printf '{\n  "repo_owner": "BackupTestUser",\n  "repo_name": "BackupApp",\n  "ref_type": "branch",\n  "ref_name": "main",\n  "commit": "%s",\n  "commit_message": "Backup test commit"\n}\n' "$commit" > "$meta_file"
 
   backup_app_metadata "$test_dir"
   sleep 1
@@ -205,6 +198,7 @@ test_get_repo_name_from_meta
 test_get_ref_type_from_meta
 test_get_ref_name_from_meta
 test_get_commit_from_meta
+test_get_commit_message_from_meta_local
 test_backup_app_metadata
 
 cleanup_meta_test_data

@@ -29,7 +29,7 @@ _redeploy_blazor_app() {
   echo -e "\n⏹️ \e[1mStopping service:\e[0m \e[36m$service_name\e[0m"
   systemctl stop "$service_name" 2>/dev/null || echo "⚠️ Could not stop service."
 
-  backup_app_metadata "$exec_dir"
+  backup_app_metadata "$service_name"
 
   [[ -d "$log_dir" ]] && cp -a "$log_dir" "$TMP_PUBLISH_DIR/$LOGS_DIR"
   [[ -d "$backup_dir" ]] && cp -a "$backup_dir" "$TMP_PUBLISH_DIR/$BACKUP_DIR"
@@ -177,9 +177,7 @@ refresh_cloudflare_info_for_domain() {
 check_for_app_update() {
   local service_name="$1"
   local exec_dir
-
   exec_dir=$(resolve_exec_dir_from_service_name "$service_name")
-  
   local meta_file="$exec_dir/$META_FILE_NAME"
 
   clear
@@ -196,21 +194,22 @@ check_for_app_update() {
     return 1
   fi
 
-  local repo_owner repo_name ref_type ref_name current_commit latest_commit
-  repo_owner=$(jq -r '.repo_owner // empty' "$meta_file")
-  repo_name=$(jq -r '.repo_name // empty' "$meta_file")
-  ref_type=$(jq -r '.ref_type // empty' "$meta_file")
-  ref_name=$(jq -r '.ref_name // empty' "$meta_file")
-  current_commit=$(jq -r '.commit // empty' "$meta_file")
+  local repo_owner repo_name ref_type ref_name current_commit current_message
+  repo_owner=$(get_repo_owner_from_meta "$meta_file")
+  repo_name=$(get_repo_name_from_meta "$meta_file")
+  ref_type=$(get_ref_type_from_meta "$meta_file")
+  ref_name=$(get_ref_name_from_meta "$meta_file")
+  current_commit=$(get_commit_from_meta "$meta_file")
+  current_message=$(get_commit_message_from_meta "$meta_file")
 
-  if [[ -z "$repo_owner" || -z "$repo_name" || -z "$ref_type" || -z "$ref_name" ]]; then
+  if [[ "$repo_owner" == "–" || "$repo_name" == "–" || "$ref_type" == "–" || "$ref_name" == "–" || "$current_commit" == "–" ]]; then
     echo -e "❌ \e[31mMetadata file is incomplete or malformed.\e[0m"
     return 1
   fi
 
-  echo -e "📦 \e[1mRepository:\e[0m  \e[36m$repo_owner/$repo_name\e[0m"
-  echo -e "🔗 \e[1mReference:\e[0m   \e[36m$ref_type → $ref_name\e[0m"
-  echo -e "🔖 \e[1mCurrent commit:\e[0m \e[2m$current_commit\e[0m"
+  echo -e "📦 \e[1mRepository:\e[0m   \e[36m$repo_owner/$repo_name\e[0m"
+  echo -e "🔗 \e[1mReference:\e[0m    \e[36m$ref_type → $ref_name\e[0m"
+  echo -e "🔖 \e[1mDeployed:\e[0m     \e[2m${current_commit:0:7}\e[0m – $current_message"
 
   if [[ "$ref_type" == "tag" ]]; then
     echo -e "\n⚠️  \e[33mThis app was deployed from a Git tag.\e[0m"
@@ -218,16 +217,19 @@ check_for_app_update() {
     return 0
   fi
 
+  local latest_commit latest_message
   latest_commit=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-    "$GITHUB_API_BASE/repos/$repo_owner/$repo_name/commits/$ref_name" |
-    jq -r '.sha // empty')
+    "$GITHUB_API_BASE/repos/$repo_owner/$repo_name/commits/$ref_name" | jq -r '.sha // empty')
 
   if [[ -z "$latest_commit" ]]; then
     echo -e "\n❌ \e[31mFailed to retrieve latest commit from GitHub API.\e[0m"
     return 1
   fi
 
-  echo -e "📥 \e[1mLatest commit:\e[0m  \e[2m$latest_commit\e[0m"
+  latest_message=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/repos/$repo_owner/$repo_name/commits/$latest_commit" | jq -r '.commit.message // "–"')
+
+  echo -e "📥 \e[1mLatest:\e[0m       \e[2m${latest_commit:0:7}\e[0m – $latest_message"
 
   if [[ "$current_commit" == "$latest_commit" ]]; then
     echo -e "\n✅ \e[1mThis app is already up to date.\e[0m"
@@ -235,17 +237,14 @@ check_for_app_update() {
   fi
 
   echo -e "\n🆕 \e[1;32mA newer version is available!\e[0m"
-  echo -e "   👉 Deployed: \e[2m$current_commit\e[0m"
-  echo -e "   👉 Latest:   \e[2m$latest_commit\e[0m"
+  echo -e "   👉 Deployed: \e[2m${current_commit:0:7}\e[0m – $current_message"
+  echo -e "   👉 Latest:   \e[2m${latest_commit:0:7}\e[0m – $latest_message"
 
   echo -e "\n❓ \e[1mWould you like to update this app now?\e[0m"
-  echo -e " \n1) 🔄 Yes, update now        q) 🔙 No, return to menu"
-  echo "─────────────────────────────────────────────────────────────"
-  echo -n "Select [1,q]: "
-  IFS= read -rsn1 choice
-  echo ""
+  echo -e "\n 1) 🔄 Yes, update now       q) 🔙 No, return to menu"
+  read_menu_choice 1
 
-  case "$choice" in
+  case "$REPLY" in
     1)
       export SELECTED_REPO_OWNER="$repo_owner"
       export SELECTED_REPO_NAME="$repo_name"
@@ -272,7 +271,6 @@ restore_backup() {
   _redeploy_blazor_app "$service_name" "$SELECTED_COMMIT"
   print_press_any_key
 }
-
 
 restart_app_service() {
   local service="$1"

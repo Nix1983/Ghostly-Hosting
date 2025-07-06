@@ -53,10 +53,32 @@ get_commit_from_meta() {
   jq -r '.commit // "–"' "$file"
 }
 
+get_commit_message_from_meta() {
+  local file="$1"
+  [[ -f "$file" ]] || { echo "–"; return 1; }
+
+  local repo owner commit message
+  repo=$(jq -r '.repo_name // empty' "$file")
+  owner=$(jq -r '.repo_owner // empty' "$file")
+  commit=$(jq -r '.commit // empty' "$file")
+
+  if [[ -z "$repo" || -z "$owner" || -z "$commit" ]]; then
+    echo "–"
+    return 1
+  fi
+
+  message=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
+    "$GITHUB_API_BASE/repos/$owner/$repo/commits/$commit" | jq -r '.commit.message // "–"')
+
+  echo "$message"
+}
+
 backup_app_metadata() {
-  local exec_dir="$1"
+  local service_name="$1"
   local meta_file="$exec_dir/$META_FILE_NAME"
-  local backup_dir="$exec_dir/$BACKUP_DIR"
+  local backup_dir
+
+  backup_dir=$(resolve_backup_folder_from_service_name "$service_name")
 
   mkdir -p "$backup_dir"
 
@@ -146,10 +168,10 @@ restore_app_meta_data() {
   local i=1
 
   for file in "${meta_files[@]}"; do
-    local filename timestamp datetime ref commit
+    local filename timestamp datetime ref commit msg
 
     commit=$(get_commit_from_meta "$file")
-    [[ "$commit" == "$current_commit" ]] && continue  # identisches Build → überspringen
+    [[ "$commit" == "$current_commit" ]] && continue
 
     filename=$(basename "$file")
     timestamp="${filename//meta-/}"
@@ -157,8 +179,13 @@ restore_app_meta_data() {
     timestamp="${timestamp//T/}"
     datetime=$(date -d "${timestamp:0:8} ${timestamp:8:2}:${timestamp:10:2}:${timestamp:12:2}" "+%H:%M:%S %d-%m-%Y" 2>/dev/null || echo "$timestamp")
     ref=$(get_ref_name_from_meta "$file")
+    msg=$(jq -r '.commit_message // "–"' "$file")
 
-    options+=("$(printf " %2d) 🕒 %s  |  🌿 %s \e[2m(%s)\e[0m" "$i" "$datetime" "$ref" "${commit:0:7}")")
+    if [[ ${#msg} -gt 40 ]]; then
+      msg="${msg:0:40}..."
+    fi
+
+    options+=("$(printf " %2d) 🕒 %s  |  🌿 %-12s \e[2m(%s)\e[0m | %-43s" "$i" "$datetime" "$ref" "${commit:0:7}" "$msg")")
     map_idx["$i"]="$file"
     ((i++))
   done
@@ -171,7 +198,7 @@ restore_app_meta_data() {
   while true; do
     clear
     echo -e "\n♻️   Restore App from Backup | 🌐 \e[36m$domain\e[0m"
-    echo -e "─────────────────────────────────────────────────────────────"
+    echo -e "────────────────────────────────────────────────────────────────────────────────────────────"
     printf "%s\n" "${options[@]}"
     echo -e "\n  $(print_back_to_menu)"
     read_menu_choice $((i - 1))
@@ -207,3 +234,4 @@ restore_app_meta_data() {
     fi
   done
 }
+
