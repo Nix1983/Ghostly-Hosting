@@ -66,7 +66,6 @@ init_and_load_env() {
   ENV_FILE="$CONFIG_DIR/.env"
   mkdir -p "$CONFIG_DIR"
 
-  local upcloud_done=false github_done=false cloudflare_done=false
   local updated=false
 
   if [[ ! -f "$ENV_FILE" ]]; then
