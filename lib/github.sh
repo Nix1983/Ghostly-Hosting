@@ -19,6 +19,26 @@ resolve_github_user_from_token() {
   fi
 }
 
+validate_github_token() {
+  local token="$1"
+  local base="$2"
+
+  if [[ -z "$token" || -z "$base" ]]; then
+    printf "❌ Missing GitHub token or API base URL.\n"
+    return 1
+  fi
+
+  local response status
+  response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $token" "$base/user")
+  status=$(echo "$response" | tail -n1)
+
+  if [[ "$status" == "200" ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 check_github_env_vars() {
   local missing=()
   [[ -z "$GITHUB_API_TOKEN" ]] && missing+=("GITHUB_API_TOKEN")

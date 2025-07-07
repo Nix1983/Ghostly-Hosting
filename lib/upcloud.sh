@@ -473,6 +473,27 @@ apply_upcloud_firewall_rules() {
   printf "────────────────────────────────────────────────────────────\n"
 }
 
+validate_upcloud_credentials() {
+  local user="$1"
+  local pass="$2"
+
+  if [[ -z "$user" || -z "$pass" || -z "$UPCLOUD_API_BASE" ]]; then
+    printf "❌ Missing username, password or API base.\n"
+    return 1
+  fi
+
+  local response status
+  response=$(curl -s -w "\n%{http_code}" -u "$user:$pass" -H "Accept: application/json" "$UPCLOUD_API_BASE/account")
+  status=$(echo "$response" | tail -n1)
+
+  if [[ "$status" == "200" ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+
 show_upcloud_menu() {
   while true; do
     clear
