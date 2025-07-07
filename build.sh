@@ -9,6 +9,8 @@ PAYLOAD_TAR="$DEPLOY_DIR/payload.tar.gz"
 PAYLOAD_GPG="$DEPLOY_DIR/payload.tar.gz.gpg"
 PAYLOAD_B64="$DEPLOY_DIR/payload.tar.gz.b64"
 
+export NEEDRESTART_MODE=a
+
 # Check for required GPG_KEY
 if [[ -z "${GPG_KEY:-}" ]]; then
   GPG_KEY=$(head -c 32 /dev/urandom | base64)
@@ -75,17 +77,17 @@ prepare_payload() {
   rm -f "$TMP_DIR/.env"
 
   if [[ -n "$EXPIRY" ]]; then
-    echo "$EXPIRY" > "$TMP_DIR/.expiry"
+    echo "$EXPIRY" >"$TMP_DIR/.expiry"
   fi
 
   tar -czf "$PAYLOAD_TAR" -C "$TMP_DIR" .
 
   echo "🔐 Encrypting payload..."
   gpg --symmetric --cipher-algo AES256 --batch --passphrase "$GPG_KEY" \
-      --output "$PAYLOAD_GPG" "$PAYLOAD_TAR"
+    --output "$PAYLOAD_GPG" "$PAYLOAD_TAR"
 
   echo "📦 Encoding encrypted payload..."
-  base64 "$PAYLOAD_GPG" > "$PAYLOAD_B64"
+  base64 "$PAYLOAD_GPG" >"$PAYLOAD_B64"
 
   PAYLOAD_HASH=$(sha256sum "$PAYLOAD_TAR" | awk '{print $1}')
 }
@@ -138,7 +140,7 @@ create_launcher() {
     echo "exit 0"
     echo "$META_MARKER"
     cat "$PAYLOAD_B64"
-  } > /usr/local/bin/ghostlyHosting
+  } >/usr/local/bin/ghostlyHosting
 
   chmod +x /usr/local/bin/ghostlyHosting
   echo "✅ Installed ghostlyHosting to /usr/local/bin/"

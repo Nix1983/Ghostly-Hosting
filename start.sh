@@ -7,7 +7,6 @@ source ./lib/app_manager.sh
 source ./lib/upcloud.sh
 source ./lib/github.sh
 
-
 ensure_required_tools_installed() {
   local -a required_tools=(jq curl grep cut xargs)
   local -a missing_tools=()
@@ -29,7 +28,6 @@ ensure_required_tools_installed() {
   echo -e "📌 \e[2mNote: This installation is only needed on first run.\e[0m"
   echo -e "📦 Installing missing components... \e[2mPlease wait\e[0m"
 
-
   # Spinner anzeigen
   local pid spinner i
   (
@@ -41,7 +39,7 @@ ensure_required_tools_installed() {
   i=0
   while kill -0 "$pid" 2>/dev/null; do
     printf "\b%s" "${spinner[i]}"
-    i=$(( (i + 1) % 4 ))
+    i=$(((i + 1) % 4))
     sleep 0.1
   done
   wait "$pid"
@@ -203,7 +201,7 @@ init_and_load_env() {
       echo "UPCLOUD_API_USER=\"$UPCLOUD_API_USER\""
       echo "UPCLOUD_API_PASS=\"$UPCLOUD_API_PASS\""
       echo "GITHUB_API_TOKEN=\"$GITHUB_API_TOKEN\""
-    } > "$ENV_FILE"
+    } >"$ENV_FILE"
     chmod 600 "$ENV_FILE"
 
     echo -e "\n✅ \e[1;32mYour configuration has been saved securely.\e[0m"
@@ -220,7 +218,7 @@ init_and_load_env() {
 }
 
 main_menu() {
-  local current="app" 
+  local current="app"
   while true; do
     if [[ "$current" == "server" ]]; then
       show_server_manager_menu || exit 0
@@ -232,11 +230,10 @@ main_menu() {
   done
 }
 
+ensure_required_tools_installed
+
 init_and_load_env
 
 load_server_ip_once
 
-ensure_required_tools_installed
-
 main_menu
-
