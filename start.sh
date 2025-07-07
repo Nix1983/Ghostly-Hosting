@@ -67,6 +67,7 @@ init_and_load_env() {
   mkdir -p "$CONFIG_DIR"
 
   local updated=false
+  local upcloud_ok=false github_ok=false cloudflare_ok=false
 
   if [[ ! -f "$ENV_FILE" ]]; then
     clear
@@ -91,102 +92,110 @@ init_and_load_env() {
   # shellcheck disable=SC1090
   set -a && source "$ENV_FILE" 2>/dev/null || true && set +a
 
-  # UpCloud API Setup
-  while [[ -z "${UPCLOUD_API_USER:-}" || -z "${UPCLOUD_API_PASS:-}" ]]; do
-    clear
-    echo -e "\e[1;35m🟣 UpCloud API Setup\e[0m"
-    print_double_line
-    echo -e "🔧 Used to:"
-    echo -e "   • Create and manage \e[1mfirewall rules\e[0m"
-    echo -e "   • Configure \e[1mPTR (reverse DNS)\e[0m records"
-    echo -e "   • Identify your account for deployments"
-    echo
-    echo -e "💡 Recommended: Use an \e[1mAPI-only subaccount\e[0m with no billing access"
-    echo
-    echo -en "🔗 Sign up at: "
-    echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
-    print_line
+  # Check UpCloud
+  if ! validate_upcloud_credentials "${UPCLOUD_API_USER:-}" "${UPCLOUD_API_PASS:-}"; then
+    while true; do
+      clear
+      echo -e "\e[1;35m🟣 UpCloud API Setup\e[0m"
+      print_double_line
+      echo -e "🔧 Used to:"
+      echo -e "   • Create and manage \e[1mfirewall rules\e[0m"
+      echo -e "   • Configure \e[1mPTR (reverse DNS)\e[0m records"
+      echo -e "   • Identify your account for deployments"
+      echo
+      echo -e "💡 Recommended: Use an \e[1mAPI-only subaccount\e[0m with no billing access"
+      echo -en "🔗 Sign up at: "
+      echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
+      print_line
 
-    [[ -z "${UPCLOUD_API_USER:-}" ]] && read -rp "👤 Enter UpCloud API Username: " UPCLOUD_API_USER
-    [[ -z "${UPCLOUD_API_PASS:-}" ]] && read -rsp "🔑 Enter UpCloud API Password: " UPCLOUD_API_PASS && echo
+      read -rp "👤 Enter UpCloud API Username: " UPCLOUD_API_USER
+      read -rsp "🔑 Enter UpCloud API Password: " UPCLOUD_API_PASS && echo
 
-    if validate_upcloud_credentials "$UPCLOUD_API_USER" "$UPCLOUD_API_PASS"; then
-      updated=true
-      break
-    fi
+      if validate_upcloud_credentials "$UPCLOUD_API_USER" "$UPCLOUD_API_PASS"; then
+        upcloud_ok=true
+        updated=true
+        break
+      fi
 
-    echo -e "\n❌ \e[31mLogin failed – invalid UpCloud credentials.\e[0m"
-    echo -e "   🔐 \e[2mWithout valid access, hosting features cannot be used.\e[0m"
-    sleep 2
-    UPCLOUD_API_USER=""
-    UPCLOUD_API_PASS=""
-  done
+      echo -e "\n❌ \e[31mLogin failed – invalid UpCloud credentials.\e[0m"
+      echo -e "🔐 \e[2mWithout valid access, hosting features cannot be used.\e[0m"
+      sleep 1
+    done
+  else
+    upcloud_ok=true
+  fi
 
-  # GitHub API Setup
-  while [[ -z "${GITHUB_API_TOKEN:-}" ]]; do
-    clear
-    echo -e "\e[1;33m🐙 GitHub API Setup\e[0m"
-    print_double_line
-    echo -e "🔧 Used to:"
-    echo -e "   • \e[1mDeploy apps\e[0m directly from repositories"
-    echo -e "   • \e[1mAuto-update\e[0m using commit detection"
-    echo -e "   • Manage \e[1mbackups tied to commits\e[0m for easy rollback"
-    echo
-    echo -e "🔐 Recommended scopes:"
-    echo -e "   • repo"
-    echo -e "   • read:org  \e[2m(optional, if using org repos)\e[0m"
-    echo
-    echo -en "🔗 Generate token at: "
-    echo -e "\e]8;;https://github.com/settings/tokens\e\\GitHub Page\e]8;;\e\\ 🡕"
-    print_line
+  # Check GitHub
+  if ! validate_github_token "${GITHUB_API_TOKEN:-}" "$GITHUB_API_BASE"; then
+    while true; do
+      clear
+      echo -e "\e[1;33m🐙 GitHub API Setup\e[0m"
+      print_double_line
+      echo -e "🔧 Used to:"
+      echo -e "   • \e[1mDeploy apps\e[0m directly from repositories"
+      echo -e "   • \e[1mAuto-update\e[0m using commit detection"
+      echo -e "   • Manage \e[1mbackups tied to commits\e[0m for easy rollback"
+      echo
+      echo -e "🔐 Recommended scopes:"
+      echo -e "   • repo"
+      echo -e "   • read:org  \e[2m(optional, if using org repos)\e[0m"
+      echo -en "🔗 Generate token at: "
+      echo -e "\e]8;;https://github.com/settings/tokens\e\\GitHub Page\e]8;;\e\\ 🡕"
+      print_line
 
-    read -rp "🔑 Enter GitHub API Token: " GITHUB_API_TOKEN
+      read -rp "🔑 Enter GitHub API Token: " GITHUB_API_TOKEN
 
-    if validate_github_token "$GITHUB_API_TOKEN" "$GITHUB_API_BASE"; then
-      updated=true
-      break
-    fi
+      if validate_github_token "$GITHUB_API_TOKEN" "$GITHUB_API_BASE"; then
+        github_ok=true
+        updated=true
+        break
+      fi
 
-    echo -e "\n❌ \e[31mInvalid GitHub token – access denied.\e[0m"
-    echo -e "   🔐 \e[2mWithout this token, deployments are not possible.\e[0m"
-    sleep 2
-    GITHUB_API_TOKEN=""
-  done
+      echo -e "\n❌ \e[31mInvalid GitHub token – access denied.\e[0m"
+      echo -e "🔐 \e[2mWithout this token, deployments are not possible.\e[0m"
+      sleep 1
+    done
+  else
+    github_ok=true
+  fi
 
-  # Cloudflare API Setup
-  while [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; do
-    clear
-    echo -e "\e[1;34m☁️  Cloudflare API Setup\e[0m"
-    print_double_line
-    echo -e "🔧 Used to:"
-    echo -e "   • Manage \e[1mDNS records\e[0m automatically"
-    echo -e "   • Enable HTTPS using \e[1mLet's Encrypt\e[0m"
-    echo -e "   • Activate Cloudflare \e[1mproxy mode\e[0m for extra security"
-    echo
-    echo -e "🛡️  Benefits:"
-    echo -e "   • \e[1mFree\e[0m DDoS protection & global CDN"
-    echo -e "   • \e[1mHTTPS without open ports\e[0m"
-    echo
-    echo -e "🔐 Recommended token scopes:"
-    echo -e "   • Zone:DNS:Edit"
-    echo -e "   • Zone:Zone:Read"
-    echo
-    echo -en "🔗 Create token at: "
-    echo -e "\e]8;;https://dash.cloudflare.com/profile/api-tokens\e\\Cloudflare Page\e]8;;\e\\ 🡕"
-    print_line
+  # Check Cloudflare
+  if ! validate_cloudflare_token "${CLOUDFLARE_API_TOKEN:-}"; then
+    while true; do
+      clear
+      echo -e "\e[1;34m☁️  Cloudflare API Setup\e[0m"
+      print_double_line
+      echo -e "🔧 Used to:"
+      echo -e "   • Manage \e[1mDNS records\e[0m automatically"
+      echo -e "   • Enable HTTPS using \e[1mLet's Encrypt\e[0m"
+      echo -e "   • Activate Cloudflare \e[1mproxy mode\e[0m for extra security"
+      echo
+      echo -e "🛡️  Benefits:"
+      echo -e "   • \e[1mFree\e[0m DDoS protection & global CDN"
+      echo -e "   • \e[1mHTTPS without open ports\e[0m"
+      echo
+      echo -e "🔐 Recommended token scopes:"
+      echo -e "   • Zone:DNS:Edit"
+      echo -e "   • Zone:Zone:Read"
+      echo -en "🔗 Create token at: "
+      echo -e "\e]8;;https://dash.cloudflare.com/profile/api-tokens\e\\Cloudflare Page\e]8;;\e\\ 🡕"
+      print_line
 
-    read -rp "🔑 Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
+      read -rp "🔑 Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
 
-    if validate_cloudflare_token "$CLOUDFLARE_API_TOKEN"; then
-      updated=true
-      break
-    fi
+      if validate_cloudflare_token "$CLOUDFLARE_API_TOKEN"; then
+        cloudflare_ok=true
+        updated=true
+        break
+      fi
 
-    echo -e "\n❌ \e[31mInvalid Cloudflare token – access denied.\e[0m"
-    echo -e "   🔐 \e[2mWithout this token, DNS & SSL setup cannot work.\e[0m"
-    sleep 2
-    CLOUDFLARE_API_TOKEN=""
-  done
+      echo -e "\n❌ \e[31mInvalid Cloudflare token – access denied.\e[0m"
+      echo -e "🔐 \e[2mWithout this token, DNS & SSL setup cannot work.\e[0m"
+      sleep 2
+    done
+  else
+    cloudflare_ok=true
+  fi
 
   if [[ "$updated" == true ]]; then
     {
@@ -199,15 +208,16 @@ init_and_load_env() {
 
     echo -e "\n✅ \e[1;32mYour configuration has been saved securely.\e[0m"
     echo -e "📁 Stored at: \e[2m$ENV_FILE\e[0m"
-    echo -e "\n🟢 UpCloud\t🟢 GitHub\t🟢 Cloudflare"
+    echo -en "\n"
+    [[ "$upcloud_ok" == true ]] && echo -en "🟢 UpCloud\t" || echo -en "🔴 UpCloud\t"
+    [[ "$github_ok" == true ]] && echo -en "🟢 GitHub\t" || echo -en "🔴 GitHub\t"
+    [[ "$cloudflare_ok" == true ]] && echo -en "🟢 Cloudflare\n" || echo -en "🔴 Cloudflare\n"
     echo -e "\n⏎ Press Enter to continue..."
     read -r
   fi
 
   __ENV_LOADED_ALREADY=1
 }
-
-
 
 main_menu() {
   local current="app" 
@@ -221,7 +231,6 @@ main_menu() {
     fi
   done
 }
-
 
 init_and_load_env
 
