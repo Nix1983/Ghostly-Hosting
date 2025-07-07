@@ -8,7 +8,6 @@ DEPLOY_DIR="deploy"
 PAYLOAD_TAR="$DEPLOY_DIR/payload.tar.gz"
 PAYLOAD_GPG="$DEPLOY_DIR/payload.tar.gz.gpg"
 PAYLOAD_B64="$DEPLOY_DIR/payload.tar.gz.b64"
-LAUNCHER="$DEPLOY_DIR/run.sh"
 
 # Check for required GPG_KEY
 if [[ -z "${GPG_KEY:-}" ]]; then
@@ -89,12 +88,11 @@ prepare_payload() {
 }
 
 create_launcher() {
-  echo "🚀 Creating launcher..."
+  echo "🚀 Creating self-contained binary at /usr/local/bin/ghostlyHosting..."
   {
     echo "#!/bin/bash"
     echo "set -euo pipefail"
     echo
-    echo "SCRIPT_DIR=\"\$(cd \"\$(dirname \"\$0\")\" && pwd)\""
     echo "TMPDIR=\"\$(mktemp -d)\""
     echo "SCRIPT_FILE=\"\$0\""
     echo "PAYLOAD_LINE=\$(awk '/^$META_MARKER/{ print NR + 1; exit }' \"\$SCRIPT_FILE\")"
@@ -118,11 +116,7 @@ create_launcher() {
     echo
     echo "tar -xzf \"\$TMPDIR/payload.tar.gz\" -C \"\$TMPDIR\""
     echo
-    echo "# Copy .env if present in script directory"
-    echo "if [[ -f \"\$SCRIPT_DIR/.env\" ]]; then"
-    echo "  cp \"\$SCRIPT_DIR/.env\" \"\$TMPDIR/.env\""
-    echo "fi"
-    echo
+    echo "# Check expiry"
     echo "if [[ -f \"\$TMPDIR/.expiry\" ]]; then"
     echo "  EXPIRY=\$(cat \"\$TMPDIR/.expiry\")"
     echo "  NOW=\$(date +%s)"
@@ -137,28 +131,22 @@ create_launcher() {
     echo "chmod +x start.sh"
     echo "./start.sh"
     echo
+    echo "rm -rf \"\$TMPDIR\""
     echo "exit 0"
     echo "$META_MARKER"
     cat "$PAYLOAD_B64"
-  } > "$LAUNCHER"
+  } > /usr/local/bin/ghostlyHosting
 
-  chmod +x "$LAUNCHER"
+  chmod +x /usr/local/bin/ghostlyHosting
+  echo "✅ Installed ghostlyHosting to /usr/local/bin/"
 }
 
 finalize_binary() {
-  local outfile
-  if [[ -n "${EXPIRY:-}" ]]; then
-    outfile="$DEPLOY_DIR/blazor_hosting_suite_trial_${EXPIRY}"
-  else
-    outfile="$DEPLOY_DIR/blazor_hosting_suite"
-  fi
-
-  mv "$LAUNCHER" "$outfile"
-  echo "✅ Final binary created: $outfile"
+  echo "✅ Final binary created in: /usr/local/bin/ghostlyHosting"
 }
 
 cleanup() {
-  echo "🧼 Cleaning up..."
+  echo "🧼 Cleaning up build files..."
   rm -rf "$TMP_DIR" "$PAYLOAD_TAR" "$PAYLOAD_GPG" "$PAYLOAD_B64"
 }
 
