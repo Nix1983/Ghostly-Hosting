@@ -31,33 +31,36 @@ init_and_load_env() {
   ENV_FILE="$CONFIG_DIR/.env"
   mkdir -p "$CONFIG_DIR"
 
-  if [[ ! -f "$ENV_FILE" ]]; then
-    clear
-    echo -e "\e[1;36m👻 Welcome to GhostlyHosting — Effortless .NET Self-Hosting\e[0m"
-    echo -e "──────────────────────────────────────────────────────────────"
-    echo -e "💡 Host unlimited .NET apps for just \e[1m\$3/month\e[0m on \e[35mUpCloud\e[0m"
-    echo -e "🔄 \e[1;33mGitHub-integrated deployments\e[0m — auto-update from your repo"
-    echo -e "☁️ HTTPS, DNS & secure proxy via \e[38;5;117mCloudflare\e[0m (DDoS & caching included)"
-    echo -e "🛡️ Built-in firewall, PTR setup & uptime monitoring"
-    echo -e "🔁 One-command app updates & rollbacks (commit-based)"
-    echo -e "💾 Minimal encrypted backups — fast, compact, restorable"
-    echo -e "🔒 All credentials are \e[38;5;28msecurely stored\e[0m and stay on your server"
-    echo -e "──────────────────────────────────────────────────────────────"
-    echo -e "📁 Config will be saved to: \e[2m$ENV_FILE\e[0m"
-    echo -e "\n⏎ Press Enter to get started..."
-    read -r
-  fi
+    if [[ ! -f "$ENV_FILE" ]]; then
+      clear
+      echo -e "\e[1;36m👻 Welcome to GhostlyHosting — Effortless .NET Self-Hosting\e[0m"
+      print_double_line
+      echo -e "💡 Host unlimited .NET apps for just \e[1m\$3/month\e[0m on \e[35mUpCloud\e[0m"
+      echo -e "🔄 \e[1;33mGitHub-integrated deployments\e[0m — auto-update from your repo"
+      echo -e "☁️ HTTPS, DNS & secure proxy via \e[38;5;117mCloudflare\e[0m (DDoS & caching included)"
+      echo -e "🛡️ Built-in firewall, PTR setup & uptime monitoring"
+      echo -e "🔁 One-command app updates & rollbacks (commit-based)"
+      echo -e "💾 Minimal encrypted backups — fast, compact, restorable"
+      echo -e "🔒 All credentials are \e[38;5;28msecurely stored\e[0m and stay on your server"
+      print_line
+      echo -e "🚀 \e[1mThis setup only runs once.\e[0m"
+      echo -e "   Your server will now be fully prepared for secure .NET hosting."
+      echo -e "   Just a few questions, and everything will be ready."
+      print_line
+      echo -e "\n⏎ Press Enter to get started..."
+      read -r
+    fi
 
-
-
+  # shellcheck disable=SC1090
   set -a && source "$ENV_FILE" 2>/dev/null || true && set +a
+
 
   local updated=false
 
   if [[ -z "${UPCLOUD_API_USER:-}" ]]; then
     clear
     echo -e "\e[1;35m🟣 UpCloud API Setup\e[0m"
-    echo -e "──────────────────────────────────────────────────────────────"
+    print_double_line
     echo -e "🔧 Used to:"
     echo -e "   • Create and manage \e[1mfirewall rules\e[0m"
     echo -e "   • Configure \e[1mPTR (reverse DNS)\e[0m records"
@@ -67,7 +70,7 @@ init_and_load_env() {
     echo
     echo -en "🔗 Sign up at: "
     echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
-    echo -e "──────────────────────────────────────────────────────────────"
+    print_line
     read -rp "👤 Enter UpCloud API Username: " UPCLOUD_API_USER
     updated=true
   fi
@@ -81,7 +84,7 @@ init_and_load_env() {
   if [[ -z "${GITHUB_API_TOKEN:-}" ]]; then
     clear
     echo -e "\e[1;33m🐙 GitHub API Setup\e[0m"
-    echo -e "──────────────────────────────────────────────────────────────"
+    print_double_line
     echo -e "🔧 Used to:"
     echo -e "   • \e[1mDeploy apps\e[0m directly from repositories"
     echo -e "   • \e[1mAuto-update\e[0m using commit detection"
@@ -93,7 +96,7 @@ init_and_load_env() {
     echo
     echo -en "🔗 Generate token at: "
     echo -e "\e]8;;https://github.com/settings/tokens\e\\GitHub Page\e]8;;\e\\ 🡕"
-    echo -e "──────────────────────────────────────────────────────────────"
+    print_line
     read -rp "🔑 Enter GitHub API Token: " GITHUB_API_TOKEN
     updated=true
   fi
@@ -103,7 +106,7 @@ init_and_load_env() {
   if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
     clear
     echo -e "\e[1;34m☁️  Cloudflare API Setup\e[0m"
-    echo -e "──────────────────────────────────────────────────────────────"
+    print_double_line
     echo -e "🔧 Used to:"
     echo -e "   • Manage \e[1mDNS records\e[0m automatically"
     echo -e "   • Enable HTTPS using \e[1mLet's Encrypt\e[0m"
@@ -119,7 +122,7 @@ init_and_load_env() {
     echo
     echo -en "🔗 Create token at: "
     echo -e "\e]8;;https://dash.cloudflare.com/profile/api-tokens\e\\Cloudflare Page\e]8;;\e\\ 🡕"
-    echo -e "──────────────────────────────────────────────────────────────"
+    print_line
     read -rp "🔑 Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
     updated=true
   fi
@@ -141,7 +144,6 @@ init_and_load_env() {
 
   __ENV_LOADED_ALREADY=1
 }
-
 
 is_valid_ipv4() {
   local ip=$1
