@@ -56,6 +56,28 @@ _upsert_dns_record() {
   printf "✅ %s-record %s.\n" "$type" "$( [[ -n "$id" ]] && echo "updated" || echo "created" )"
 }
 
+validate_cloudflare_token() {
+  local token="$1"
+  local response status body
+
+  response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    "https://api.cloudflare.com/client/v4/user/tokens/verify")
+
+  status=$(echo "$response" | tail -n1)
+  body=$(echo "$response" | head -n -1)
+
+  if [[ "$status" != "200" ]]; then
+    return 1
+  fi
+
+  if echo "$body" | jq -e '.success == true' >/dev/null 2>&1; then
+    return 0
+  fi
+
+  return 1
+}
+
 resolve_cloudflare_zone_id() {
   local input_domain="$1"
 

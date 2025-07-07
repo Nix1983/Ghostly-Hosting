@@ -66,6 +66,9 @@ init_and_load_env() {
   ENV_FILE="$CONFIG_DIR/.env"
   mkdir -p "$CONFIG_DIR"
 
+  local upcloud_done=false github_done=false cloudflare_done=false
+  local updated=false
+
   if [[ ! -f "$ENV_FILE" ]]; then
     clear
     echo -e "\e[1;36m👻 Welcome to GhostlyHosting — Effortless .NET Self-Hosting\e[0m"
@@ -89,9 +92,8 @@ init_and_load_env() {
   # shellcheck disable=SC1090
   set -a && source "$ENV_FILE" 2>/dev/null || true && set +a
 
-  local updated=false
-
-  if [[ -z "${UPCLOUD_API_USER:-}" || -z "${UPCLOUD_API_PASS:-}" ]]; then
+  # UpCloud API Setup
+  while [[ -z "${UPCLOUD_API_USER:-}" || -z "${UPCLOUD_API_PASS:-}" ]]; do
     clear
     echo -e "\e[1;35m🟣 UpCloud API Setup\e[0m"
     print_double_line
@@ -105,9 +107,7 @@ init_and_load_env() {
     echo -en "🔗 Sign up at: "
     echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
     print_line
-  fi
 
-  while true; do
     [[ -z "${UPCLOUD_API_USER:-}" ]] && read -rp "👤 Enter UpCloud API Username: " UPCLOUD_API_USER
     [[ -z "${UPCLOUD_API_PASS:-}" ]] && read -rsp "🔑 Enter UpCloud API Password: " UPCLOUD_API_PASS && echo
 
@@ -123,7 +123,8 @@ init_and_load_env() {
     UPCLOUD_API_PASS=""
   done
 
-  if [[ -z "${GITHUB_API_TOKEN:-}" ]]; then
+  # GitHub API Setup
+  while [[ -z "${GITHUB_API_TOKEN:-}" ]]; do
     clear
     echo -e "\e[1;33m🐙 GitHub API Setup\e[0m"
     print_double_line
@@ -139,10 +140,8 @@ init_and_load_env() {
     echo -en "🔗 Generate token at: "
     echo -e "\e]8;;https://github.com/settings/tokens\e\\GitHub Page\e]8;;\e\\ 🡕"
     print_line
-  fi
 
-  while true; do
-    [[ -z "${GITHUB_API_TOKEN:-}" ]] && read -rp "🔑 Enter GitHub API Token: " GITHUB_API_TOKEN
+    read -rp "🔑 Enter GitHub API Token: " GITHUB_API_TOKEN
 
     if validate_github_token "$GITHUB_API_TOKEN" "$GITHUB_API_BASE"; then
       updated=true
@@ -155,7 +154,8 @@ init_and_load_env() {
     GITHUB_API_TOKEN=""
   done
 
-  if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+  # Cloudflare API Setup
+  while [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; do
     clear
     echo -e "\e[1;34m☁️  Cloudflare API Setup\e[0m"
     print_double_line
@@ -175,9 +175,19 @@ init_and_load_env() {
     echo -en "🔗 Create token at: "
     echo -e "\e]8;;https://dash.cloudflare.com/profile/api-tokens\e\\Cloudflare Page\e]8;;\e\\ 🡕"
     print_line
+
     read -rp "🔑 Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
-    updated=true
-  fi
+
+    if validate_cloudflare_token "$CLOUDFLARE_API_TOKEN"; then
+      updated=true
+      break
+    fi
+
+    echo -e "\n❌ \e[31mInvalid Cloudflare token – access denied.\e[0m"
+    echo -e "   🔐 \e[2mWithout this token, DNS & SSL setup cannot work.\e[0m"
+    sleep 2
+    CLOUDFLARE_API_TOKEN=""
+  done
 
   if [[ "$updated" == true ]]; then
     {
@@ -187,8 +197,10 @@ init_and_load_env() {
       echo "GITHUB_API_TOKEN=\"$GITHUB_API_TOKEN\""
     } > "$ENV_FILE"
     chmod 600 "$ENV_FILE"
+
     echo -e "\n✅ \e[1;32mYour configuration has been saved securely.\e[0m"
     echo -e "📁 Stored at: \e[2m$ENV_FILE\e[0m"
+    echo -e "\n🟢 UpCloud\t🟢 GitHub\t🟢 Cloudflare"
     echo -e "\n⏎ Press Enter to continue..."
     read -r
   fi
@@ -197,57 +209,6 @@ init_and_load_env() {
 }
 
 
-check_required_env_or_exit() {
-  local version codename
-  version=$(lsb_release -ds 2>/dev/null || echo "Unknown")
-  codename=$(lsb_release -cs 2>/dev/null || echo "unknown")
-
-  local missing_env=()
-  [[ -z "$CLOUDFLARE_API_TOKEN" ]] && missing_env+=("CLOUDFLARE_API_TOKEN")
-  [[ -z "$UPCLOUD_API_USER" ]]     && missing_env+=("UPCLOUD_API_USER")
-  [[ -z "$UPCLOUD_API_PASS" ]]     && missing_env+=("UPCLOUD_API_PASS")
-  [[ -z "$GITHUB_API_TOKEN" ]]     && missing_env+=("GITHUB_API_TOKEN")
-
-  if (( ${#missing_env[@]} > 0 )); then
-    clear
-    echo -e "\n🧩 \e[1;31mMissing Required API Credentials\e[0m"
-    print_double_line
-    for var in "${missing_env[@]}"; do
-      case "$var" in
-        CLOUDFLARE_API_TOKEN) echo -e "❌ ☁️ CLOUDFLARE_API_TOKEN" ;;
-        UPCLOUD_API_USER)     echo -e "❌ 🔑 UPCLOUD_API_USER" ;;
-        UPCLOUD_API_PASS)     echo -e "❌ 🔑 UPCLOUD_API_PASS" ;;
-        GITHUB_API_TOKEN)     echo -e "❌ 🐙 GITHUB_API_TOKEN" ;;
-      esac
-    done
-    print_line
-    echo -e "🖥️ \e[1mCurrent system:\e[0m \e[36m$version ($codename)\e[0m"
-    print_line
-    echo -e "💡 \e[1mExplanation:\e[0m"
-    for var in "${missing_env[@]}"; do
-      case "$var" in
-        CLOUDFLARE_API_TOKEN)
-          echo -e "   • Required for managing DNS and HTTPS certificates via Cloudflare."
-          ;;
-        UPCLOUD_API_USER)
-          echo -e "   • Required to manage UpCloud firewall, PTR records, and more."
-          ;;
-        UPCLOUD_API_PASS)
-          echo -e "   • Your UpCloud API password to authenticate requests."
-          ;;
-        GITHUB_API_TOKEN)
-          echo -e "   • Needed to access private GitHub repositories and automate deployments."
-          ;;
-      esac
-    done
-    echo -e "\n📍 \e[2mSet these values in your .env file.\e[0m"
-    print_line
-    echo -e "🛑 \e[1;31mSetup cannot continue without these.\e[0m"
-    read -rsn1 -p $'\n↩️  Press any key to exit...'
-    clear
-    exit 1
-  fi
-}
 
 main_menu() {
   local current="app" 
@@ -262,21 +223,12 @@ main_menu() {
   done
 }
 
-log_step() {
-  echo -e "\n🔹 \e[36mRunning:\e[0m $1"
-}
 
 init_and_load_env
 
-log_step "Loading server IP"
 load_server_ip_once
 
-log_step "Validating required environment variables"
-check_required_env_or_exit
-
-log_step "Ensuring required system tools"
 ensure_required_tools_installed
 
-log_step "Launching main menu"
 main_menu
 
