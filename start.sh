@@ -124,8 +124,7 @@ log_step() {
   echo -e "\n🔹 \e[36mRunning:\e[0m $1"
 }
 
-log_step "Loading environment"
-load_env_once
+init_and_load_env
 
 log_step "Loading server IP"
 load_server_ip_once

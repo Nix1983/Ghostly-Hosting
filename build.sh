@@ -71,6 +71,9 @@ prepare_payload() {
   cp start.sh "$TMP_DIR/"
   cp LICENSE README.md "$TMP_DIR/" 2>/dev/null || true
 
+  # Ensure no .env file is included
+  rm -f "$TMP_DIR/.env"
+
   if [[ -n "$EXPIRY" ]]; then
     echo "$EXPIRY" > "$TMP_DIR/.expiry"
   fi
