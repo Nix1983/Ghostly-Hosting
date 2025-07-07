@@ -194,6 +194,7 @@ create_nginx_config() {
     echo "        proxy_cache_bypass \$http_upgrade;"
     echo "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
     echo "        proxy_set_header X-Forwarded-Proto \$scheme;"
+    echo "        proxy_set_header CF-Connecting-IP \$remote_addr;"
     echo "        add_header Cache-Control \"no-store\";"
     echo "    }"
     echo "}"
