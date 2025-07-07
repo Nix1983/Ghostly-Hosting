@@ -188,10 +188,8 @@ update_server_and_show_status() {
   echo -e "   ➤ Running: \e[2mapt-get upgrade\e[0m"
   echo ""
 
-  DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" \
-    -o Dpkg::Options::="--force-confold" -y upgrade
-
-  if [[ $? -eq 0 ]]; then
+  if DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" \
+      -o Dpkg::Options::="--force-confold" -y upgrade; then
     echo -e "\n   ✅ Packages upgraded successfully."
   else
     echo -e "\n   ❌ Upgrade failed. Check manually."
@@ -217,13 +215,13 @@ update_server_and_show_status() {
   pending_updates=$(apt list --upgradable 2>/dev/null || true)
 
   check_package_status() {
-   local pkg_name="$1"
-   local label="$2"
-   local emoji="$3"
-   local check_bin="${4:-}"
-   local status
+    local pkg_name="$1"
+    local label="$2"
+    local emoji="$3"
+    local check_bin="${4:-}"
+    local status
 
-    if [[ $# -ge 4 && -n "$check_bin" ]]; then
+    if [[ -n "$check_bin" ]]; then
       if ! command -v "$check_bin" >/dev/null 2>&1; then
         status="\e[2mNot installed\e[0m"
         printf "%s %-17s %b\n" "$emoji" "$label:" "$status"
@@ -240,14 +238,14 @@ update_server_and_show_status() {
     else
       status="\e[2mNot installed\e[0m"
     fi
+
     printf "%s %-17s %b\n" "$emoji" "$label:" "$status"
   }
 
-
   echo ""
-  check_package_status nginx     "Nginx"     "🌐" nginx
-  check_package_status fail2ban  "Fail2Ban"  "🛡️"
-  check_package_status git       "Git"       "🔧" git
+  check_package_status nginx    "Nginx"     "🌐" nginx
+  check_package_status fail2ban "Fail2Ban"  "🛡️"
+  check_package_status git      "Git"       "🔧" git
 
   echo -e "\n✅ \e[1mSystem update completed.\e[0m"
   print_line
