@@ -129,13 +129,78 @@ setup_nginx_log_timer() {
   echo -e "✅ \033[32mTimer activated.\033[0m Next execution: \033[36m$next_run\033[0m"
 }
 
+create_cloudflare_real_ip_conf() {
+  # Create/update real IP config for Cloudflare in /etc/nginx/conf.d/realip-cloudflare.conf
+  # ShellCheck-friendly, idempotent, and robust.
+
+  local conf_dir="/etc/nginx/conf.d"
+  local conf_file="$conf_dir/realip-cloudflare.conf"
+  local tmp_file
+  tmp_file="$(mktemp -t realip.XXXXXXXX)"
+
+  echo -e "\n🛡️ Configuring Nginx to trust Cloudflare real client IP (IPv4 preferred)..."
+
+  mkdir -p "$conf_dir"
+
+  # Fetch current Cloudflare IP ranges (IPv4 + IPv6)
+  local ips_v4="" ips_v6=""
+  if ips_v4="$(curl -fsS https://www.cloudflare.com/ips-v4)"; then
+    :
+  else
+    echo "⚠️ Could not fetch Cloudflare IPv4 ranges. Using existing config if present."
+  fi
+
+  if ips_v6="$(curl -fsS https://www.cloudflare.com/ips-v6)"; then
+    :
+  else
+    echo "⚠️ Could not fetch Cloudflare IPv6 ranges. Using existing config if present."
+  fi
+
+  {
+    echo "# Auto-generated: Trust Cloudflare to provide real client IP"
+    echo "# This file is managed by setup scripts."
+    echo "real_ip_header CF-Connecting-IP;"
+    echo "real_ip_recursive on;"
+    echo "set_real_ip_from 127.0.0.1;"
+    echo "set_real_ip_from ::1;"
+
+    if [ -n "$ips_v4" ]; then
+      echo "$ips_v4" | while IFS= read -r cidr_v4; do
+        [ -n "$cidr_v4" ] && echo "set_real_ip_from $cidr_v4;"
+      done
+    fi
+
+    if [ -n "$ips_v6" ]; then
+      echo "$ips_v6" | while IFS= read -r cidr_v6; do
+        [ -n "$cidr_v6" ] && echo "set_real_ip_from $cidr_v6;"
+      done
+    fi
+
+    # Map block for IPv4 preference
+    echo ""
+    echo "map \$remote_addr \$client_ip_preferring_v4 {"
+    echo "    ~^(?<ipv4>\\d+\\.\\d+\\.\\d+\\.\\d+)$  \$ipv4;"
+    echo "    default                               \$remote_addr;"
+    echo "}"
+  } >"$tmp_file"
+
+  mv -f "$tmp_file" "$conf_file"
+  chmod 0644 "$conf_file"
+
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx
+    echo -e "✅ Cloudflare real IP config applied."
+  else
+    echo -e "❌ Nginx test failed after writing $conf_file. Please verify."
+    return 1
+  fi
+}
+
 create_nginx_config() {
   local conf_path="/etc/nginx/sites-available/$HOSTNAME_FQDN"
   local conf_link="/etc/nginx/sites-enabled/$HOSTNAME_FQDN"
   local cert_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
   local key_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/privkey.pem"
-
-  declare -g DOMAIN
 
   local base_folder
   base_folder="$APP_BASE_DIR/${DOMAIN//./.}/$( [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]] && echo root || echo "${HOSTNAME_FQDN%%."$DOMAIN"}")"
@@ -147,10 +212,9 @@ create_nginx_config() {
   chown -R www-data:www-data "$log_dir"
   chmod -R 755 "$log_dir"
 
+  # Ensure log_format using IPv4-preferred variable
   if ! grep -q "log_format timed_combined" /etc/nginx/nginx.conf; then
-    local logfmt
-    logfmt="log_format timed_combined '\$remote_addr - \$remote_user [\$time_local] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\"';"
-    sed -i "/http {/a\    $logfmt" /etc/nginx/nginx.conf
+    sed -i "/http {/a\    log_format timed_combined '\$client_ip_preferring_v4 - \$remote_user [\$time_local] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\"';" /etc/nginx/nginx.conf
   fi
 
   echo -e "\n⚙️ \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN → localhost:$KESTREL_PORT\033[0m"
@@ -171,8 +235,7 @@ create_nginx_config() {
     echo "    ssl_certificate_key $key_path;"
     echo "    ssl_protocols TLSv1.2 TLSv1.3;"
     echo "    ssl_ciphers HIGH:!aNULL:!MD5;"
-    echo "    ssl_prefer_server_ciphers off;"
-    echo "    ssl_ecdh_curve X25519:secp384r1:secp256r1;"
+    echo "    ssl_prefer_server_ciphers on;"
     echo "    include /etc/nginx/mime.types;"
     echo
     echo "    access_log $access_dir/access.log timed_combined;"
@@ -191,9 +254,12 @@ create_nginx_config() {
     echo "        proxy_set_header Upgrade \$http_upgrade;"
     echo "        proxy_set_header Connection \"upgrade\";"
     echo "        proxy_set_header Host \$host;"
-    echo "        proxy_cache_bypass \$http_upgrade;"
-    echo "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
     echo "        proxy_set_header X-Forwarded-Proto \$scheme;"
+    echo "        proxy_set_header X-Forwarded-Host \$host;"
+    echo "        proxy_set_header X-Forwarded-For \$client_ip_preferring_v4;"
+    echo "        proxy_set_header X-Real-IP \$client_ip_preferring_v4;"
+    echo "        proxy_cache_bypass \$http_upgrade;"
+    echo "        proxy_set_header X-Forwarded-Server \$host;"
     echo "        add_header Cache-Control \"no-store\";"
     echo "    }"
     echo "}"
@@ -201,7 +267,7 @@ create_nginx_config() {
 
   ln -sf "$conf_path" "$conf_link"
 
-  if nginx -t &>/dev/null; then
+  if nginx -t >/dev/null 2>&1; then
     systemctl reload nginx
     echo -e "✅ Nginx config applied and reloaded."
     force_nginx_log_symlink_rotation "$log_dir"
@@ -242,8 +308,12 @@ setup_nginx_for_blazor_app() {
     echo "❌ Required variables HOSTNAME_FQDN or KESTREL_PORT are missing." >&2
     return 1
   fi
+
+  install_nginx
+  create_cloudflare_real_ip_conf || return 1
   create_nginx_config || return 1
   setup_nginx_log_timer
 
   echo -e "\n🌐 \033[1mBlazor App is now accessible at:\033[0m 🔗 \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
 }
+
