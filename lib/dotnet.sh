@@ -555,11 +555,14 @@ show_dotnet_version_menu() {
 }
 
 create_kestrel_service() {
+  # Globals to be used by the caller
   declare -g KESTREL_PORT=""
   declare -g SERVICE_NAME=""
   declare -g SERVICE_PATH=""
   declare -g DOTNET_DLL=""
 
+  # Find a free port (5000–5099)
+  local port
   for port in {5000..5099}; do
     if ! lsof -i:"$port" &>/dev/null; then
       KESTREL_PORT="$port"
@@ -572,17 +575,16 @@ create_kestrel_service() {
     return 1
   fi
 
-  local name_base sub
-  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
-    name_base=""
-  else
+  # Build service name (supports subdomain-hosted apps)
+  local name_base="" sub=""
+  if [[ "$HOSTNAME_FQDN" != "$DOMAIN" ]]; then
     sub="${HOSTNAME_FQDN%."$DOMAIN"}"
-    name_base="$sub@"
+    name_base="${sub}@"
   fi
-
   SERVICE_NAME="${name_base}${DOMAIN}:$KESTREL_PORT.service"
   SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
 
+  # Replace existing service cleanly if present
   if systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
     echo -e "\n♻️  \033[33mReplacing existing service:\033[0m \033[36m$SERVICE_NAME\033[0m"
     echo -e "   ⏹️  Stopping service..."
@@ -595,16 +597,30 @@ create_kestrel_service() {
     fi
   fi
 
+  # Detect main .dll in publish dir
   DOTNET_DLL=$(find_dotnet_executable_dll "$PUBLISH_DIR")
   if [[ -z "$DOTNET_DLL" ]]; then
     echo -e "\n❌ \033[31mCould not detect main .dll in: $PUBLISH_DIR\033[0m"
     return 1
   fi
 
+  # Ensure logs directory exists and is writable by www-data
   local log_dir="$PUBLISH_DIR/$LOGS_DIR"
   mkdir -p "$log_dir"
   chown -R www-data:www-data "$log_dir"
   chmod -R 755 "$log_dir"
+
+  # 🔐 WRITE PERMISSIONS FIX FOR RUNTIME-GENERATED FILES (e.g., sitemap.xml in wwwroot)
+  # Make wwwroot tree owned by www-data and writable (dirs 2775, files 664).
+  local webroot="$PUBLISH_DIR/wwwroot"
+  if [[ -d "$webroot" ]]; then
+    # Ownership
+    chown -R www-data:www-data "$webroot"
+    # Directories: rwx for user/group, setgid to keep group www-data on newly created items
+    find "$webroot" -type d -exec chmod 2775 {} \;
+    # Files: rw for user/group, r for others
+    find "$webroot" -type f -exec chmod 664 {} \;
+  fi
 
   echo -e "\n⚙️ \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
@@ -620,6 +636,9 @@ create_kestrel_service() {
     echo "RestartSec=10"
     echo "SyslogIdentifier=$HOSTNAME_FQDN"
     echo "User=www-data"
+    echo "Group=www-data"
+    # UMask ensures new files are group-writable (rw-rw-r--)
+    echo "UMask=002"
     echo "Environment=ASPNETCORE_URLS=http://0.0.0.0:$KESTREL_PORT"
     echo "Environment=DOTNET_ENVIRONMENT=Production"
     echo
@@ -628,6 +647,8 @@ create_kestrel_service() {
   } > "$SERVICE_PATH"
 
   chmod 644 "$SERVICE_PATH"
+
+  # Reload units and start the service
   systemctl daemon-reexec
   systemctl daemon-reload
   systemctl enable "$SERVICE_NAME"
@@ -635,4 +656,5 @@ create_kestrel_service() {
 
   echo -e "✅ \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
 }
+
 
