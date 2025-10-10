@@ -156,6 +156,93 @@ has_cloudflare_dns_record() {
   [[ "$count" -gt 0 ]] && echo "✅" || echo "❌"
 }
 
+get_cloudflare_record_proxy_flag() {
+  local record_type="$1"
+  local record_name="$2"
+
+  if [[ -z "$record_type" || -z "$record_name" ]]; then
+    echo ""
+    return 0
+  fi
+
+  if [[ -z "$ZONE_ID" || -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then
+    echo ""
+    return 0
+  fi
+
+  local response proxied
+  response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$record_name" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json")
+
+  if ! echo "$response" | jq -e '.result | length > 0' >/dev/null 2>&1; then
+    echo ""
+    return 0
+  fi
+
+  proxied=$(echo "$response" | jq -r '.result[0].proxied // empty')
+
+  if [[ "$proxied" != "true" && "$proxied" != "false" ]]; then
+    echo ""
+    return 0
+  fi
+
+  echo "$proxied"
+}
+
+set_cloudflare_record_proxy_flag() {
+  local record_type="$1"
+  local record_name="$2"
+  local desired_state="$3"
+
+  if [[ "$desired_state" != "true" && "$desired_state" != "false" ]]; then
+    return 1
+  fi
+
+  if [[ -z "$record_type" || -z "$record_name" ]]; then
+    return 1
+  fi
+
+  if [[ -z "$ZONE_ID" || -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then
+    return 1
+  fi
+
+  local response record_id current_state record_content update_payload
+  response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$record_name" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json")
+
+  if ! echo "$response" | jq -e '.result | length > 0' >/dev/null 2>&1; then
+    return 1
+  fi
+
+  record_id=$(echo "$response" | jq -r '.result[0].id // empty')
+  record_content=$(echo "$response" | jq -r '.result[0].content // empty')
+  current_state=$(echo "$response" | jq -r '.result[0].proxied // empty')
+
+  if [[ -z "$record_id" || -z "$record_content" ]]; then
+    return 1
+  fi
+
+  if [[ "$current_state" == "$desired_state" ]]; then
+    return 0
+  fi
+
+  update_payload=$(jq -n \
+    --arg type "$record_type" \
+    --arg name "$record_name" \
+    --arg content "$record_content" \
+    --argjson proxied "$desired_state" \
+    '{type: $type, name: $name, content: $content, proxied: $proxied}')
+
+  curl -s -X PUT "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data "$update_payload" >/dev/null
+
+  return 0
+}
+
 toggle_cloudflare_proxy() {
   local fqdn="$1"
 

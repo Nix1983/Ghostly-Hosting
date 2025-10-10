@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+declare -A _CLOUDFLARE_PROXY_RESTORE_MAP=()
+
+if ! declare -F get_cloudflare_record_proxy_flag >/dev/null 2>&1; then
+  # shellcheck disable=SC1091
+  source ./lib/cloudflare.sh
+fi
+
 remove_certbot() {
   systemctl stop certbot.timer 2>/dev/null || true
   systemctl disable certbot.timer 2>/dev/null || true
@@ -70,6 +77,88 @@ _start_nginx_if_stopped() {
   fi
 }
 
+_disable_cloudflare_proxy_for_acme() {
+  _CLOUDFLARE_PROXY_RESTORE_MAP=()
+
+  if [[ -z "$HOSTNAME_FQDN" ]]; then
+    return 1
+  fi
+
+  if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then
+    return 1
+  fi
+
+  if [[ -z "$ZONE_ID" ]]; then
+    if ! resolve_cloudflare_zone_id "$HOSTNAME_FQDN" >/dev/null 2>&1; then
+      echo "⚠️  Unable to resolve Cloudflare zone – skipping proxy toggle."
+      return 1
+    fi
+  fi
+
+  local changed=false
+  local -a domains=("$HOSTNAME_FQDN")
+  [[ -n "${WWW_HOSTNAME_FQDN:-}" ]] && domains+=("$WWW_HOSTNAME_FQDN")
+
+  for domain in "${domains[@]}"; do
+    local -a record_types=()
+    if [[ -n "${WWW_HOSTNAME_FQDN:-}" && "$domain" == "$WWW_HOSTNAME_FQDN" ]]; then
+      record_types=("CNAME")
+    else
+      record_types=("A" "AAAA")
+    fi
+
+    for record_type in "${record_types[@]}"; do
+      local current_state
+      current_state=$(get_cloudflare_record_proxy_flag "$record_type" "$domain")
+
+      if [[ "$current_state" != "true" ]]; then
+        continue
+      fi
+
+      if [[ "$changed" == false ]]; then
+        echo "☁️  Temporarily disabling Cloudflare proxy for ACME validation..."
+        changed=true
+      fi
+
+      _CLOUDFLARE_PROXY_RESTORE_MAP["$domain|$record_type"]="true"
+
+      if set_cloudflare_record_proxy_flag "$record_type" "$domain" "false"; then
+        printf "   ↪️  %s %s → proxy OFF\n" "$record_type" "$domain"
+      else
+        printf "   ⚠️  Could not disable proxy for %s %s\n" "$record_type" "$domain"
+      fi
+    done
+  done
+
+  if [[ "$changed" == true ]]; then
+    echo "   ℹ️  Proxy settings will be restored after certificate issuance."
+  fi
+
+  return 0
+}
+
+_restore_cloudflare_proxy_after_acme() {
+  if [[ ${#_CLOUDFLARE_PROXY_RESTORE_MAP[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  echo "☁️  Restoring Cloudflare proxy configuration..."
+
+  local key domain record_type
+  for key in "${!_CLOUDFLARE_PROXY_RESTORE_MAP[@]}"; do
+    domain="${key%%|*}"
+    record_type="${key##*|}"
+
+    if set_cloudflare_record_proxy_flag "$record_type" "$domain" "true"; then
+      printf "   ↩️  %s %s → proxy ON\n" "$record_type" "$domain"
+    else
+      printf "   ⚠️  Could not restore proxy for %s %s\n" "$record_type" "$domain"
+    fi
+  done
+
+  _CLOUDFLARE_PROXY_RESTORE_MAP=()
+}
+
 _check_certificate_validity() {
   local path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
   if [[ -f "$path" ]]; then
@@ -125,6 +214,7 @@ _obtain_or_verify_certificate() {
   domain_list=${domain_list%, }
 
   echo "🔄 Requesting new Let's Encrypt certificate for ${domain_list:-$HOSTNAME_FQDN}..."
+  _disable_cloudflare_proxy_for_acme || true
   _stop_nginx_if_running
   sleep 2
   if ! certbot certonly --standalone "${domain_args[@]}" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
@@ -134,11 +224,13 @@ _obtain_or_verify_certificate() {
     if ! certbot certonly --standalone "${domain_args[@]}" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
       echo "❌ Certificate request failed after retry. Aborting."
       _start_nginx_if_stopped
+      _restore_cloudflare_proxy_after_acme
       exit 1
     fi
   fi
 
   _start_nginx_if_stopped
+  _restore_cloudflare_proxy_after_acme
 
   echo "🔁 Verifying new certificate..."
   if _check_certificate_validity; then
