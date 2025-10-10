@@ -75,13 +75,34 @@ _check_certificate_validity() {
   if [[ -f "$path" ]]; then
     local cn
     cn=$(openssl x509 -noout -subject -in "$path" | grep -o "CN *= *[^ ,]*" | cut -d= -f2 | xargs)
-    if [[ "$cn" == "$HOSTNAME_FQDN" ]]; then
-      echo "✅ Valid certificate found: CN=$cn"
-      return 0
-    else
+
+    if [[ "$cn" != "$HOSTNAME_FQDN" ]]; then
       echo "⚠️  Certificate found but CN mismatch: CN=$cn"
       return 1
     fi
+
+    local san_output
+    san_output=$(openssl x509 -noout -ext subjectAltName -in "$path" 2>/dev/null | tr -d ' ')
+    local missing_san=false
+    local required_sans=("$HOSTNAME_FQDN")
+
+    if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
+      required_sans+=("www.$DOMAIN")
+    fi
+
+    for name in "${required_sans[@]}"; do
+      if ! grep -q "DNS:$name" <<<"$san_output"; then
+        missing_san=true
+        echo "⚠️  Certificate found but missing SAN entry for: $name"
+      fi
+    done
+
+    if [[ "$missing_san" == false ]]; then
+      echo "✅ Valid certificate found: CN=$cn"
+      return 0
+    fi
+
+    return 1
   else
     echo "❌ No certificate found."
     return 1
@@ -98,11 +119,22 @@ _obtain_or_verify_certificate() {
   echo "🔄 Requesting new Let's Encrypt certificate..."
   _stop_nginx_if_running
   sleep 2
-  if ! certbot certonly --standalone -d "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
+  local certbot_cmd=(certbot certonly --standalone --email "admin@$DOMAIN" --non-interactive --agree-tos)
+  local certbot_domains=("$HOSTNAME_FQDN")
+
+  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
+    certbot_domains+=("www.$DOMAIN")
+  fi
+
+  for domain in "${certbot_domains[@]}"; do
+    certbot_cmd+=(-d "$domain")
+  done
+
+  if ! "${certbot_cmd[@]}"; then
     echo "⚠️  First attempt failed. Retrying in 10 seconds..."
     sleep 10
 
-    if ! certbot certonly --standalone -d "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
+    if ! "${certbot_cmd[@]}"; then
       echo "❌ Certificate request failed after retry. Aborting."
       _start_nginx_if_stopped
       exit 1

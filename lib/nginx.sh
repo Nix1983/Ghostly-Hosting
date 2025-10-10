@@ -201,6 +201,11 @@ create_nginx_config() {
   local conf_link="/etc/nginx/sites-enabled/$HOSTNAME_FQDN"
   local cert_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
   local key_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/privkey.pem"
+  local www_host=""
+
+  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
+    www_host="www.$DOMAIN"
+  fi
 
   local base_folder
   base_folder="$APP_BASE_DIR/${DOMAIN//./.}/$( [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]] && echo root || echo "${HOSTNAME_FQDN%%."$DOMAIN"}")"
@@ -223,10 +228,29 @@ create_nginx_config() {
     echo "server {"
     echo "    listen 80;"
     echo "    listen [::]:80;"
-    echo "    server_name $HOSTNAME_FQDN;"
-    echo "    return 301 https://\$host\$request_uri;"
+    if [[ -n "$www_host" ]]; then
+      echo "    server_name $HOSTNAME_FQDN $www_host;"
+    else
+      echo "    server_name $HOSTNAME_FQDN;"
+    fi
+    echo "    return 301 https://$HOSTNAME_FQDN\$request_uri;"
     echo "}"
     echo
+    if [[ -n "$www_host" ]]; then
+      echo "server {"
+      echo "    listen 443 ssl http2;"
+      echo "    listen [::]:443 ssl http2;"
+      echo "    server_name $www_host;"
+      echo "    ssl_certificate $cert_path;"
+      echo "    ssl_certificate_key $key_path;"
+      echo "    ssl_protocols TLSv1.2 TLSv1.3;"
+      echo "    ssl_ciphers HIGH:!aNULL:!MD5;"
+      echo "    ssl_prefer_server_ciphers on;"
+      echo "    return 301 https://$HOSTNAME_FQDN\$request_uri;"
+      echo "}"
+      echo
+    fi
+
     echo "server {"
     echo "    listen 443 ssl http2;"
     echo "    listen [::]:443 ssl http2;"
