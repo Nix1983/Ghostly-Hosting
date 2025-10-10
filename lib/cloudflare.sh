@@ -156,69 +156,69 @@ has_cloudflare_dns_record() {
   [[ "$count" -gt 0 ]] && echo "✅" || echo "❌"
 }
 
-get_cloudflare_record_proxy_flag() {
+_get_cloudflare_dns_record() {
   local record_type="$1"
   local record_name="$2"
 
   if [[ -z "$record_type" || -z "$record_name" ]]; then
-    echo ""
-    return 0
+    return 1
   fi
 
   if [[ -z "$ZONE_ID" || -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then
-    echo ""
-    return 0
+    return 1
   fi
 
-  local response proxied
+  local response
   response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$record_name" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
     -H "Content-Type: application/json")
 
-  if ! echo "$response" | jq -e '.result | length > 0' >/dev/null 2>&1; then
+  if ! echo "$response" | jq -e '.success == true and (.result | length > 0)' >/dev/null 2>&1; then
+    return 1
+  fi
+
+  echo "$response" | jq -c '.result[0]'
+  return 0
+}
+
+get_cloudflare_record_proxy_flag() {
+  local record_type="$1"
+  local record_name="$2"
+  local record_json proxied_state
+
+  if ! record_json=$(_get_cloudflare_dns_record "$record_type" "$record_name"); then
     echo ""
     return 0
   fi
 
-  proxied=$(echo "$response" | jq -r '.result[0].proxied // empty')
+  proxied_state=$(echo "$record_json" | jq -r '.proxied // empty')
 
-  if [[ "$proxied" != "true" && "$proxied" != "false" ]]; then
+  if [[ "$proxied_state" != "true" && "$proxied_state" != "false" ]]; then
     echo ""
     return 0
   fi
 
-  echo "$proxied"
+  echo "$proxied_state"
 }
 
 set_cloudflare_record_proxy_flag() {
   local record_type="$1"
   local record_name="$2"
   local desired_state="$3"
+  local record_json record_id record_content record_ttl current_state update_payload update_response
 
   if [[ "$desired_state" != "true" && "$desired_state" != "false" ]]; then
     return 1
   fi
 
-  if [[ -z "$record_type" || -z "$record_name" ]]; then
+  if ! record_json=$(_get_cloudflare_dns_record "$record_type" "$record_name"); then
     return 1
   fi
 
-  if [[ -z "$ZONE_ID" || -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then
-    return 1
-  fi
-
-  local response record_id current_state record_content update_payload
-  response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$record_name" \
-    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-    -H "Content-Type: application/json")
-
-  if ! echo "$response" | jq -e '.result | length > 0' >/dev/null 2>&1; then
-    return 1
-  fi
-
-  record_id=$(echo "$response" | jq -r '.result[0].id // empty')
-  record_content=$(echo "$response" | jq -r '.result[0].content // empty')
-  current_state=$(echo "$response" | jq -r '.result[0].proxied // empty')
+  record_id=$(echo "$record_json" | jq -r '.id // empty')
+  record_content=$(echo "$record_json" | jq -r '.content // empty')
+  record_ttl=$(echo "$record_json" | jq -r '.ttl // 1')
+  current_state=$(echo "$record_json" | jq -r '.proxied // empty')
 
   if [[ -z "$record_id" || -z "$record_content" ]]; then
     return 1
@@ -233,14 +233,42 @@ set_cloudflare_record_proxy_flag() {
     --arg name "$record_name" \
     --arg content "$record_content" \
     --argjson proxied "$desired_state" \
-    '{type: $type, name: $name, content: $content, proxied: $proxied}')
+    --argjson ttl "$record_ttl" \
+    '{type: $type, name: $name, content: $content, proxied: $proxied, ttl: $ttl}')
 
-  curl -s -X PUT "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
+  update_response=$(curl -s -X PUT "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
     -H "Content-Type: application/json" \
-    --data "$update_payload" >/dev/null
+    --data "$update_payload")
+
+  if ! echo "$update_response" | jq -e '.success == true' >/dev/null 2>&1; then
+    return 1
+  fi
 
   return 0
+}
+
+wait_for_cloudflare_proxy_state() {
+  local record_type="$1"
+  local record_name="$2"
+  local desired_state="$3"
+  local attempts="${4:-10}"
+  local delay="${5:-2}"
+  local current_state attempt
+
+  if [[ "$desired_state" != "true" && "$desired_state" != "false" ]]; then
+    return 1
+  fi
+
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    current_state=$(get_cloudflare_record_proxy_flag "$record_type" "$record_name")
+    if [[ "$current_state" == "$desired_state" ]]; then
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  return 1
 }
 
 toggle_cloudflare_proxy() {

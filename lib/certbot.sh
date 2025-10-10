@@ -88,14 +88,14 @@ _disable_cloudflare_proxy_for_acme() {
     return 1
   fi
 
-  if [[ -z "$ZONE_ID" ]]; then
-    if ! resolve_cloudflare_zone_id "$HOSTNAME_FQDN" >/dev/null 2>&1; then
-      echo "⚠️  Unable to resolve Cloudflare zone – skipping proxy toggle."
-      return 1
-    fi
+  if ! resolve_cloudflare_zone_id "$HOSTNAME_FQDN" >/dev/null 2>&1; then
+    echo "⚠️  Unable to resolve Cloudflare zone – skipping proxy toggle."
+    return 1
   fi
 
   local changed=false
+  local missing_state=false
+  local all_disabled=true
   local -a domains=("$HOSTNAME_FQDN")
   [[ -n "${WWW_HOSTNAME_FQDN:-}" ]] && domains+=("$WWW_HOSTNAME_FQDN")
 
@@ -108,10 +108,22 @@ _disable_cloudflare_proxy_for_acme() {
     fi
 
     for record_type in "${record_types[@]}"; do
-      local current_state
-      current_state=$(get_cloudflare_record_proxy_flag "$record_type" "$domain")
+      local record_json current_state
 
-      if [[ "$current_state" != "true" ]]; then
+      if ! record_json=$(_get_cloudflare_dns_record "$record_type" "$domain"); then
+        continue
+      fi
+
+      current_state=$(echo "$record_json" | jq -r '.proxied // empty')
+
+      if [[ -z "$current_state" ]]; then
+        missing_state=true
+        all_disabled=false
+        printf "   ⚠️  Unable to determine proxy state for %s %s – skipping.\n" "$record_type" "$domain"
+        continue
+      fi
+
+      if [[ "$current_state" == "false" ]]; then
         continue
       fi
 
@@ -120,10 +132,15 @@ _disable_cloudflare_proxy_for_acme() {
         changed=true
       fi
 
+      all_disabled=false
       _CLOUDFLARE_PROXY_RESTORE_MAP["$domain|$record_type"]="true"
 
       if set_cloudflare_record_proxy_flag "$record_type" "$domain" "false"; then
-        printf "   ↪️  %s %s → proxy OFF\n" "$record_type" "$domain"
+        if wait_for_cloudflare_proxy_state "$record_type" "$domain" "false" 15 2; then
+          printf "   ↪️  %s %s → proxy OFF\n" "$record_type" "$domain"
+        else
+          printf "   ⚠️  Proxy change for %s %s not yet visible – please verify manually.\n" "$record_type" "$domain"
+        fi
       else
         printf "   ⚠️  Could not disable proxy for %s %s\n" "$record_type" "$domain"
       fi
@@ -132,6 +149,8 @@ _disable_cloudflare_proxy_for_acme() {
 
   if [[ "$changed" == true ]]; then
     echo "   ℹ️  Proxy settings will be restored after certificate issuance."
+  elif [[ "$all_disabled" == true && "$missing_state" == false ]]; then
+    echo "☁️  Cloudflare proxy already disabled for ACME validation."
   fi
 
   return 0
@@ -150,7 +169,11 @@ _restore_cloudflare_proxy_after_acme() {
     record_type="${key##*|}"
 
     if set_cloudflare_record_proxy_flag "$record_type" "$domain" "true"; then
-      printf "   ↩️  %s %s → proxy ON\n" "$record_type" "$domain"
+      if wait_for_cloudflare_proxy_state "$record_type" "$domain" "true" 15 2; then
+        printf "   ↩️  %s %s → proxy ON\n" "$record_type" "$domain"
+      else
+        printf "   ⚠️  Proxy restoration for %s %s not yet visible – please verify manually.\n" "$record_type" "$domain"
+      fi
     else
       printf "   ⚠️  Could not restore proxy for %s %s\n" "$record_type" "$domain"
     fi
