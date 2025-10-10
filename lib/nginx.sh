@@ -202,9 +202,11 @@ create_nginx_config() {
   local cert_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
   local key_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/privkey.pem"
   local http_server_names="$HOSTNAME_FQDN"
+  local include_www_redirect=false
 
   if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
     http_server_names+=" www.$DOMAIN"
+    include_www_redirect=true
   fi
 
   local base_folder
@@ -268,6 +270,18 @@ create_nginx_config() {
     echo "        add_header Cache-Control \"no-store\";"
     echo "    }"
     echo "}"
+
+    if [[ "$include_www_redirect" == true ]]; then
+      echo
+      echo "server {"
+      echo "    listen 443 ssl http2;"
+      echo "    listen [::]:443 ssl http2;"
+      echo "    server_name www.$DOMAIN;"
+      echo "    ssl_certificate $cert_path;"
+      echo "    ssl_certificate_key $key_path;"
+      echo "    return 301 https://$HOSTNAME_FQDN\$request_uri;"
+      echo "}"
+    fi
   } > "$conf_path"
 
   ln -sf "$conf_path" "$conf_link"

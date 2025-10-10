@@ -70,22 +70,50 @@ _start_nginx_if_stopped() {
   fi
 }
 
+_expected_certificate_domains() {
+  local domains=("$HOSTNAME_FQDN")
+  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
+    domains+=("www.$DOMAIN")
+  fi
+
+  printf '%s\n' "${domains[@]}"
+}
+
 _check_certificate_validity() {
   local path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
-  if [[ -f "$path" ]]; then
-    local cn
-    cn=$(openssl x509 -noout -subject -in "$path" | grep -o "CN *= *[^ ,]*" | cut -d= -f2 | xargs)
-    if [[ "$cn" == "$HOSTNAME_FQDN" ]]; then
-      echo "✅ Valid certificate found: CN=$cn"
-      return 0
-    else
-      echo "⚠️  Certificate found but CN mismatch: CN=$cn"
-      return 1
-    fi
-  else
+  if [[ ! -f "$path" ]]; then
     echo "❌ No certificate found."
     return 1
   fi
+
+  local cn
+  cn=$(openssl x509 -noout -subject -in "$path" | grep -o "CN *= *[^ ,]*" | cut -d= -f2 | xargs)
+  if [[ "$cn" != "$HOSTNAME_FQDN" ]]; then
+    echo "⚠️  Certificate found but CN mismatch: CN=$cn"
+    return 1
+  fi
+
+  mapfile -t san_entries < <(openssl x509 -noout -ext subjectAltName -in "$path" 2>/dev/null \
+    | grep -Eo 'DNS:[^, ]+' | cut -d: -f2)
+
+  local missing=()
+  while IFS= read -r expected_domain; do
+    if [[ -z "$expected_domain" ]]; then
+      continue
+    fi
+
+    if ! printf '%s\n' "${san_entries[@]}" | grep -Fxq "$expected_domain"; then
+      missing+=("$expected_domain")
+    fi
+  done < <(_expected_certificate_domains)
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "⚠️  Certificate SAN is missing required domains: ${missing[*]}"
+    return 1
+  fi
+
+  echo "✅ Valid certificate found for domains: $(printf '%s ' "${san_entries[@]}")"
+  return 0
 }
 
 _obtain_or_verify_certificate() {
@@ -98,11 +126,16 @@ _obtain_or_verify_certificate() {
   echo "🔄 Requesting new Let's Encrypt certificate..."
   _stop_nginx_if_running
   sleep 2
-  if ! certbot certonly --standalone -d "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
+  local certbot_domains=()
+  while IFS= read -r domain_entry; do
+    certbot_domains+=(-d "$domain_entry")
+  done < <(_expected_certificate_domains)
+
+  if ! certbot certonly --standalone "${certbot_domains[@]}" --cert-name "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
     echo "⚠️  First attempt failed. Retrying in 10 seconds..."
     sleep 10
 
-    if ! certbot certonly --standalone -d "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
+    if ! certbot certonly --standalone "${certbot_domains[@]}" --cert-name "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
       echo "❌ Certificate request failed after retry. Aborting."
       _start_nginx_if_stopped
       exit 1

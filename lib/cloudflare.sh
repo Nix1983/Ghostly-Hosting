@@ -236,39 +236,45 @@ delete_cloudflare_dns_records() {
 
   local types=("A" "AAAA")
   local found_any=false
+  local hostnames=("$HOSTNAME_FQDN")
+  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
+    hostnames+=("www.$DOMAIN")
+  fi
 
-  for record_type in "${types[@]}"; do
-    local dns_response
-    dns_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$HOSTNAME_FQDN" \
-      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-      -H "Content-Type: application/json")
+  for dns_name in "${hostnames[@]}"; do
+    for record_type in "${types[@]}"; do
+      local dns_response
+      dns_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$dns_name" \
+        -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        -H "Content-Type: application/json")
 
-    if [[ -z "$dns_response" || "$dns_response" == "null" ]]; then
-      echo -e "❌ \e[31mFailed to fetch $record_type records for $HOSTNAME_FQDN\033[0m"
-      continue
-    fi
+      if [[ -z "$dns_response" || "$dns_response" == "null" ]]; then
+        echo -e "❌ \e[31mFailed to fetch $record_type records for $dns_name\033[0m"
+        continue
+      fi
 
-    local count; count=$(echo "$dns_response" | jq '.result | length')
-    if [[ "$count" == "0" ]]; then
-      continue
-    fi
+      local count; count=$(echo "$dns_response" | jq '.result | length')
+      if [[ "$count" == "0" ]]; then
+        continue
+      fi
 
-    found_any=true
+      found_any=true
 
-    echo "$dns_response" | jq -c '.result[]' | while read -r record; do
-      local record_id record_content
-      record_id=$(echo "$record" | jq -r '.id')
-      record_content=$(echo "$record" | jq -r '.content')
+      echo "$dns_response" | jq -c '.result[]' | while read -r record; do
+        local record_id record_content
+        record_id=$(echo "$record" | jq -r '.id')
+        record_content=$(echo "$record" | jq -r '.content')
 
-      printf "❌ Deleting %-4s → \033[36m%-39s\033[0m ... " "$record_type" "$record_content"
+        printf "❌ Deleting %-4s %-35s → \033[36m%-39s\033[0m ... " "$record_type" "$dns_name" "$record_content"
 
-     if curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
-       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-       -H "Content-Type: application/json" > /dev/null; then
-       echo -e "\e[32m✅ done\e[0m"
-     else
-       echo -e "\e[31m❌ failed\e[0m"
-     fi
+        if curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
+          -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+          -H "Content-Type: application/json" > /dev/null; then
+          echo -e "\e[32m✅ done\e[0m"
+        else
+          echo -e "\e[31m❌ failed\e[0m"
+        fi
+      done
     done
   done
 
@@ -432,17 +438,25 @@ setup_cloudflare_dns_for_blazor() {
   echo ""
   echo -e "📤 Setting DNS records for \e[36m$HOSTNAME_FQDN\e[0m"
 
-  # A record
+  local hostnames=("$HOSTNAME_FQDN")
+  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
+    hostnames+=("www.$DOMAIN")
+  fi
+
+  # A records
   if [[ -n "${SERVER_IPv4:-}" ]]; then
-    _upsert_dns_record "A" "$HOSTNAME_FQDN" "$SERVER_IPv4" "Blazor Hosting A-record" "$use_proxy"
+    for dns_name in "${hostnames[@]}"; do
+      _upsert_dns_record "A" "$dns_name" "$SERVER_IPv4" "Blazor Hosting A-record ($dns_name)" "$use_proxy"
+    done
   else
     echo -e "❌ \e[31mSERVER_IPv4 is not set – skipping A record creation.\e[0m"
   fi
 
-
-  # AAAA record (optional)
+  # AAAA records (optional)
   if [[ -n "$SERVER_IPv6" ]]; then
-    _upsert_dns_record "AAAA" "$HOSTNAME_FQDN" "$SERVER_IPv6" "Blazor Hosting AAAA-record" "$use_proxy"
+    for dns_name in "${hostnames[@]}"; do
+      _upsert_dns_record "AAAA" "$dns_name" "$SERVER_IPv6" "Blazor Hosting AAAA-record ($dns_name)" "$use_proxy"
+    done
     export CLOUDFLARE_IPV6_ENABLED=true
   else
     echo -e "↪️  \033[2mNo IPv6 detected – skipping AAAA record.\033[0m"
@@ -453,26 +467,28 @@ setup_cloudflare_dns_for_blazor() {
   local response name type content proxied proxy_icon
 
   for record_type in A AAAA; do
-    response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$HOSTNAME_FQDN" \
-      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-      -H "Content-Type: application/json")
+    for dns_name in "${hostnames[@]}"; do
+      response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$dns_name" \
+        -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        -H "Content-Type: application/json")
 
-    if [[ -z "$response" || "$response" == "null" ]]; then
-      printf "❌ \033[31mCould not fetch %s record for %s\033[0m\n" "$record_type" "$HOSTNAME_FQDN"
-      continue
-    fi
+      if [[ -z "$response" || "$response" == "null" ]]; then
+        printf "❌ \033[31mCould not fetch %s record for %s\033[0m\n" "$record_type" "$dns_name"
+        continue
+      fi
 
-    if ! echo "$response" | jq -e '.result | length > 0' >/dev/null; then
-      printf "❌ \033[31mNo %s record found for %s\033[0m\n" "$record_type" "$HOSTNAME_FQDN"
-      continue
-    fi
+      if ! echo "$response" | jq -e '.result | length > 0' >/dev/null; then
+        printf "❌ \033[31mNo %s record found for %s\033[0m\n" "$record_type" "$dns_name"
+        continue
+      fi
 
-    echo "$response" | jq -c '.result[]' | while read -r record; do
-      name=$(echo "$record" | jq -r '.name')
-      content=$(echo "$record" | jq -r '.content')
-      proxied=$(echo "$record" | jq -r '.proxied')
-      [[ "$proxied" == "true" ]] && proxy_icon="🔒 via CF" || proxy_icon="➡️ direct"
-      printf "✅ %-5s %-35s → \033[36m%-39s\033[0m [%s]\n" "$record_type" "$name" "$content" "$proxy_icon"
+      echo "$response" | jq -c '.result[]' | while read -r record; do
+        name=$(echo "$record" | jq -r '.name')
+        content=$(echo "$record" | jq -r '.content')
+        proxied=$(echo "$record" | jq -r '.proxied')
+        [[ "$proxied" == "true" ]] && proxy_icon="🔒 via CF" || proxy_icon="➡️ direct"
+        printf "✅ %-5s %-35s → \033[36m%-39s\033[0m [%s]\n" "$record_type" "$name" "$content" "$proxy_icon"
+      done
     done
   done
 }
