@@ -4,6 +4,28 @@ set -e
 
 source ./lib/common.sh
 
+_nginx_www_alias() {
+  local primary="$1"
+  local domain="$2"
+
+  if [[ -z "$primary" || -z "$domain" ]]; then
+    return 0
+  fi
+
+  if [[ "$primary" == "$domain" ]]; then
+    echo "www.$domain"
+    return 0
+  fi
+
+  if [[ "$primary" == www.* ]]; then
+    return 0
+  fi
+
+  if [[ "$primary" == *".$domain" ]]; then
+    echo "www.$primary"
+  fi
+}
+
 remove_nginx() {
   systemctl stop nginx 2>/dev/null || true
   systemctl disable nginx 2>/dev/null || true
@@ -203,9 +225,11 @@ create_nginx_config() {
   local key_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/privkey.pem"
   local http_server_names="$HOSTNAME_FQDN"
   local include_www_redirect=false
+  local www_alias
+  www_alias=$(_nginx_www_alias "$HOSTNAME_FQDN" "$DOMAIN")
 
-  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
-    http_server_names+=" www.$DOMAIN"
+  if [[ -n "$www_alias" ]]; then
+    http_server_names+=" $www_alias"
     include_www_redirect=true
   fi
 
@@ -276,7 +300,7 @@ create_nginx_config() {
       echo "server {"
       echo "    listen 443 ssl http2;"
       echo "    listen [::]:443 ssl http2;"
-      echo "    server_name www.$DOMAIN;"
+      echo "    server_name $www_alias;"
       echo "    ssl_certificate $cert_path;"
       echo "    ssl_certificate_key $key_path;"
       echo "    return 301 https://$HOSTNAME_FQDN\$request_uri;"

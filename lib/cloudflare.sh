@@ -11,6 +11,54 @@ _check_cloudflare_env_vars() {
   fi
 }
 
+_determine_www_alias() {
+  local primary="$1"
+  local domain="$2"
+
+  if [[ -z "$primary" || -z "$domain" ]]; then
+    return 0
+  fi
+
+  if [[ "$primary" == "$domain" ]]; then
+    echo "www.$domain"
+    return 0
+  fi
+
+  if [[ "$primary" == www.* ]]; then
+    return 0
+  fi
+
+  if [[ "$primary" == *".$domain" ]]; then
+    echo "www.$primary"
+  fi
+}
+
+_format_www_display_name() {
+  local fqdn="$1"
+
+  if [[ -z "$fqdn" ]]; then
+    return 0
+  fi
+
+  if [[ -n "$DOMAIN" ]]; then
+    if [[ "$fqdn" == "www.$DOMAIN" ]]; then
+      echo "www"
+      return 0
+    fi
+
+    local suffix=".$DOMAIN"
+    if [[ "$fqdn" == *"$suffix" ]]; then
+      local trimmed="${fqdn%$suffix}"
+      if [[ "$trimmed" == www.* ]]; then
+        echo "$trimmed"
+        return 0
+      fi
+    fi
+  fi
+
+  echo "$fqdn"
+}
+
 _upsert_dns_record() {
   local type="$1"
   local name="$2"
@@ -26,8 +74,11 @@ _upsert_dns_record() {
   id=$(echo "$response" | jq -r '.result[0].id // empty')
   current=$(echo "$response" | jq -r '.result[0].content // empty')
 
+  local display_name
+  display_name=$(_format_www_display_name "$name")
+
   if [[ "$current" == "$content" ]]; then
-    printf "✅ %s-record is already up to date: \033[36m%s → %s\033[0m\n" "$type" "$name" "$content"
+    printf "✅ %s-record is already up to date: \033[36m%s → %s\033[0m\n" "$type" "$display_name" "$content"
     return
   fi
 
@@ -35,11 +86,11 @@ _upsert_dns_record() {
   if [[ -n "$id" ]]; then
     method="PUT"
     url="$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$id"
-    printf "♻️  Updating %s-record: \033[36m%s → %s\033[0m\n" "$type" "$name" "$content"
+    printf "♻️  Updating %s-record: \033[36m%s → %s\033[0m\n" "$type" "$display_name" "$content"
   else
     method="POST"
     url="$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records"
-    printf "➕ Creating %s-record: \033[36m%s → %s\033[0m\n" "$type" "$name" "$content"
+    printf "➕ Creating %s-record: \033[36m%s → %s\033[0m\n" "$type" "$display_name" "$content"
   fi
 
   curl -s -X "$method" "$url" \
@@ -237,8 +288,10 @@ delete_cloudflare_dns_records() {
   local types=("A" "AAAA")
   local found_any=false
   local hostnames=("$HOSTNAME_FQDN")
-  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
-    hostnames+=("www.$DOMAIN")
+  local www_alias
+  www_alias=$(_determine_www_alias "$HOSTNAME_FQDN" "$DOMAIN")
+  if [[ -n "$www_alias" ]]; then
+    hostnames+=("$www_alias")
   fi
 
   for dns_name in "${hostnames[@]}"; do
@@ -249,7 +302,7 @@ delete_cloudflare_dns_records() {
         -H "Content-Type: application/json")
 
       if [[ -z "$dns_response" || "$dns_response" == "null" ]]; then
-        echo -e "❌ \e[31mFailed to fetch $record_type records for $dns_name\033[0m"
+        echo -e "❌ \e[31mFailed to fetch $record_type records for $(_format_www_display_name "$dns_name")\033[0m"
         continue
       fi
 
@@ -265,7 +318,7 @@ delete_cloudflare_dns_records() {
         record_id=$(echo "$record" | jq -r '.id')
         record_content=$(echo "$record" | jq -r '.content')
 
-        printf "❌ Deleting %-4s %-35s → \033[36m%-39s\033[0m ... " "$record_type" "$dns_name" "$record_content"
+        printf "❌ Deleting %-4s %-35s → \033[36m%-39s\033[0m ... " "$record_type" "$(_format_www_display_name "$dns_name")" "$record_content"
 
         if curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
           -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -439,8 +492,10 @@ setup_cloudflare_dns_for_blazor() {
   echo -e "📤 Setting DNS records for \e[36m$HOSTNAME_FQDN\e[0m"
 
   local hostnames=("$HOSTNAME_FQDN")
-  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
-    hostnames+=("www.$DOMAIN")
+  local www_alias
+  www_alias=$(_determine_www_alias "$HOSTNAME_FQDN" "$DOMAIN")
+  if [[ -n "$www_alias" ]]; then
+    hostnames+=("$www_alias")
   fi
 
   # A records
@@ -473,12 +528,12 @@ setup_cloudflare_dns_for_blazor() {
         -H "Content-Type: application/json")
 
       if [[ -z "$response" || "$response" == "null" ]]; then
-        printf "❌ \033[31mCould not fetch %s record for %s\033[0m\n" "$record_type" "$dns_name"
+        printf "❌ \033[31mCould not fetch %s record for %s\033[0m\n" "$record_type" "$(_format_www_display_name "$dns_name")"
         continue
       fi
 
       if ! echo "$response" | jq -e '.result | length > 0' >/dev/null; then
-        printf "❌ \033[31mNo %s record found for %s\033[0m\n" "$record_type" "$dns_name"
+        printf "❌ \033[31mNo %s record found for %s\033[0m\n" "$record_type" "$(_format_www_display_name "$dns_name")"
         continue
       fi
 
@@ -487,7 +542,7 @@ setup_cloudflare_dns_for_blazor() {
         content=$(echo "$record" | jq -r '.content')
         proxied=$(echo "$record" | jq -r '.proxied')
         [[ "$proxied" == "true" ]] && proxy_icon="🔒 via CF" || proxy_icon="➡️ direct"
-        printf "✅ %-5s %-35s → \033[36m%-39s\033[0m [%s]\n" "$record_type" "$name" "$content" "$proxy_icon"
+        printf "✅ %-5s %-35s → \033[36m%-39s\033[0m [%s]\n" "$record_type" "$(_format_www_display_name "$name")" "$content" "$proxy_icon"
       done
     done
   done

@@ -53,6 +53,28 @@ _ensure_certbot_installed() {
   fi
 }
 
+_certbot_www_alias() {
+  local primary="$1"
+  local domain="$2"
+
+  if [[ -z "$primary" || -z "$domain" ]]; then
+    return 0
+  fi
+
+  if [[ "$primary" == "$domain" ]]; then
+    echo "www.$domain"
+    return 0
+  fi
+
+  if [[ "$primary" == www.* ]]; then
+    return 0
+  fi
+
+  if [[ "$primary" == *".$domain" ]]; then
+    echo "www.$primary"
+  fi
+}
+
 _stop_nginx_if_running() {
   if systemctl list-unit-files | grep -q '^nginx\.service'; then
     if systemctl is-active --quiet nginx; then
@@ -72,8 +94,10 @@ _start_nginx_if_stopped() {
 
 _expected_certificate_domains() {
   local domains=("$HOSTNAME_FQDN")
-  if [[ "$HOSTNAME_FQDN" == "$DOMAIN" ]]; then
-    domains+=("www.$DOMAIN")
+  local alias
+  alias=$(_certbot_www_alias "$HOSTNAME_FQDN" "$DOMAIN")
+  if [[ -n "$alias" ]]; then
+    domains+=("$alias")
   fi
 
   printf '%s\n' "${domains[@]}"
