@@ -68,16 +68,36 @@ _load_dynamic_app_info() {
 
 delete_app() {
   local service="$1"
-  local domain 
+  local domain
   local exec_dir
+  local meta_file
 
   domain=$(resolve_domain_from_service_name "$service")
   exec_dir=$(resolve_exec_dir_from_service_name "$service")
+  meta_file="$exec_dir/$META_FILE_NAME"
 
 
   if [[ -z "$service" || -z "$domain" || -z "$exec_dir" ]]; then
     echo -e "❌ \e[31mMissing required parameters: service, domain or exec_dir.\e[0m"
     return 1
+  fi
+
+  if [[ -f "$meta_file" ]]; then
+    local meta_www meta_www_enabled
+    meta_www=$(jq -r '.www_alias // empty' "$meta_file")
+    meta_www_enabled=$(jq -r '.www_enabled // empty' "$meta_file")
+
+    if [[ -n "$meta_www" && "$meta_www" != "null" ]]; then
+      export WWW_HOSTNAME_FQDN="$meta_www"
+    else
+      unset WWW_HOSTNAME_FQDN
+    fi
+
+    if [[ "$meta_www_enabled" == "true" ]]; then
+      export CLOUDFLARE_WWW_ENABLED=true
+    else
+      unset CLOUDFLARE_WWW_ENABLED
+    fi
   fi
 
   clear

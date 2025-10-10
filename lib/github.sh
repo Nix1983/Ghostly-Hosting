@@ -359,19 +359,30 @@ save_repo_metadata() {
     echo -e "⚠️ \e[33mCould not determine commit hash – continuing without.\e[0m"
   fi
 
+  local canonical_domain="${HOSTNAME_FQDN:-}" 
+  local www_alias_value="${WWW_HOSTNAME_FQDN:-}" 
+  local www_enabled_flag=false
+  [[ "${CLOUDFLARE_WWW_ENABLED:-}" == true ]] && www_enabled_flag=true
+
   jq -n --arg owner "$SELECTED_REPO_OWNER" \
         --arg name "$SELECTED_REPO_NAME" \
         --arg type "$SELECTED_REF_TYPE" \
         --arg ref "$SELECTED_REF_NAME" \
         --arg sha "$commit_to_save" \
         --arg message "$commit_message" \
+        --arg canonical "$canonical_domain" \
+        --arg www_alias "$www_alias_value" \
+        --argjson www_enabled "$www_enabled_flag" \
         '{
           repo_owner: $owner,
           repo_name: $name,
           ref_type: $type,
           ref_name: $ref,
           commit: $sha,
-          commit_message: $message
+          commit_message: $message,
+          canonical_domain: ($canonical | select(length > 0)),
+          www_alias: ($www_alias | select(length > 0)),
+          www_enabled: $www_enabled
         }' > "$meta_file"
 
   echo -e "📝 Metadata written to \e[2m$]()"

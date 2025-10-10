@@ -179,6 +179,7 @@ toggle_cloudflare_proxy() {
 
   local types=("A" "AAAA")
   local has_change=false
+  local desired_status=""
 
   echo -e "\n🔄 \e[1mToggling Cloudflare Proxy for:\e[0m \e[36m$fqdn\e[0m"
 
@@ -201,6 +202,7 @@ toggle_cloudflare_proxy() {
     [[ -z "$record_id" ]] && continue
 
     new_status=$([[ "$current_status" == "true" ]] && echo "false" || echo "true")
+    desired_status="$new_status"
 
     update_payload=$(jq -n \
       --arg type "$record_type" \
@@ -223,6 +225,39 @@ toggle_cloudflare_proxy() {
     return 1
   fi
 
+  if [[ -n "$desired_status" ]]; then
+    local alias_candidate="www.$fqdn"
+    local cname_response cname_id cname_status cname_target
+    cname_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=CNAME&name=$alias_candidate" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json")
+
+    if echo "$cname_response" | jq -e '.result | length > 0' >/dev/null 2>&1; then
+      cname_id=$(echo "$cname_response" | jq -r '.result[0].id // empty')
+      cname_target=$(echo "$cname_response" | jq -r '.result[0].content // empty')
+      cname_status=$(echo "$cname_response" | jq -r '.result[0].proxied // "false"')
+
+      if [[ -n "$cname_id" && "${cname_target,,}" == "${fqdn,,}" ]]; then
+        if [[ "$cname_status" != "$desired_status" ]]; then
+          local cname_payload
+          cname_payload=$(jq -n \
+            --arg type "CNAME" \
+            --arg name "$alias_candidate" \
+            --arg content "$cname_target" \
+            --argjson proxied "$desired_status" \
+            '{type: $type, name: $name, content: $content, proxied: $proxied}')
+
+          curl -s -X PUT "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$cname_id" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$cname_payload" >/dev/null
+
+          echo -e " → CNAME updated: \e[1m$alias_candidate\e[0m → \e[32m$([[ "$desired_status" == "true" ]] && echo "✅ ON" || echo "❌ OFF")\e[0m"
+        fi
+      fi
+    fi
+  fi
+
   return 0
 }
 
@@ -234,17 +269,25 @@ delete_cloudflare_dns_records() {
 
   echo -e "\n🧹 \e[1;31mCleaning up Cloudflare DNS entries:\e[0m \e[36m$HOSTNAME_FQDN\e[0m"
 
-  local types=("A" "AAAA")
+  local -a types=("A" "AAAA")
+  local -a names=("$HOSTNAME_FQDN" "$HOSTNAME_FQDN")
   local found_any=false
 
-  for record_type in "${types[@]}"; do
+  if [[ -n "${WWW_HOSTNAME_FQDN:-}" ]]; then
+    types+=("CNAME")
+    names+=("$WWW_HOSTNAME_FQDN")
+  fi
+
+  for idx in "${!types[@]}"; do
+    local record_type="${types[$idx]}"
+    local record_name="${names[$idx]}"
     local dns_response
-    dns_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$HOSTNAME_FQDN" \
+    dns_response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$record_name" \
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
       -H "Content-Type: application/json")
 
     if [[ -z "$dns_response" || "$dns_response" == "null" ]]; then
-      echo -e "❌ \e[31mFailed to fetch $record_type records for $HOSTNAME_FQDN\033[0m"
+      echo -e "❌ \e[31mFailed to fetch $record_type records for $record_name\033[0m"
       continue
     fi
 
@@ -260,20 +303,22 @@ delete_cloudflare_dns_records() {
       record_id=$(echo "$record" | jq -r '.id')
       record_content=$(echo "$record" | jq -r '.content')
 
-      printf "❌ Deleting %-4s → \033[36m%-39s\033[0m ... " "$record_type" "$record_content"
+      printf "❌ Deleting %-5s %-35s → \033[36m%-39s\033[0m ... " "$record_type" "$record_name" "$record_content"
 
-     if curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
-       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-       -H "Content-Type: application/json" > /dev/null; then
-       echo -e "\e[32m✅ done\e[0m"
-     else
-       echo -e "\e[31m❌ failed\e[0m"
-     fi
+      if curl -s -X DELETE "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records/$record_id" \
+        -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        -H "Content-Type: application/json" > /dev/null; then
+        echo -e "\e[32m✅ done\e[0m"
+      else
+        echo -e "\e[31m❌ failed\e[0m"
+      fi
     done
   done
 
   if [[ "$found_any" == false ]]; then
-    echo -e "ℹ️ No A/AAAA DNS records found for \e[2m$HOSTNAME_FQDN\e[0m — skipping."
+    local targets="$HOSTNAME_FQDN"
+    [[ -n "${WWW_HOSTNAME_FQDN:-}" ]] && targets+=" / ${WWW_HOSTNAME_FQDN}"
+    echo -e "ℹ️ No managed DNS records found for \e[2m$targets\e[0m — skipping."
   else
     echo -e "✅ \e[1;32mCloudflare DNS cleanup completed.\e[0m"
   fi
@@ -418,6 +463,9 @@ setup_cloudflare_dns_for_blazor() {
   printf "\n☁️  \033[1mCloudflare DNS Setup for Blazor Hosting\033[0m\n"
   printf "────────────────────────────────────────────────────────────\n"
 
+  export WWW_HOSTNAME_FQDN=""
+  export CLOUDFLARE_WWW_ENABLED=false
+
   # Ask about proxy usage
   printf "\n🌐 \033[1mCloudflare Proxy-Modus\033[0m\n"
   printf "   ➤   \033[32mEnabled\033[0m: Traffic is routed via Cloudflare (faster, safer, hides server IP)\n"
@@ -428,6 +476,38 @@ setup_cloudflare_dns_for_blazor() {
   printf "\n"
   local use_proxy=true
   [[ "$proxy_choice" =~ ^[Nn]$ ]] && use_proxy=false
+
+  local wants_www=false
+  local www_candidate="www.$HOSTNAME_FQDN"
+
+  if [[ "$HOSTNAME_FQDN" != www.* ]]; then
+    printf "\n🌍 \033[1mwww-Weiterleitung\033[0m\n"
+    printf "   ➤   \033[36m%s\033[0m → Besucher von \033[2mhttps://www.%s\033[0m werden auf die Hauptdomain umgeleitet.\n" "$HOSTNAME_FQDN" "$HOSTNAME_FQDN"
+    printf "   ➤   Für Subdomains (z. B. home.example.com) wird optional \033[36mwww.%s\033[0m eingerichtet.\n" "$HOSTNAME_FQDN"
+    printf "❓ Soll eine www-Weiterleitung eingerichtet werden? [y/N]: "
+    IFS= read -rsn1 www_choice
+    printf "\n"
+    if [[ "$www_choice" =~ ^[Yy]$ ]]; then
+      wants_www=true
+    fi
+  fi
+
+  if [[ "$wants_www" == true ]]; then
+    local www_lookup existing_type
+    www_lookup=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?name=$www_candidate" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json")
+    existing_type=$(echo "$www_lookup" | jq -r '.result[0].type // empty')
+    if [[ -n "$existing_type" && "$existing_type" != "CNAME" ]]; then
+      echo -e "⚠️  \e[33mwww-Hostname bereits durch $existing_type-Eintrag belegt – Überspringe www-Weiterleitung.\e[0m"
+      wants_www=false
+    fi
+  fi
+
+  if [[ "$wants_www" == true ]]; then
+    export WWW_HOSTNAME_FQDN="$www_candidate"
+    export CLOUDFLARE_WWW_ENABLED=true
+  fi
 
   echo ""
   echo -e "📤 Setting DNS records for \e[36m$HOSTNAME_FQDN\e[0m"
@@ -448,29 +528,43 @@ setup_cloudflare_dns_for_blazor() {
     echo -e "↪️  \033[2mNo IPv6 detected – skipping AAAA record.\033[0m"
   fi
 
+  if [[ "$wants_www" == true ]]; then
+    echo ""
+    echo -e "🔁 Creating www-alias \e[36m$WWW_HOSTNAME_FQDN\e[0m → \e[36m$HOSTNAME_FQDN\e[0m"
+    _upsert_dns_record "CNAME" "$WWW_HOSTNAME_FQDN" "$HOSTNAME_FQDN" "Blazor Hosting www alias" "$use_proxy"
+  fi
+
   # DNS Result Übersicht
   printf "\n🔎 \033[1mVerifying DNS records...\033[0m\n"
   local response name type content proxied proxy_icon
+  local -a record_pairs=("A:$HOSTNAME_FQDN" "AAAA:$HOSTNAME_FQDN")
 
-  for record_type in A AAAA; do
-    response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$HOSTNAME_FQDN" \
+  if [[ "$wants_www" == true ]]; then
+    record_pairs+=("CNAME:$WWW_HOSTNAME_FQDN")
+  fi
+
+  for pair in "${record_pairs[@]}"; do
+    local record_type="${pair%%:*}"
+    local record_name="${pair##*:}"
+
+    response=$(curl -s -X GET "$CLOUDFLARE_API_BASE/zones/$ZONE_ID/dns_records?type=$record_type&name=$record_name" \
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
       -H "Content-Type: application/json")
 
     if [[ -z "$response" || "$response" == "null" ]]; then
-      printf "❌ \033[31mCould not fetch %s record for %s\033[0m\n" "$record_type" "$HOSTNAME_FQDN"
+      printf "❌ \033[31mCould not fetch %s record for %s\033[0m\n" "$record_type" "$record_name"
       continue
     fi
 
     if ! echo "$response" | jq -e '.result | length > 0' >/dev/null; then
-      printf "❌ \033[31mNo %s record found for %s\033[0m\n" "$record_type" "$HOSTNAME_FQDN"
+      printf "❌ \033[31mNo %s record found for %s\033[0m\n" "$record_type" "$record_name"
       continue
     fi
 
     echo "$response" | jq -c '.result[]' | while read -r record; do
       name=$(echo "$record" | jq -r '.name')
       content=$(echo "$record" | jq -r '.content')
-      proxied=$(echo "$record" | jq -r '.proxied')
+      proxied=$(echo "$record" | jq -r '.proxied // "false"')
       [[ "$proxied" == "true" ]] && proxy_icon="🔒 via CF" || proxy_icon="➡️ direct"
       printf "✅ %-5s %-35s → \033[36m%-39s\033[0m [%s]\n" "$record_type" "$name" "$content" "$proxy_icon"
     done

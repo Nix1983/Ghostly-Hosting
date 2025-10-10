@@ -219,12 +219,20 @@ create_nginx_config() {
 
   echo -e "\n⚙️ \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN → localhost:$KESTREL_PORT\033[0m"
 
+  local http_server_names="$HOSTNAME_FQDN"
+  local redirect_host="\\$host"
+
+  if [[ -n "${WWW_HOSTNAME_FQDN:-}" ]]; then
+    http_server_names+=" $WWW_HOSTNAME_FQDN"
+    redirect_host="$HOSTNAME_FQDN"
+  fi
+
   {
     echo "server {"
     echo "    listen 80;"
     echo "    listen [::]:80;"
-    echo "    server_name $HOSTNAME_FQDN;"
-    echo "    return 301 https://\$host\$request_uri;"
+    echo "    server_name $http_server_names;"
+    echo "    return 301 https://$redirect_host\$request_uri;"
     echo "}"
     echo
     echo "server {"
@@ -263,6 +271,18 @@ create_nginx_config() {
     echo "        add_header Cache-Control \"no-store\";"
     echo "    }"
     echo "}"
+
+    if [[ -n "${WWW_HOSTNAME_FQDN:-}" ]]; then
+      echo
+      echo "server {"
+      echo "    listen 443 ssl http2;"
+      echo "    listen [::]:443 ssl http2;"
+      echo "    server_name $WWW_HOSTNAME_FQDN;"
+      echo "    ssl_certificate $cert_path;"
+      echo "    ssl_certificate_key $key_path;"
+      echo "    return 301 https://$HOSTNAME_FQDN\$request_uri;"
+      echo "}"
+    fi
   } > "$conf_path"
 
   ln -sf "$conf_path" "$conf_link"

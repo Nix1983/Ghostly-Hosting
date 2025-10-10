@@ -53,3 +53,5 @@ __CONSTANTS_SH_LOADED=1
 [[ -z "${GITHUB_API_TOKEN+x}" ]]     && declare -g GITHUB_API_TOKEN
 [[ -z "${SERVER_IPv4+x}" ]]          && declare -g SERVER_IPv4
 [[ -z "${SERVER_IPv6+x}" ]]          && declare -g SERVER_IPv6
+[[ -z "${WWW_HOSTNAME_FQDN+x}" ]]    && declare -g WWW_HOSTNAME_FQDN
+[[ -z "${CLOUDFLARE_WWW_ENABLED+x}" ]] && declare -g CLOUDFLARE_WWW_ENABLED
