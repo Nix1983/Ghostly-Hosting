@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+source ./lib/error_logging.sh
+initialize_error_logging_for_script "${BASH_SOURCE[0]}" "$0"
+
 install_git() {
   echo -e "\n🔧 \e[1mInstalling Git (for deployments)...\e[0m"
   if ! command -v git >/dev/null 2>&1; then

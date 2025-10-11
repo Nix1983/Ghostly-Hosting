@@ -5,6 +5,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+source "$ROOT_DIR/lib/error_logging.sh"
+initialize_error_logging_for_script "${BASH_SOURCE[0]}" "$0"
+
 if ! source "$ROOT_DIR/lib/meta_data.sh"; then
   echo "❌ Failed to source meta_data.sh"
   exit 1

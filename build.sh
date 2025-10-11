@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+source ./lib/error_logging.sh
+initialize_error_logging_for_script "${BASH_SOURCE[0]}" "$0"
+
 # Constants
 META_MARKER="__PAYLOAD_BELOW__"
 TMP_DIR=".bin_tmp"

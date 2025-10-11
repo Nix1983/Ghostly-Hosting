@@ -3,6 +3,9 @@
 
 set -e
 
+source ./lib/error_logging.sh
+initialize_error_logging_for_script "${BASH_SOURCE[0]}" "$0"
+
 source ./lib/common.sh
 source ./lib/print.sh
 

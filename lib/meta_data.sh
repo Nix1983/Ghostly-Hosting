@@ -1,7 +1,12 @@
 #!/bin/bash
 # shellcheck disable=SC1091
+set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "$SCRIPT_DIR/error_logging.sh"
+initialize_error_logging_for_script "${BASH_SOURCE[0]}" "$0"
+
 source "$SCRIPT_DIR/print.sh"
 source "$SCRIPT_DIR/common.sh"
 

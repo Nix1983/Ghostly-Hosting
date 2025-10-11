@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+source ./lib/error_logging.sh
+initialize_error_logging_for_script "${BASH_SOURCE[0]}" "$0"
+
 print_cancel(){
     echo -e "\n q) ❌ \e[1mCancel\e[0m"
 }
