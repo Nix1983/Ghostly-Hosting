@@ -3,6 +3,37 @@
 # Ensures that error logging is only initialized once per shell session.
 __ERROR_LOGGING_INITIALIZED=""
 __ERROR_LOGGING_FD=""
+__ERROR_LOGGING_STDERR_BUFFER=""
+
+__error_logging_append_to_log() {
+  if [[ -z "$__ERROR_LOGGING_FD" ]]; then
+    return
+  fi
+
+  local line="$1"
+  printf '%s [ERROR] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line" >&${__ERROR_LOGGING_FD}
+}
+
+__error_logging_cleanup() {
+  if [[ -n "$__ERROR_LOGGING_STDERR_BUFFER" && -f "$__ERROR_LOGGING_STDERR_BUFFER" ]]; then
+    rm -f "$__ERROR_LOGGING_STDERR_BUFFER"
+  fi
+
+  if [[ -n "$__ERROR_LOGGING_FD" ]]; then
+    exec {__ERROR_LOGGING_FD}>&-
+  fi
+}
+
+__error_logging_register_cleanup_trap() {
+  local existing
+  existing=$(trap -p EXIT | sed -E "s/^trap -- '(.*)' EXIT$/\\1/")
+
+  if [[ -n "$existing" ]]; then
+    trap "$existing"$'\n'"__error_logging_cleanup" EXIT
+  else
+    trap '__error_logging_cleanup' EXIT
+  fi
+}
 
 __log_error_handler() {
   local exit_code="$1"
@@ -16,11 +47,20 @@ __log_error_handler() {
     return
   fi
 
-  printf '%s [ERROR] Command failed (exit %s): %s\n' \
-    "$(date '+%Y-%m-%d %H:%M:%S')" \
-    "$exit_code" \
-    "$failed_command" \
-    >&${__ERROR_LOGGING_FD}
+  if [[ -z "$failed_command" ]]; then
+    failed_command="<unknown command>"
+  fi
+
+  __error_logging_append_to_log "Command failed (exit $exit_code): $failed_command"
+
+  if [[ -n "$__ERROR_LOGGING_STDERR_BUFFER" && -s "$__ERROR_LOGGING_STDERR_BUFFER" ]]; then
+    __error_logging_append_to_log "--- stderr output ---"
+    tail -n 200 "$__ERROR_LOGGING_STDERR_BUFFER" | while IFS= read -r line; do
+      __error_logging_append_to_log "$line"
+    done
+    __error_logging_append_to_log "--- end stderr ---"
+    : >"$__ERROR_LOGGING_STDERR_BUFFER"
+  fi
 }
 
 __activate_error_logging() {
@@ -37,14 +77,15 @@ __activate_error_logging() {
   touch "$log_file"
   chmod 600 "$log_file"
 
-  exec {__ERROR_LOGGING_FD}>>"$log_file"
+  __ERROR_LOGGING_STDERR_BUFFER=$(mktemp)
 
-  exec 2> >(while IFS= read -r line; do
-    printf '%s [ERROR] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line" >&${__ERROR_LOGGING_FD}
-  done)
+  exec {__ERROR_LOGGING_FD}>>"$log_file"
+  exec 2> >(tee -a "$__ERROR_LOGGING_STDERR_BUFFER" >&2)
 
   trap '__log_error_handler $? "$BASH_COMMAND"' ERR
   set -E
+
+  __error_logging_register_cleanup_trap
 
   __ERROR_LOGGING_INITIALIZED=1
 }
