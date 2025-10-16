@@ -48,8 +48,7 @@ __CONSTANTS_SH_LOADED=1
 # ======================
 
 [[ -z "${CLOUDFLARE_API_TOKEN+x}" ]] && declare -g CLOUDFLARE_API_TOKEN
-[[ -z "${UPCLOUD_API_USER+x}" ]]     && declare -g UPCLOUD_API_USER
-[[ -z "${UPCLOUD_API_PASS+x}" ]]     && declare -g UPCLOUD_API_PASS
+[[ -z "${UPCLOUD_API_TOKEN+x}" ]]    && declare -g UPCLOUD_API_TOKEN
 [[ -z "${GITHUB_API_TOKEN+x}" ]]     && declare -g GITHUB_API_TOKEN
 [[ -z "${SERVER_IPv4+x}" ]]          && declare -g SERVER_IPv4
 [[ -z "${SERVER_IPv6+x}" ]]          && declare -g SERVER_IPv6

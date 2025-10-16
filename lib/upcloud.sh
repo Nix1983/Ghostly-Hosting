@@ -20,7 +20,7 @@ _get_upcloud_server_uuid_by_ip() {
     return 1
   fi
 
-  if [[ -z "$UPCLOUD_API_USER" || -z "$UPCLOUD_API_PASS" || -z "$UPCLOUD_API_BASE" ]]; then
+  if [[ -z "$UPCLOUD_API_TOKEN" || -z "$UPCLOUD_API_BASE" ]]; then
     printf "❌ Missing API credentials.\n"
     return 1
   fi
@@ -41,7 +41,7 @@ _get_upcloud_server_uuid_by_ip() {
 }
 
 _verify_upcloud_context() {
-  if [[ -z "$UPCLOUD_API_USER" || -z "$UPCLOUD_API_PASS" || -z "$UPCLOUD_API_BASE" ]]; then
+  if [[ -z "$UPCLOUD_API_TOKEN" || -z "$UPCLOUD_API_BASE" ]]; then
     printf "❌ Missing API credentials.\n"
     return 1
   fi
@@ -67,7 +67,8 @@ _verify_upcloud_context() {
 
 _upcloud_api_get() {
   local endpoint="$1"
-  curl -s -u "$UPCLOUD_API_USER:$UPCLOUD_API_PASS" \
+  curl -s \
+    -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
     -H "Accept: application/json" \
     "$UPCLOUD_API_BASE/$endpoint"
 }
@@ -75,7 +76,8 @@ _upcloud_api_get() {
 _upcloud_api_put() {
   local endpoint="$1"
   local data="$2"
-  curl -s -u "$UPCLOUD_API_USER:$UPCLOUD_API_PASS" \
+  curl -s \
+    -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
     -H "Content-Type: application/json" \
     -d "$data" \
     -X PUT "$UPCLOUD_API_BASE/$endpoint"
@@ -200,7 +202,7 @@ delete_all_upcloud_firewall_rules() {
   printf "\n🧨 Deleting All UpCloud Firewall Rules\n"
   printf "────────────────────────────────────────────────────────────\n"
 
-  if [[ -z "$UPCLOUD_API_USER" || -z "$UPCLOUD_API_PASS" ]]; then
+  if [[ -z "$UPCLOUD_API_TOKEN" ]]; then
     printf "❌ Missing UpCloud API credentials.\n"
     return 1
   fi
@@ -260,17 +262,18 @@ delete_all_upcloud_firewall_rules() {
     _print_firewall_rule "$rule"
 
     local del_response
-    del_response=$(curl -s -u "$UPCLOUD_API_USER:$UPCLOUD_API_PASS" -X DELETE \
-      "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule/$position")
+    del_response=$(curl -s \
+      -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
+      -X DELETE "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule/$position")
 
-   if [[ -z "$del_response" ]]; then
-     printf "✅ Rule deleted (no response, assumed success).\n"
-   elif echo "$del_response" | jq -e '.error?' >/dev/null 2>&1; then
-     printf "⚠️ Failed to delete rule:\n"
-     echo "$del_response" | jq -r '.error.message // .error // .'
-   else
-     printf "✅ Rule deleted successfully.\n"
-   fi
+    if [[ -z "$del_response" ]]; then
+      printf "✅ Rule deleted (no response, assumed success).\n"
+    elif echo "$del_response" | jq -e '.error?' >/dev/null 2>&1; then
+      printf "⚠️ Failed to delete rule:\n"
+      echo "$del_response" | jq -r '.error.message // .error // .'
+    else
+      printf "✅ Rule deleted successfully.\n"
+    fi
    printf "────────────────────────────────────────────────────────────\n"
 
   done
@@ -444,7 +447,8 @@ apply_upcloud_firewall_rules() {
 
     # Send rule using API helper
     local add_response status body
-    add_response=$(curl -s -w "\n%{http_code}" -u "$UPCLOUD_API_USER:$UPCLOUD_API_PASS" \
+    add_response=$(curl -s -w "\n%{http_code}" \
+      -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
       -H "Content-Type: application/json" \
       -d "{\"firewall_rule\": $rule}" \
       "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule")
@@ -473,17 +477,19 @@ apply_upcloud_firewall_rules() {
   printf "────────────────────────────────────────────────────────────\n"
 }
 
-validate_upcloud_credentials() {
-  local user="$1"
-  local pass="$2"
+validate_upcloud_token() {
+  local token="$1"
 
-  if [[ -z "$user" || -z "$pass" || -z "$UPCLOUD_API_BASE" ]]; then
-    printf "❌ Missing username, password or API base.\n"
+  if [[ -z "$token" || -z "$UPCLOUD_API_BASE" ]]; then
+    printf "❌ Missing API token or API base.\n"
     return 1
   fi
 
   local response status
-  response=$(curl -s -w "\n%{http_code}" -u "$user:$pass" -H "Accept: application/json" "$UPCLOUD_API_BASE/account")
+  response=$(curl -s -w "\n%{http_code}" \
+    -H "Authorization: Bearer $token" \
+    -H "Accept: application/json" \
+    "$UPCLOUD_API_BASE/account")
   status=$(echo "$response" | tail -n1)
 
   if [[ "$status" == "200" ]]; then

@@ -91,7 +91,7 @@ init_and_load_env() {
   set -a && source "$ENV_FILE" 2>/dev/null || true && set +a
 
   # Check UpCloud
-  if ! validate_upcloud_credentials "${UPCLOUD_API_USER:-}" "${UPCLOUD_API_PASS:-}"; then
+  if ! validate_upcloud_token "${UPCLOUD_API_TOKEN:-}"; then
     while true; do
       clear
       echo -e "\e[1;35m🟣 UpCloud API Setup\e[0m"
@@ -101,22 +101,21 @@ init_and_load_env() {
       echo -e "   • Configure \e[1mPTR (reverse DNS)\e[0m records"
       echo -e "   • Identify your account for deployments"
       echo
-      echo -e "💡 Recommended: Use an \e[1mAPI-only subaccount\e[0m with no billing access"
+      echo -e "💡 Recommended: Create an \e[1mAPI token\e[0m in your UpCloud dashboard"
       echo -en "🔗 Sign up at: "
       echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
       print_line
 
-      read -rp "👤 Enter UpCloud API Username: " UPCLOUD_API_USER
-      read -rsp "🔑 Enter UpCloud API Password: " UPCLOUD_API_PASS && echo
+      read -rsp "🔑 Enter UpCloud API Token: " UPCLOUD_API_TOKEN && echo
 
-      if validate_upcloud_credentials "$UPCLOUD_API_USER" "$UPCLOUD_API_PASS"; then
+      if validate_upcloud_token "$UPCLOUD_API_TOKEN"; then
         upcloud_ok=true
         updated=true
         break
       fi
 
-      echo -e "\n❌ \e[31mLogin failed – invalid UpCloud credentials.\e[0m"
-      echo -e "🔐 \e[2mWithout valid access, hosting features cannot be used.\e[0m"
+      echo -e "\n❌ \e[31mAuthentication failed – invalid UpCloud API token.\e[0m"
+      echo -e "🔐 \e[2mWithout a valid token, hosting features cannot be used.\e[0m"
       sleep 1
     done
   else
@@ -198,8 +197,7 @@ init_and_load_env() {
   if [[ "$updated" == true ]]; then
     {
       echo "CLOUDFLARE_API_TOKEN=\"$CLOUDFLARE_API_TOKEN\""
-      echo "UPCLOUD_API_USER=\"$UPCLOUD_API_USER\""
-      echo "UPCLOUD_API_PASS=\"$UPCLOUD_API_PASS\""
+      echo "UPCLOUD_API_TOKEN=\"$UPCLOUD_API_TOKEN\""
       echo "GITHUB_API_TOKEN=\"$GITHUB_API_TOKEN\""
     } >"$ENV_FILE"
     chmod 600 "$ENV_FILE"
