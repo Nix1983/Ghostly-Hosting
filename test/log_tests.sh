@@ -181,14 +181,15 @@ test_multiple_log_entries() {
   ERROR_LOG_DIR="$test_dir"
   ERROR_LOG_FILE="$test_dir/error.log"
   
-  log_error "ctx1" "error1"
-  log_warning "ctx2" "warning1"
-  log_info "ctx3" "info1"
+  log_error "ctx1" "error1"      # Creates 2 lines: main log + exit code line
+  log_warning "ctx2" "warning1"  # Creates 1 line
+  log_info "ctx3" "info1"        # Creates 1 line
   
   local count
   count=$(grep -c "^\[" "$ERROR_LOG_FILE" 2>/dev/null || echo "0")
   
-  if [[ "$count" -ge 4 ]]; then  # 3 main entries + 1 exit code line
+  # Expected: 4 lines total (2 from error, 1 from warning, 1 from info)
+  if [[ "$count" -ge 4 ]]; then
     echo "✅ Multiple log entries: All entries recorded ($count lines)"
     rm -rf "$test_dir"
     return 0

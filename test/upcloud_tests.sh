@@ -54,7 +54,7 @@ test_validate_upcloud_token_null() {
 test_get_server_uuid_missing_ipv4() {
   unset SERVER_UUID
   SERVER_IPv4=""
-  local saved_token="$UPCLOUD_API_TOKEN"
+  local saved_token="${UPCLOUD_API_TOKEN:-}"
   UPCLOUD_API_TOKEN="some_token"
   
   if ! _get_upcloud_server_uuid_by_ip 2>/dev/null; then
@@ -72,7 +72,7 @@ test_get_server_uuid_missing_ipv4() {
 test_get_server_uuid_cached() {
   SERVER_UUID="cached-uuid"
   SERVER_IPv4="1.2.3.4"
-  local saved_token="$UPCLOUD_API_TOKEN"
+  local saved_token="${UPCLOUD_API_TOKEN:-}"
   UPCLOUD_API_TOKEN="some_token"
   
   if _get_upcloud_server_uuid_by_ip 2>/dev/null; then
@@ -99,7 +99,7 @@ test_get_server_uuid_cached() {
 test_get_server_uuid_missing_creds() {
   unset SERVER_UUID
   SERVER_IPv4="1.2.3.4"
-  local saved_token="$UPCLOUD_API_TOKEN"
+  local saved_token="${UPCLOUD_API_TOKEN:-}"
   UPCLOUD_API_TOKEN=""
   
   if ! _get_upcloud_server_uuid_by_ip 2>/dev/null; then

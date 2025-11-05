@@ -1,10 +1,9 @@
 #!/bin/bash
 set -e
 
-# Source error logging if available (optional dependency)
-if [[ -f "./lib/log.sh" ]] && declare -f log_error >/dev/null 2>&1; then
-  : # logging already available
-fi
+# Note: common.sh does NOT source log.sh to avoid circular dependencies
+# Logging functions are optional and will be used if available
+# Other scripts should source log.sh first if they want logging support
 
 # Helper function for safe logging - only logs if log function exists
 _safe_log() {

@@ -2,7 +2,8 @@
 # shellcheck disable=SC1091
 set -e
 
-source ./lib/common.sh
+# Note: log.sh should NOT source common.sh to avoid circular dependency
+# log.sh provides logging functions that can be used by any module
 source ./lib/print.sh
 source ./lib/cloudflare.sh
 source ./lib/certbot.sh

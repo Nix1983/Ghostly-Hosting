@@ -12,29 +12,29 @@ _clear() {
 
 _get_upcloud_server_uuid_by_ip() {
   if [[ -v SERVER_UUID && -n "$SERVER_UUID" && "$SERVER_UUID" != "null" ]]; then
-    declare -f log_debug >/dev/null 2>&1 && log_debug "_get_upcloud_server_uuid_by_ip" "SERVER_UUID already set: $SERVER_UUID"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log debug "_get_upcloud_server_uuid_by_ip" "SERVER_UUID already set: $SERVER_UUID"
     return 0
   fi
 
   if [[ -z "$SERVER_IPv4" ]]; then
     printf "❌ SERVER_IPv4 is not set.\n"
-    declare -f log_error >/dev/null 2>&1 && log_error "_get_upcloud_server_uuid_by_ip" "SERVER_IPv4 is not set"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "SERVER_IPv4 is not set"
     return 1
   fi
 
   if [[ -z "$UPCLOUD_API_TOKEN" || -z "$UPCLOUD_API_BASE" ]]; then
     printf "❌ Missing API credentials.\n"
-    declare -f log_error >/dev/null 2>&1 && log_error "_get_upcloud_server_uuid_by_ip" "Missing UPCLOUD_API_TOKEN or UPCLOUD_API_BASE"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "Missing UPCLOUD_API_TOKEN or UPCLOUD_API_BASE"
     return 1
   fi
 
   printf "🔍 Searching for server UUID using IP: \033[36m%s\033[0m ...\n" "$SERVER_IPv4"
-  declare -f log_info >/dev/null 2>&1 && log_info "_get_upcloud_server_uuid_by_ip" "Looking up server UUID for IP: $SERVER_IPv4"
+  declare -f _safe_log >/dev/null 2>&1 && _safe_log info "_get_upcloud_server_uuid_by_ip" "Looking up server UUID for IP: $SERVER_IPv4"
   
   local response uuid
   if ! response=$(_upcloud_api_get "ip_address/$SERVER_IPv4" 2>&1); then
     printf "❌ Failed to query UpCloud API\n"
-    declare -f log_error >/dev/null 2>&1 && log_error "_get_upcloud_server_uuid_by_ip" "API query failed for IP: $SERVER_IPv4"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "API query failed for IP: $SERVER_IPv4"
     return 1
   fi
   
@@ -43,11 +43,11 @@ _get_upcloud_server_uuid_by_ip() {
   if [[ -n "$uuid" && "$uuid" != "null" ]]; then
     SERVER_UUID="$uuid"
     printf "✅ SERVER_UUID detected and set: %s\n" "$SERVER_UUID"
-    declare -f log_info >/dev/null 2>&1 && log_info "_get_upcloud_server_uuid_by_ip" "Successfully resolved SERVER_UUID: $SERVER_UUID"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log info "_get_upcloud_server_uuid_by_ip" "Successfully resolved SERVER_UUID: $SERVER_UUID"
     return 0
   else
     printf "❌ IP not directly associated with a server (possibly floating IP or error)\n"
-    declare -f log_error >/dev/null 2>&1 && log_error "_get_upcloud_server_uuid_by_ip" "Could not resolve server UUID from IP $SERVER_IPv4. Response: $response"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "Could not resolve server UUID from IP $SERVER_IPv4. Response: $response"
     return 1
   fi
 }
@@ -494,11 +494,11 @@ validate_upcloud_token() {
 
   if [[ -z "$token" || -z "$UPCLOUD_API_BASE" ]]; then
     printf "❌ Missing API token or API base.\n"
-    declare -f log_error >/dev/null 2>&1 && log_error "validate_upcloud_token" "Missing token or API base"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "validate_upcloud_token" "Missing token or API base"
     return 1
   fi
 
-  declare -f log_debug >/dev/null 2>&1 && log_debug "validate_upcloud_token" "Validating UpCloud API token"
+  declare -f _safe_log >/dev/null 2>&1 && _safe_log debug "validate_upcloud_token" "Validating UpCloud API token"
   
   local response status body
   response=$(curl -s -w "\n%{http_code}" \
@@ -509,10 +509,10 @@ validate_upcloud_token() {
   body=$(echo "$response" | head -n -1)
 
   if [[ "$status" == "200" ]]; then
-    declare -f log_info >/dev/null 2>&1 && log_info "validate_upcloud_token" "UpCloud token validated successfully"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log info "validate_upcloud_token" "UpCloud token validated successfully"
     return 0
   else
-    declare -f log_error >/dev/null 2>&1 && log_error "validate_upcloud_token" "Token validation failed with status $status. Response: $body"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "validate_upcloud_token" "Token validation failed with status $status. Response: $body"
     return 1
   fi
 }
