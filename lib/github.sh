@@ -25,16 +25,22 @@ validate_github_token() {
 
   if [[ -z "$token" || -z "$base" ]]; then
     printf "❌ Missing GitHub token or API base URL.\n"
+    declare -f log_error >/dev/null 2>&1 && log_error "validate_github_token" "Missing token or API base URL"
     return 1
   fi
 
-  local response status
-  response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $token" "$base/user")
+  declare -f log_debug >/dev/null 2>&1 && log_debug "validate_github_token" "Validating GitHub API token"
+  
+  local response status body
+  response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $token" "$base/user" 2>&1)
   status=$(echo "$response" | tail -n1)
+  body=$(echo "$response" | head -n -1)
 
   if [[ "$status" == "200" ]]; then
+    declare -f log_info >/dev/null 2>&1 && log_info "validate_github_token" "GitHub token validated successfully"
     return 0
   else
+    declare -f log_error >/dev/null 2>&1 && log_error "validate_github_token" "Token validation failed with status $status. Response: $body"
     return 1
   fi
 }
@@ -50,15 +56,18 @@ check_github_env_vars() {
       echo -e "   ⛔ \e[33m$var\e[0m"
     done
     echo -e "\n💡 Please ensure these are set in your .env file"
+    declare -f log_error >/dev/null 2>&1 && log_error "check_github_env_vars" "Missing environment variables: ${missing[*]}"
     return 1
   fi
 
   resolve_github_user_from_token
   if [[ -z "$GITHUB_API_USER" ]]; then
     echo -e "\n❌ \e[31mInvalid GitHub token – could not determine username.\e[0m"
+    declare -f log_error >/dev/null 2>&1 && log_error "check_github_env_vars" "Could not resolve GitHub username from token"
     return 1
   fi
 
+  declare -f log_debug >/dev/null 2>&1 && log_debug "check_github_env_vars" "GitHub environment validated for user: $GITHUB_API_USER"
   return 0
 }
 
@@ -115,22 +124,29 @@ clone_repository() {
 
   if [[ -d "$TMP_CLONE_DIR" ]]; then
     echo -e "\n♻️ Removing existing clone directory: \e[2m$TMP_CLONE_DIR\e[0m"
+    declare -f log_debug >/dev/null 2>&1 && log_debug "clone_repository" "Removing existing directory: $TMP_CLONE_DIR"
     rm -rf "$TMP_CLONE_DIR"
   fi
+  
   echo -e "\n📦 Cloning GitHub repo: \e[36m$SELECTED_REPO_OWNER/$SELECTED_REPO_NAME\e[0m"
+  declare -f log_info >/dev/null 2>&1 && log_info "clone_repository" "Cloning repository: $SELECTED_REPO_OWNER/$SELECTED_REPO_NAME"
+  
   local clone_url="https://${SELECTED_REPO_OWNER}:${GITHUB_API_TOKEN}@github.com/${SELECTED_REPO_OWNER}/${SELECTED_REPO_NAME}.git"
 
   if [[ -n "$commit_hash" ]]; then
     if ! GIT_ASKPASS=true git clone -q "$clone_url" "$TMP_CLONE_DIR" > /dev/null 2>&1; then
       echo -e "\n❌ \e[31mFailed to clone repository.\e[0m"
+      declare -f log_error >/dev/null 2>&1 && log_error "clone_repository" "Failed to clone $SELECTED_REPO_OWNER/$SELECTED_REPO_NAME"
       sleep 5
       return 1
     fi
     if ! git -C "$TMP_CLONE_DIR" checkout -q "$commit_hash" > /dev/null 2>&1; then
       echo -e "\n❌ \e[31mFailed to checkout commit: $commit_hash\e[0m"
+      declare -f log_error >/dev/null 2>&1 && log_error "clone_repository" "Failed to checkout commit $commit_hash in $SELECTED_REPO_NAME"
       sleep 5
       return 1
     fi
+    declare -f log_info >/dev/null 2>&1 && log_info "clone_repository" "Successfully cloned and checked out commit $commit_hash"
   elif [[ "$SELECTED_REF_TYPE" == "branch" || "$SELECTED_REF_TYPE" == "tag" ]]; then
     if ! GIT_ASKPASS=true git clone -q --branch "$SELECTED_REF_NAME" --single-branch "$clone_url" "$TMP_CLONE_DIR" > /dev/null 2>&1; then
       echo -e "\n❌ \e[31mFailed to clone selected ref: $SELECTED_REF_NAME\e[0m"

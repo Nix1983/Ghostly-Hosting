@@ -8,6 +8,94 @@ source ./lib/cloudflare.sh
 source ./lib/certbot.sh
 source ./lib/github.sh
 
+# Centralized error logging configuration
+declare -g ERROR_LOG_DIR="${ERROR_LOG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/ghostly-hosting/logs}"
+declare -g ERROR_LOG_FILE="${ERROR_LOG_DIR}/error.log"
+declare -g DEBUG_MODE="${DEBUG_MODE:-false}"
+
+# Initialize error logging
+_init_error_logging() {
+  mkdir -p "$ERROR_LOG_DIR" 2>/dev/null || true
+  if [[ ! -w "$ERROR_LOG_DIR" ]]; then
+    ERROR_LOG_DIR="/tmp/ghostly-hosting-logs"
+    mkdir -p "$ERROR_LOG_DIR" 2>/dev/null || true
+    ERROR_LOG_FILE="${ERROR_LOG_DIR}/error.log"
+  fi
+}
+
+# Log error message with context
+# Usage: log_error "context" "message" ["exit_code"]
+log_error() {
+  local context="${1:-unknown}"
+  local message="${2:-no message provided}"
+  local exit_code="${3:-1}"
+  local timestamp
+  timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+  
+  _init_error_logging
+  
+  # Log to file
+  {
+    echo "[$timestamp] [ERROR] [$context] $message"
+    [[ "$exit_code" != "0" ]] && echo "[$timestamp] [ERROR] [$context] Exit code: $exit_code"
+  } >> "$ERROR_LOG_FILE" 2>/dev/null || true
+  
+  # Also log to stderr if debug mode
+  if [[ "$DEBUG_MODE" == "true" ]]; then
+    echo "❌ [$context] $message" >&2
+  fi
+}
+
+# Log warning message
+# Usage: log_warning "context" "message"
+log_warning() {
+  local context="${1:-unknown}"
+  local message="${2:-no message provided}"
+  local timestamp
+  timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+  
+  _init_error_logging
+  
+  echo "[$timestamp] [WARNING] [$context] $message" >> "$ERROR_LOG_FILE" 2>/dev/null || true
+  
+  if [[ "$DEBUG_MODE" == "true" ]]; then
+    echo "⚠️  [$context] $message" >&2
+  fi
+}
+
+# Log info message (for audit trail)
+# Usage: log_info "context" "message"
+log_info() {
+  local context="${1:-unknown}"
+  local message="${2:-no message provided}"
+  local timestamp
+  timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+  
+  _init_error_logging
+  
+  echo "[$timestamp] [INFO] [$context] $message" >> "$ERROR_LOG_FILE" 2>/dev/null || true
+  
+  if [[ "$DEBUG_MODE" == "true" ]]; then
+    echo "ℹ️  [$context] $message" >&2
+  fi
+}
+
+# Log debug message (only when DEBUG_MODE=true)
+# Usage: log_debug "context" "message"
+log_debug() {
+  [[ "$DEBUG_MODE" != "true" ]] && return 0
+  
+  local context="${1:-unknown}"
+  local message="${2:-no message provided}"
+  local timestamp
+  timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+  
+  _init_error_logging
+  
+  echo "[$timestamp] [DEBUG] [$context] $message" >> "$ERROR_LOG_FILE" 2>/dev/null || true
+  echo "🔍 [$context] $message" >&2
+}
+
 
 _strip_ansi() {
   sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g'

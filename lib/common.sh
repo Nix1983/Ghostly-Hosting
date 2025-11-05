@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Source error logging if available (optional dependency)
+if [[ -f "./lib/log.sh" ]] && declare -f log_error >/dev/null 2>&1; then
+  : # logging already available
+fi
 
 load_env_once() {
   if [[ -n "${__ENV_LOADED_ALREADY:-}" ]]; then
@@ -11,25 +15,40 @@ load_env_once() {
 
   if [[ ! -f "$env_file" ]]; then
     echo "⚠️  No .env file found in working directory (expected at $env_file)"
+    declare -f log_warning >/dev/null 2>&1 && log_warning "load_env_once" "No .env file found at $env_file"
     return 1
   fi
 
   set -a
   # shellcheck disable=SC1090
-  source "$env_file"
+  if ! source "$env_file" 2>/dev/null; then
+    echo "❌ Failed to source .env file"
+    declare -f log_error >/dev/null 2>&1 && log_error "load_env_once" "Failed to source $env_file"
+    set +a
+    return 1
+  fi
   set +a
 
   __ENV_LOADED_ALREADY=1
+  declare -f log_debug >/dev/null 2>&1 && log_debug "load_env_once" "Environment loaded successfully"
+  return 0
 }
 
 
 is_valid_ipv4() {
   local ip=$1
-  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  
+  if [[ ! "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    declare -f log_debug >/dev/null 2>&1 && log_debug "is_valid_ipv4" "Invalid IP format: $ip"
+    return 1
+  fi
 
   IFS='.' read -r -a octets <<< "$ip"
   for octet in "${octets[@]}"; do
-    ((octet >= 0 && octet <= 255)) || return 1
+    if ! ((octet >= 0 && octet <= 255)); then
+      declare -f log_debug >/dev/null 2>&1 && log_debug "is_valid_ipv4" "Invalid octet value in IP $ip: $octet"
+      return 1
+    fi
   done
 
   return 0
@@ -40,15 +59,19 @@ load_server_ip_once() {
     return 0
   fi
 
-  SERVER_IPv4=$(curl -s -4 https://api.ipify.org || true)
-  SERVER_IPv6=$(curl -s -6 https://api64.ipify.org || true)
+  declare -f log_debug >/dev/null 2>&1 && log_debug "load_server_ip_once" "Attempting to retrieve server IP addresses"
+  
+  SERVER_IPv4=$(curl -s -4 https://api.ipify.org 2>/dev/null || true)
+  SERVER_IPv6=$(curl -s -6 https://api64.ipify.org 2>/dev/null || true)
 
   if [[ -z "$SERVER_IPv4" && -z "$SERVER_IPv6" ]]; then
     echo -e "\n❌ \e[1;31mUnable to retrieve public IP address.\e[0m"
     echo -e "💡 Please check your internet connection or firewall settings."
+    declare -f log_error >/dev/null 2>&1 && log_error "load_server_ip_once" "Failed to retrieve any public IP address (IPv4 or IPv6)"
     exit 1
   fi
 
+  declare -f log_info >/dev/null 2>&1 && log_info "load_server_ip_once" "Retrieved server IPs - IPv4: ${SERVER_IPv4:-none}, IPv6: ${SERVER_IPv6:-none}"
   __SERVER_IP_LOADED=1
 }
 
@@ -59,35 +82,68 @@ set_swap() {
   if free | grep -q "Swap: *0"; then
     echo -e "🔧 \e[33mNo active swap detected.\e[0m"
     echo -e "📦 Creating 2 GB swap file at \e[36m/swapfile\e[0m ..."
+    declare -f log_info >/dev/null 2>&1 && log_info "set_swap" "No swap detected, creating 2GB swap file"
 
-    if fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none; then
-      chmod 600 /swapfile
-      mkswap /swapfile >/dev/null
-      swapon /swapfile
+    if fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none 2>/dev/null; then
+      if ! chmod 600 /swapfile 2>/dev/null; then
+        declare -f log_error >/dev/null 2>&1 && log_error "set_swap" "Failed to set permissions on /swapfile"
+        echo -e "❌ \e[1;31mFailed to set swap file permissions.\e[0m"
+        return 1
+      fi
+      if ! mkswap /swapfile >/dev/null 2>&1; then
+        declare -f log_error >/dev/null 2>&1 && log_error "set_swap" "Failed to format swap file"
+        echo -e "❌ \e[1;31mFailed to format swap file.\e[0m"
+        return 1
+      fi
+      if ! swapon /swapfile 2>/dev/null; then
+        declare -f log_error >/dev/null 2>&1 && log_error "set_swap" "Failed to activate swap file"
+        echo -e "❌ \e[1;31mFailed to activate swap file.\e[0m"
+        return 1
+      fi
       echo '/swapfile none swap sw 0 0' >> /etc/fstab
       echo -e "✅ \e[1;32mSwap file successfully created and activated.\e[0m"
+      declare -f log_info >/dev/null 2>&1 && log_info "set_swap" "Swap file created and activated successfully"
     else
       echo -e "❌ \e[1;31mFailed to create swap file.\e[0m"
+      declare -f log_error >/dev/null 2>&1 && log_error "set_swap" "Failed to allocate swap file space"
+      return 1
     fi
   else
     echo -e "✅ \e[1;32mSwap space is already configured.\e[0m"
+    declare -f log_debug >/dev/null 2>&1 && log_debug "set_swap" "Swap already configured"
   fi
 }
 
 update_server() {
   echo "📦 Updating system packages (non-interactive)..."
   export DEBIAN_FRONTEND=noninteractive
+  declare -f log_info >/dev/null 2>&1 && log_info "update_server" "Starting system package update"
 
-  apt update
-  apt -o Dpkg::Options::="--force-confdef" \
+  if ! apt update 2>&1 | tee -a /tmp/apt-update.log; then
+    declare -f log_error >/dev/null 2>&1 && log_error "update_server" "apt update failed, check /tmp/apt-update.log"
+    echo "❌ Failed to update package lists"
+    return 1
+  fi
+  
+  if ! apt -o Dpkg::Options::="--force-confdef" \
       -o Dpkg::Options::="--force-confold" \
-      -y upgrade
+      -y upgrade 2>&1 | tee -a /tmp/apt-upgrade.log; then
+    declare -f log_error >/dev/null 2>&1 && log_error "update_server" "apt upgrade failed, check /tmp/apt-upgrade.log"
+    echo "❌ Failed to upgrade packages"
+    return 1
+  fi
 
   echo "🧹 Removing unused packages..."
-  apt -y autoremove
+  if ! apt -y autoremove 2>&1 | tee -a /tmp/apt-autoremove.log; then
+    declare -f log_warning >/dev/null 2>&1 && log_warning "update_server" "apt autoremove had issues"
+  fi
 
   echo "🧼 Cleaning up cached .deb packages..."
-  apt -y autoclean
+  if ! apt -y autoclean 2>&1 | tee -a /tmp/apt-autoclean.log; then
+    declare -f log_warning >/dev/null 2>&1 && log_warning "update_server" "apt autoclean had issues"
+  fi
+  
+  declare -f log_info >/dev/null 2>&1 && log_info "update_server" "System package update completed successfully"
 }
 
 get_project_root() {
