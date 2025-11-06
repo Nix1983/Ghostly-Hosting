@@ -2,6 +2,7 @@
 # shellcheck disable=SC1091
 source ./lib/const.sh
 source ./lib/common.sh
+source ./lib/print.sh
 source ./lib/server_manager.sh
 source ./lib/app_manager.sh
 source ./lib/upcloud.sh

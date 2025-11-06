@@ -3,6 +3,7 @@
 set -e
 
 source ./lib/common.sh
+source ./lib/print.sh
 
 _check_cloudflare_env_vars() {
   if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_API_BASE" ]]; then

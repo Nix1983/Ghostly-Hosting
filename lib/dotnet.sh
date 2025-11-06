@@ -3,6 +3,7 @@
 set -e
 
 source ./lib/common.sh
+source ./lib/print.sh
 
 # Global variables to be accessed in other modules
 declare -g DOTNET_Version=""
