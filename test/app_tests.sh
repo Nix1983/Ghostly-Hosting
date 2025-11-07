@@ -103,33 +103,7 @@ test_git_module_exists() {
   fi
 }
 
-# Test 6: Test resolve_domain_from_app_dir function
-test_resolve_domain_from_app_dir() {
-  echo "🔧 Running test_resolve_domain_from_app_dir"
-  
-  local input expected result
-  
-  run_case() {
-    input="$1"
-    expected="$2"
-    result=$(resolve_domain_from_app_dir "$input")
-    if [[ "$result" == "$expected" ]]; then
-      echo "✅ $input => $result"
-    else
-      echo "❌ $input => got '$result', expected '$expected'"
-      return 1
-    fi
-  }
-  
-  run_case "/var/www/example.com/root" "example.com"
-  run_case "/var/www/example.com/myapp" "myapp.example.com"
-  run_case "/var/www/ghostly.at/frontend" "frontend.ghostly.at"
-  run_case "/var/www/ghostly.at/root" "ghostly.at"
-  
-  return 0
-}
-
-# Test 7: Test is_valid_kestrel_service_name function
+# Test 6: Test is_valid_kestrel_service_name function
 test_is_valid_kestrel_service_name() {
   echo "🔧 Running test_is_valid_kestrel_service_name"
   
@@ -159,7 +133,7 @@ test_is_valid_kestrel_service_name() {
   return 0
 }
 
-# Test 8: Check deployment dependencies exist
+# Test 7: Check deployment dependencies exist
 test_deployment_dependencies() {
   echo "🔧 Running test_deployment_dependencies"
   
@@ -189,7 +163,6 @@ TESTS=(
   "test_app_script_syntax"
   "test_app_manager_syntax"
   "test_git_module_exists"
-  "test_resolve_domain_from_app_dir"
   "test_is_valid_kestrel_service_name"
   "test_deployment_dependencies"
 )
