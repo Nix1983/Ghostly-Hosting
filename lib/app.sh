@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1091
+# shellcheck disable=SC1091,SC2153
 set -e
 
 source ./lib/common.sh
@@ -495,8 +495,9 @@ show_app_details_menu() {
       3) restart_app_service "$service" ;;
       4) stop_app_service "$service" ;;
       5)
-        delete_app_interactively "$service"
-        [[ $? -eq 0 ]] && return 0
+        if delete_app_interactively "$service"; then
+          return 0
+        fi
         ;;
       6)
         restore_backup "$service"
