@@ -160,9 +160,138 @@ test_get_commit_message_from_meta_local() {
 }
 
 test_backup_app_metadata() {
-  # Skip this test - backup_app_metadata requires a valid service name format
-  # and global exec_dir variable setup which is complex to mock in unit tests
-  echo "⚠️  Skipping backup_app_metadata test - requires service runtime context"
+  # Setup: Use /tmp for test to avoid permission issues
+  local test_base="/tmp/meta_backup_test_$$"
+  local test_service="testapp@example.com:5000.service"
+  local test_app_dir="$test_base/example.com/testapp"
+  local backup_dir="$test_app_dir/backups"
+  local meta_file="$test_app_dir/meta.json"
+  
+  # Create test directory structure
+  mkdir -p "$test_app_dir"
+  
+  # Create a test meta.json file
+  cat > "$meta_file" << 'EOF'
+{
+  "repo_owner": "TestOwner",
+  "repo_name": "TestRepo",
+  "ref_type": "branch",
+  "ref_name": "main",
+  "commit": "abc123def456",
+  "commit_message": "Test commit message"
+}
+EOF
+  
+  # Temporarily override APP_BASE_DIR and exec_dir for testing
+  local old_app_base_dir="${APP_BASE_DIR}"
+  local old_exec_dir="${exec_dir:-}"
+  
+  # Unset readonly variable and set new value for testing
+  # We can't actually change readonly vars in bash, so we need to mock resolve_backup_folder_from_service_name
+  export exec_dir="$test_app_dir"
+  
+  # Create a wrapper that mocks resolve_backup_folder_from_service_name for this test
+  eval "$(cat << 'WRAPPER_EOF'
+_original_resolve_backup_folder_from_service_name="$(declare -f resolve_backup_folder_from_service_name)"
+
+resolve_backup_folder_from_service_name() {
+  local service="$1"
+  # For test service, return our test backup directory
+  if [[ "$service" == "testapp@example.com:5000.service" ]]; then
+    echo "/tmp/meta_backup_test_$$/example.com/testapp/backups/"
+    return 0
+  fi
+  # Otherwise use original implementation
+  eval "${_original_resolve_backup_folder_from_service_name#*\{}"
+}
+WRAPPER_EOF
+)"
+  
+  # Test 1: backup_app_metadata creates a backup file
+  if backup_app_metadata "$test_service" 2>/dev/null; then
+    local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
+    if [[ "$backup_count" -eq 1 ]]; then
+      echo "✅ backup_app_metadata: Successfully created backup file"
+    else
+      echo "❌ backup_app_metadata: Expected 1 backup file, found $backup_count"
+      export exec_dir="$old_exec_dir"
+      rm -rf "$test_base"
+      return 1
+    fi
+  else
+    echo "❌ backup_app_metadata: Function failed unexpectedly"
+    export exec_dir="$old_exec_dir"
+    rm -rf "$test_base"
+    return 1
+  fi
+  
+  # Test 2: Duplicate backups with same commit are deduplicated
+  sleep 1  # Ensure different timestamp
+  if backup_app_metadata "$test_service" 2>/dev/null; then
+    local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
+    if [[ "$backup_count" -eq 1 ]]; then
+      echo "✅ backup_app_metadata: Correctly deduplicated backup with same commit"
+    else
+      echo "❌ backup_app_metadata: Expected 1 backup file after deduplication, found $backup_count"
+      export exec_dir="$old_exec_dir"
+      rm -rf "$test_base"
+      return 1
+    fi
+  else
+    echo "❌ backup_app_metadata: Second backup failed"
+    export exec_dir="$old_exec_dir"
+    rm -rf "$test_base"
+    return 1
+  fi
+  
+  # Test 3: Different commit creates a new backup
+  # Update meta file with different commit
+  cat > "$meta_file" << 'EOF'
+{
+  "repo_owner": "TestOwner",
+  "repo_name": "TestRepo",
+  "ref_type": "branch",
+  "ref_name": "main",
+  "commit": "xyz789uvw012",
+  "commit_message": "Different commit"
+}
+EOF
+  
+  sleep 1  # Ensure different timestamp
+  if backup_app_metadata "$test_service" 2>/dev/null; then
+    local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
+    if [[ "$backup_count" -eq 2 ]]; then
+      echo "✅ backup_app_metadata: Correctly created backup for different commit"
+    else
+      echo "❌ backup_app_metadata: Expected 2 backup files, found $backup_count"
+      export exec_dir="$old_exec_dir"
+      rm -rf "$test_base"
+      return 1
+    fi
+  else
+    echo "❌ backup_app_metadata: Third backup failed"
+    export exec_dir="$old_exec_dir"
+    rm -rf "$test_base"
+    return 1
+  fi
+  
+  # Test 4: Backup fails when meta file is missing
+  rm -f "$meta_file"
+  if backup_app_metadata "$test_service" 2>/dev/null; then
+    echo "❌ backup_app_metadata: Should fail when meta file is missing"
+    export exec_dir="$old_exec_dir"
+    rm -rf "$test_base"
+    return 1
+  else
+    echo "✅ backup_app_metadata: Correctly failed when meta file is missing"
+  fi
+  
+  # Restore original function
+  eval "${_original_resolve_backup_folder_from_service_name}"
+  
+  # Cleanup
+  export exec_dir="$old_exec_dir"
+  rm -rf "$test_base"
   return 0
 }
 
