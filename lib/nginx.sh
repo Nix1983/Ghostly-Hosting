@@ -487,80 +487,173 @@ show_nginx_settings_menu() {
     
     case "$REPLY" in
       1)
-        clear
-        echo -e "\n🔒 \e[1mEdit SSL/TLS Protocols\e[0m"
-        print_line
-        echo -e "Current: \e[36m$ssl_protocols\e[0m\n"
-        echo -e "Common options:"
-        echo -e " • TLSv1.2 TLSv1.3 (Recommended)"
-        echo -e " • TLSv1.3 (Most secure, but may not support older clients)"
-        echo -e " • TLSv1.2 (Support older clients)\n"
-        echo -n "Enter new value (or press Enter to cancel): "
-        read -r new_protocols
-        
-        if [[ -n "$new_protocols" ]]; then
-          update_nginx_ssl_protocols "$fqdn" "$new_protocols"
-          print_press_any_key
-        fi
+        while true; do
+          clear
+          echo -e "\n🔒 \e[1mEdit SSL/TLS Protocols\e[0m"
+          print_line
+          echo -e "Current: \e[36m$ssl_protocols\e[0m\n"
+          
+          echo -e "ℹ️  \e[1mInfo:\e[0m SSL/TLS protocols determine which encryption versions"
+          echo -e "   are allowed for HTTPS connections. Newer versions are more secure"
+          echo -e "   but may not be supported by very old browsers.\n"
+          
+          echo -e " 1) TLSv1.2 TLSv1.3  \e[2m(Recommended - secure and compatible)\e[0m"
+          echo -e " 2) TLSv1.3          \e[2m(Most secure - may not support older clients)\e[0m"
+          echo -e " 3) TLSv1.2          \e[2m(Legacy support - less secure)\e[0m"
+          echo -e " $(print_back_to_menu)"
+          
+          read_menu_choice 3
+          
+          case "$REPLY" in
+            1)
+              update_nginx_ssl_protocols "$fqdn" "TLSv1.2 TLSv1.3"
+              print_press_any_key
+              break
+              ;;
+            2)
+              update_nginx_ssl_protocols "$fqdn" "TLSv1.3"
+              print_press_any_key
+              break
+              ;;
+            3)
+              update_nginx_ssl_protocols "$fqdn" "TLSv1.2"
+              print_press_any_key
+              break
+              ;;
+            q|Q) break ;;
+          esac
+        done
         ;;
       2)
-        clear
-        echo -e "\n🛡️ \e[1mEdit HSTS Max-Age\e[0m"
-        print_line
-        echo -e "Current: \e[36m$hsts_max_age seconds\e[0m"
-        echo -e "        (≈ $((hsts_max_age / 86400)) days)\n"
-        echo -e "Common values:"
-        echo -e " • 31536000  (1 year)"
-        echo -e " • 63072000  (2 years, recommended)"
-        echo -e " • 15768000  (6 months)\n"
-        echo -n "Enter new value in seconds (or press Enter to cancel): "
-        read -r new_max_age
-        
-        if [[ "$new_max_age" =~ ^[0-9]+$ ]]; then
-          update_nginx_hsts_max_age "$fqdn" "$new_max_age"
-          print_press_any_key
-        elif [[ -n "$new_max_age" ]]; then
-          echo -e "❌ Invalid input. Please enter a number."
-          print_press_any_key
-        fi
+        while true; do
+          clear
+          echo -e "\n🛡️ \e[1mEdit HSTS Max-Age\e[0m"
+          print_line
+          echo -e "Current: \e[36m$hsts_max_age seconds\e[0m"
+          echo -e "        (≈ $((hsts_max_age / 86400)) days)\n"
+          
+          echo -e "ℹ️  \e[1mInfo:\e[0m HSTS (HTTP Strict Transport Security) tells browsers"
+          echo -e "   to always use HTTPS when visiting your site. The max-age value"
+          echo -e "   determines how long browsers remember this setting.\n"
+          
+          echo -e " 1) 15768000 seconds  \e[2m(6 months - for testing)\e[0m"
+          echo -e " 2) 31536000 seconds  \e[2m(1 year - standard)\e[0m"
+          echo -e " 3) 63072000 seconds  \e[2m(2 years - recommended)\e[0m"
+          echo -e " $(print_back_to_menu)"
+          
+          read_menu_choice 3
+          
+          case "$REPLY" in
+            1)
+              update_nginx_hsts_max_age "$fqdn" "15768000"
+              print_press_any_key
+              break
+              ;;
+            2)
+              update_nginx_hsts_max_age "$fqdn" "31536000"
+              print_press_any_key
+              break
+              ;;
+            3)
+              update_nginx_hsts_max_age "$fqdn" "63072000"
+              print_press_any_key
+              break
+              ;;
+            q|Q) break ;;
+          esac
+        done
         ;;
       3)
-        clear
-        echo -e "\n🖼️ \e[1mEdit X-Frame-Options\e[0m"
-        print_line
-        echo -e "Current: \e[36m$x_frame\e[0m\n"
-        echo -e "Options:"
-        echo -e " • DENY         (Do not allow framing)"
-        echo -e " • SAMEORIGIN   (Allow framing from same origin only)"
-        echo -e " • ALLOW-FROM uri (Allow framing from specific URI)\n"
-        echo -n "Enter new value (or press Enter to cancel): "
-        read -r new_x_frame
-        
-        if [[ -n "$new_x_frame" ]]; then
-          update_nginx_x_frame_options "$fqdn" "$new_x_frame"
-          print_press_any_key
-        fi
+        while true; do
+          clear
+          echo -e "\n🖼️ \e[1mEdit X-Frame-Options\e[0m"
+          print_line
+          echo -e "Current: \e[36m$x_frame\e[0m\n"
+          
+          echo -e "ℹ️  \e[1mInfo:\e[0m X-Frame-Options protects against clickjacking attacks"
+          echo -e "   by controlling whether your site can be embedded in frames/iframes.\n"
+          
+          echo -e " 1) DENY         \e[2m(Never allow framing - most secure)\e[0m"
+          echo -e " 2) SAMEORIGIN   \e[2m(Allow framing only from same domain)\e[0m"
+          echo -e " $(print_back_to_menu)"
+          
+          read_menu_choice 2
+          
+          case "$REPLY" in
+            1)
+              update_nginx_x_frame_options "$fqdn" "DENY"
+              print_press_any_key
+              break
+              ;;
+            2)
+              update_nginx_x_frame_options "$fqdn" "SAMEORIGIN"
+              print_press_any_key
+              break
+              ;;
+            q|Q) break ;;
+          esac
+        done
         ;;
       4)
-        clear
-        echo -e "\n🔗 \e[1mEdit Referrer-Policy\e[0m"
-        print_line
-        echo -e "Current: \e[36m$referrer_policy\e[0m\n"
-        echo -e "Options:"
-        echo -e " • no-referrer"
-        echo -e " • no-referrer-when-downgrade (default)"
-        echo -e " • origin"
-        echo -e " • origin-when-cross-origin"
-        echo -e " • same-origin"
-        echo -e " • strict-origin"
-        echo -e " • strict-origin-when-cross-origin\n"
-        echo -n "Enter new value (or press Enter to cancel): "
-        read -r new_referrer
-        
-        if [[ -n "$new_referrer" ]]; then
-          update_nginx_referrer_policy "$fqdn" "$new_referrer"
-          print_press_any_key
-        fi
+        while true; do
+          clear
+          echo -e "\n🔗 \e[1mEdit Referrer-Policy\e[0m"
+          print_line
+          echo -e "Current: \e[36m$referrer_policy\e[0m\n"
+          
+          echo -e "ℹ️  \e[1mInfo:\e[0m Referrer-Policy controls how much information about"
+          echo -e "   the referring page is sent when users navigate to other sites.\n"
+          
+          echo -e " 1) no-referrer                      \e[2m(Never send referrer - most private)\e[0m"
+          echo -e " 2) no-referrer-when-downgrade       \e[2m(Send referrer only on HTTPS - balanced)\e[0m"
+          echo -e " 3) origin                           \e[2m(Send only domain, not full URL)\e[0m"
+          echo -e " 4) origin-when-cross-origin         \e[2m(Full URL same-site, domain only cross-site)\e[0m"
+          echo -e " 5) same-origin                      \e[2m(Send referrer only to same domain)\e[0m"
+          echo -e " 6) strict-origin                    \e[2m(Send domain only on HTTPS)\e[0m"
+          echo -e " 7) strict-origin-when-cross-origin  \e[2m(Strict version of option 4)\e[0m"
+          echo -e " $(print_back_to_menu)"
+          
+          read_menu_choice 7
+          
+          case "$REPLY" in
+            1)
+              update_nginx_referrer_policy "$fqdn" "no-referrer"
+              print_press_any_key
+              break
+              ;;
+            2)
+              update_nginx_referrer_policy "$fqdn" "no-referrer-when-downgrade"
+              print_press_any_key
+              break
+              ;;
+            3)
+              update_nginx_referrer_policy "$fqdn" "origin"
+              print_press_any_key
+              break
+              ;;
+            4)
+              update_nginx_referrer_policy "$fqdn" "origin-when-cross-origin"
+              print_press_any_key
+              break
+              ;;
+            5)
+              update_nginx_referrer_policy "$fqdn" "same-origin"
+              print_press_any_key
+              break
+              ;;
+            6)
+              update_nginx_referrer_policy "$fqdn" "strict-origin"
+              print_press_any_key
+              break
+              ;;
+            7)
+              update_nginx_referrer_policy "$fqdn" "strict-origin-when-cross-origin"
+              print_press_any_key
+              break
+              ;;
+            q|Q) break ;;
+          esac
+        done
         ;;
       5)
         clear
