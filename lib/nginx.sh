@@ -317,3 +317,289 @@ setup_nginx_for_blazor_app() {
   echo -e "\n🌐 \033[1mBlazor App is now accessible at:\033[0m 🔗 \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
 }
 
+get_nginx_config_value() {
+  local fqdn="$1"
+  local setting="$2"
+  local conf_path="/etc/nginx/sites-available/$fqdn"
+  
+  [[ ! -f "$conf_path" ]] && return 1
+  
+  case "$setting" in
+    ssl_protocols)
+      grep -oP "ssl_protocols\s+\K[^;]+" "$conf_path" | head -n1 || echo "TLSv1.2 TLSv1.3"
+      ;;
+    ssl_ciphers)
+      grep -oP "ssl_ciphers\s+\K[^;]+" "$conf_path" | head -n1 || echo "HIGH:!aNULL:!MD5"
+      ;;
+    hsts_enabled)
+      grep -q "Strict-Transport-Security" "$conf_path" && echo "✅" || echo "❌"
+      ;;
+    hsts_max_age)
+      grep -oP "max-age=\K[0-9]+" "$conf_path" | head -n1 || echo "63072000"
+      ;;
+    x_frame_options)
+      grep -oP "X-Frame-Options\s+\K[^;]+" "$conf_path" | head -n1 || echo "DENY"
+      ;;
+    x_content_type)
+      grep -q "X-Content-Type-Options nosniff" "$conf_path" && echo "✅" || echo "❌"
+      ;;
+    referrer_policy)
+      grep -oP "Referrer-Policy\s+\K[^;]+" "$conf_path" | head -n1 || echo "no-referrer-when-downgrade"
+      ;;
+    http_version)
+      grep -q "listen 443 ssl http2" "$conf_path" && echo "HTTP/2" || echo "HTTP/1.1"
+      ;;
+    proxy_http_version)
+      grep -oP "proxy_http_version\s+\K[^;]+" "$conf_path" | head -n1 || echo "1.1"
+      ;;
+    websocket_support)
+      grep -q "proxy_set_header Upgrade" "$conf_path" && echo "✅" || echo "❌"
+      ;;
+  esac
+}
+
+update_nginx_ssl_protocols() {
+  local fqdn="$1"
+  local protocols="$2"
+  local conf_path="/etc/nginx/sites-available/$fqdn"
+  
+  [[ ! -f "$conf_path" ]] && return 1
+  
+  sed -i "s|ssl_protocols .*|ssl_protocols $protocols;|g" "$conf_path"
+  
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx
+    echo -e "✅ SSL protocols updated to: \e[36m$protocols\e[0m"
+    return 0
+  else
+    echo -e "❌ \e[31mNginx config test failed. Reverting changes...\e[0m"
+    return 1
+  fi
+}
+
+update_nginx_hsts_max_age() {
+  local fqdn="$1"
+  local max_age="$2"
+  local conf_path="/etc/nginx/sites-available/$fqdn"
+  
+  [[ ! -f "$conf_path" ]] && return 1
+  
+  sed -i "s|max-age=[0-9]*|max-age=$max_age|g" "$conf_path"
+  
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx
+    echo -e "✅ HSTS max-age updated to: \e[36m$max_age seconds\e[0m"
+    return 0
+  else
+    echo -e "❌ \e[31mNginx config test failed. Reverting changes...\e[0m"
+    return 1
+  fi
+}
+
+update_nginx_x_frame_options() {
+  local fqdn="$1"
+  local value="$2"
+  local conf_path="/etc/nginx/sites-available/$fqdn"
+  
+  [[ ! -f "$conf_path" ]] && return 1
+  
+  sed -i "s|X-Frame-Options .*|X-Frame-Options $value;|g" "$conf_path"
+  
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx
+    echo -e "✅ X-Frame-Options updated to: \e[36m$value\e[0m"
+    return 0
+  else
+    echo -e "❌ \e[31mNginx config test failed. Reverting changes...\e[0m"
+    return 1
+  fi
+}
+
+update_nginx_referrer_policy() {
+  local fqdn="$1"
+  local value="$2"
+  local conf_path="/etc/nginx/sites-available/$fqdn"
+  
+  [[ ! -f "$conf_path" ]] && return 1
+  
+  sed -i "s|Referrer-Policy .*|Referrer-Policy $value;|g" "$conf_path"
+  
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx
+    echo -e "✅ Referrer-Policy updated to: \e[36m$value\e[0m"
+    return 0
+  else
+    echo -e "❌ \e[31mNginx config test failed. Reverting changes...\e[0m"
+    return 1
+  fi
+}
+
+show_nginx_settings_menu() {
+  local fqdn="$1"
+  local conf_path="/etc/nginx/sites-available/$fqdn"
+  
+  if [[ ! -f "$conf_path" ]]; then
+    clear
+    echo -e "\n❌ \e[1;31mNginx config file not found:\e[0m \e[2m$conf_path\e[0m"
+    print_press_any_key
+    return 1
+  fi
+  
+  while true; do
+    clear
+    echo -e "\n⚙️ \e[1;34mNginx Settings\e[0m | \e[36m$fqdn\e[0m"
+    print_double_line
+    
+    # Read current settings
+    local ssl_protocols hsts_enabled hsts_max_age x_frame x_content referrer_policy
+    local http_version proxy_http ws_support
+    
+    ssl_protocols=$(get_nginx_config_value "$fqdn" "ssl_protocols")
+    hsts_enabled=$(get_nginx_config_value "$fqdn" "hsts_enabled")
+    hsts_max_age=$(get_nginx_config_value "$fqdn" "hsts_max_age")
+    x_frame=$(get_nginx_config_value "$fqdn" "x_frame_options")
+    x_content=$(get_nginx_config_value "$fqdn" "x_content_type")
+    referrer_policy=$(get_nginx_config_value "$fqdn" "referrer_policy")
+    http_version=$(get_nginx_config_value "$fqdn" "http_version")
+    proxy_http=$(get_nginx_config_value "$fqdn" "proxy_http_version")
+    ws_support=$(get_nginx_config_value "$fqdn" "websocket_support")
+    
+    # Display current settings
+    echo -e "\n📋 \e[1mCurrent Configuration\e[0m"
+    print_line
+    
+    printf "🔒 %-30s \e[36m%-30s\e[0m\n" "SSL/TLS Protocols:" "$ssl_protocols"
+    printf "🛡️ %-30s %s  \e[2m(max-age: \e[0m\e[36m%s\e[0m\e[2m seconds)\e[0m\n" "HSTS Enabled:" "$hsts_enabled" "$hsts_max_age"
+    printf "🖼️ %-30s \e[36m%-30s\e[0m\n" "X-Frame-Options:" "$x_frame"
+    printf "📄 %-30s %s\n" "X-Content-Type-Options:" "$x_content"
+    printf "🔗 %-30s \e[36m%-30s\e[0m\n" "Referrer-Policy:" "$referrer_policy"
+    printf "🌐 %-30s \e[36m%-30s\e[0m\n" "HTTP Version:" "$http_version"
+    printf "🔌 %-30s \e[36m%-30s\e[0m\n" "Proxy HTTP Version:" "$proxy_http"
+    printf "🔄 %-30s %s\n" "WebSocket Support:" "$ws_support"
+    
+    print_line
+    echo -e "\n 1) 🔒 Edit SSL/TLS Protocols       2) 🛡️  Edit HSTS Max-Age"
+    echo -e " 3) 🖼️  Edit X-Frame-Options        4) 🔗 Edit Referrer-Policy"
+    echo -e " 5) 📂 View Full Config             6) ♻️  Reload Nginx Config"
+    echo -e " 7) 🧪 Test Nginx Config            $(print_back_to_menu)"
+    
+    read_menu_choice 7
+    
+    case "$REPLY" in
+      1)
+        clear
+        echo -e "\n🔒 \e[1mEdit SSL/TLS Protocols\e[0m"
+        print_line
+        echo -e "Current: \e[36m$ssl_protocols\e[0m\n"
+        echo -e "Common options:"
+        echo -e " • TLSv1.2 TLSv1.3 (Recommended)"
+        echo -e " • TLSv1.3 (Most secure, but may not support older clients)"
+        echo -e " • TLSv1.2 (Support older clients)\n"
+        echo -n "Enter new value (or press Enter to cancel): "
+        read -r new_protocols
+        
+        if [[ -n "$new_protocols" ]]; then
+          update_nginx_ssl_protocols "$fqdn" "$new_protocols"
+          print_press_any_key
+        fi
+        ;;
+      2)
+        clear
+        echo -e "\n🛡️ \e[1mEdit HSTS Max-Age\e[0m"
+        print_line
+        echo -e "Current: \e[36m$hsts_max_age seconds\e[0m"
+        echo -e "        (≈ $((hsts_max_age / 86400)) days)\n"
+        echo -e "Common values:"
+        echo -e " • 31536000  (1 year)"
+        echo -e " • 63072000  (2 years, recommended)"
+        echo -e " • 15768000  (6 months)\n"
+        echo -n "Enter new value in seconds (or press Enter to cancel): "
+        read -r new_max_age
+        
+        if [[ "$new_max_age" =~ ^[0-9]+$ ]]; then
+          update_nginx_hsts_max_age "$fqdn" "$new_max_age"
+          print_press_any_key
+        elif [[ -n "$new_max_age" ]]; then
+          echo -e "❌ Invalid input. Please enter a number."
+          print_press_any_key
+        fi
+        ;;
+      3)
+        clear
+        echo -e "\n🖼️ \e[1mEdit X-Frame-Options\e[0m"
+        print_line
+        echo -e "Current: \e[36m$x_frame\e[0m\n"
+        echo -e "Options:"
+        echo -e " • DENY         (Do not allow framing)"
+        echo -e " • SAMEORIGIN   (Allow framing from same origin only)"
+        echo -e " • ALLOW-FROM uri (Allow framing from specific URI)\n"
+        echo -n "Enter new value (or press Enter to cancel): "
+        read -r new_x_frame
+        
+        if [[ -n "$new_x_frame" ]]; then
+          update_nginx_x_frame_options "$fqdn" "$new_x_frame"
+          print_press_any_key
+        fi
+        ;;
+      4)
+        clear
+        echo -e "\n🔗 \e[1mEdit Referrer-Policy\e[0m"
+        print_line
+        echo -e "Current: \e[36m$referrer_policy\e[0m\n"
+        echo -e "Options:"
+        echo -e " • no-referrer"
+        echo -e " • no-referrer-when-downgrade (default)"
+        echo -e " • origin"
+        echo -e " • origin-when-cross-origin"
+        echo -e " • same-origin"
+        echo -e " • strict-origin"
+        echo -e " • strict-origin-when-cross-origin\n"
+        echo -n "Enter new value (or press Enter to cancel): "
+        read -r new_referrer
+        
+        if [[ -n "$new_referrer" ]]; then
+          update_nginx_referrer_policy "$fqdn" "$new_referrer"
+          print_press_any_key
+        fi
+        ;;
+      5)
+        clear
+        echo -e "\n📂 \e[1mFull Nginx Config\e[0m | \e[36m$fqdn\e[0m"
+        print_line
+        echo ""
+        cat "$conf_path"
+        echo ""
+        print_press_any_key
+        ;;
+      6)
+        clear
+        echo -e "\n♻️ \e[1mReloading Nginx...\e[0m"
+        if nginx -t >/dev/null 2>&1; then
+          if systemctl reload nginx; then
+            echo -e "✅ \e[32mNginx reloaded successfully\e[0m"
+          else
+            echo -e "❌ \e[31mFailed to reload Nginx\e[0m"
+          fi
+        else
+          echo -e "❌ \e[31mNginx config test failed\e[0m"
+          echo -e "\nRunning detailed test:"
+          nginx -t
+        fi
+        print_press_any_key
+        ;;
+      7)
+        clear
+        echo -e "\n🧪 \e[1mTesting Nginx Config...\e[0m"
+        echo ""
+        if nginx -t; then
+          echo -e "\n✅ \e[32mConfiguration test passed\e[0m"
+        else
+          echo -e "\n❌ \e[31mConfiguration test failed\e[0m"
+        fi
+        print_press_any_key
+        ;;
+      q|Q) return 0 ;;
+    esac
+  done
+}
+
