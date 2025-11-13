@@ -16,6 +16,7 @@ TESTS=(
   "github_tests.sh"
   "log_tests.sh"
   "meta_data_tests.sh"
+  "dotnet_version_tests.sh"
   "server_tests.sh"
   "app_tests.sh"
   "api_tests.sh"

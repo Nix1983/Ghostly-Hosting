@@ -26,7 +26,10 @@ __CONSTANTS_SH_LOADED=1
 [[ -z "${UPCLOUD_API_BASE+x}" ]]    && declare -gr UPCLOUD_API_BASE="https://api.upcloud.com/1.2"
 
 # .NET Support
-[[ -z "${SUPPORTED_DOTNET_VERSIONS+x}" ]] && declare -agr SUPPORTED_DOTNET_VERSIONS=("6.0" "7.0" "8.0" "9.0")
+# Baseline versions for display in menus - dynamically extended by get_available_dotnet_versions()
+[[ -z "${BASELINE_DOTNET_VERSIONS+x}" ]] && declare -agr BASELINE_DOTNET_VERSIONS=("6.0" "7.0" "8.0" "9.0")
+# Minimum supported .NET version
+[[ -z "${MIN_DOTNET_VERSION+x}" ]] && declare -gr MIN_DOTNET_VERSION="6.0"
 
 # Base directory for all deployed apps
 [[ -z "${APP_BASE_DIR+x}" ]] && declare -gr APP_BASE_DIR="/var/www"

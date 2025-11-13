@@ -7,6 +7,56 @@ source ./lib/common.sh
 # Global variables to be accessed in other modules
 declare -g DOTNET_Version=""
 declare -g TMP_PUBLISH_DIR=""
+declare -ag SUPPORTED_DOTNET_VERSIONS=()
+
+get_available_dotnet_versions() {
+  # Try to fetch available .NET versions from Microsoft's releases API
+  # Falls back to baseline versions if the fetch fails
+  local versions=()
+  local api_url="https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json"
+  
+  # Try to fetch from Microsoft's API with a timeout
+  local response
+  if response=$(curl -sSL --connect-timeout 5 --max-time 10 "$api_url" 2>/dev/null); then
+    # Parse major.minor versions from the response
+    # Look for "channel-version" fields and extract versions
+    local parsed_versions
+    parsed_versions=$(echo "$response" | grep -oP '"channel-version":\s*"\K[0-9]+\.[0-9]+' | sort -Vu)
+    
+    if [[ -n "$parsed_versions" ]]; then
+      while IFS= read -r ver; do
+        # Only include versions >= MIN_DOTNET_VERSION
+        if awk -v ver="$ver" -v min="$MIN_DOTNET_VERSION" 'BEGIN {exit !(ver >= min)}'; then
+          versions+=("$ver")
+        fi
+      done <<< "$parsed_versions"
+    fi
+  fi
+  
+  # If we couldn't fetch or parse versions, use baseline
+  if (( ${#versions[@]} == 0 )); then
+    versions=("${BASELINE_DOTNET_VERSIONS[@]}")
+  fi
+  
+  # Update global array
+  SUPPORTED_DOTNET_VERSIONS=("${versions[@]}")
+}
+
+is_valid_dotnet_version() {
+  local version="$1"
+  
+  # Check if version format is valid (e.g., "6.0", "8.0", "10.0")
+  if ! [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    return 1
+  fi
+  
+  # Check if version is >= MIN_DOTNET_VERSION
+  if ! awk -v ver="$version" -v min="$MIN_DOTNET_VERSION" 'BEGIN {exit !(ver >= min)}'; then
+    return 1
+  fi
+  
+  return 0
+}
 
 remove_dotnet() {
   rm -rf /opt/dotnet
@@ -44,6 +94,11 @@ install_dotnet_version() {
 }
 
 show_app_deployment_requirements() {
+  # Ensure we have the latest available versions
+  if (( ${#SUPPORTED_DOTNET_VERSIONS[@]} == 0 )); then
+    get_available_dotnet_versions
+  fi
+  
   clear
   echo -e "\n📋 \e[1;34mRequirements for Deploying a New App\e[0m"
   print_double_line
@@ -61,7 +116,7 @@ show_app_deployment_requirements() {
   echo
 
   echo -e "🛠️ \e[1mSupported Frameworks\e[0m"
-  echo -e "   • .NET SDK (${SUPPORTED_DOTNET_VERSIONS[*]})"
+  echo -e "   • .NET SDK (${SUPPORTED_DOTNET_VERSIONS[*]:-${BASELINE_DOTNET_VERSIONS[*]}} and higher)"
   echo -e "   • Supported project types:"
   echo -e "     → \e[32mBlazor Server\e[0m"
   echo -e "     → \e[32mASP.NET Core Web App\e[0m (MVC / Razor Pages)"
@@ -145,20 +200,11 @@ detect_required_dotnet_versions() {
   mapfile -t candidates < <(printf "%s\n" "${candidates[@]}" | sort -Vu)
   version="${candidates[-1]}"
 
-  local is_supported=false
-  for supported in "${SUPPORTED_DOTNET_VERSIONS[@]}"; do
-    if [[ "$version" == "$supported" ]]; then
-      is_supported=true
-      break
-    fi
-  done
-
-  if [[ "$is_supported" == false ]]; then
+  # Validate the detected version
+  if ! is_valid_dotnet_version "$version"; then
     echo -e "\n❌ \e[1;31mUnsupported .NET version detected:\e[0m \e[36m$version\e[0m"
-    echo -e "✅ Supported versions are:"
-    for ver in "${SUPPORTED_DOTNET_VERSIONS[@]}"; do
-      echo -e "   • \e[32m$ver\e[0m"
-    done
+    echo -e "✅ Minimum supported version: \e[32m$MIN_DOTNET_VERSION\e[0m"
+    echo -e "💡 This system supports .NET $MIN_DOTNET_VERSION and higher."
     return 1
   fi
 
@@ -503,6 +549,11 @@ check_apps_using_sdk() {
 show_dotnet_version_menu() {
   local install_dir="/opt/dotnet"
 
+  # Ensure we have the latest available versions
+  if (( ${#SUPPORTED_DOTNET_VERSIONS[@]} == 0 )); then
+    get_available_dotnet_versions
+  fi
+
   while true; do
     clear
     echo -e "\n🧰 \e[1;34m.NET SDK Management\e[0m"
@@ -529,15 +580,28 @@ show_dotnet_version_menu() {
         $((i + 1)) "$ver" "$status" "$used" "$disk" "$realver"
     done
 
-    echo -e "\n d) 🗑️  Delete version     q) 🔙 Back to main menu"
+    echo -e "\n d) 🗑️  Delete version     m) 🔄 Manual version     q) 🔙 Back to main menu"
     echo "───────────────────────────────────────────────────────────────────────────────"
-    printf "Install version [1–%d], delete [d], or quit [q]: " "${#SUPPORTED_DOTNET_VERSIONS[@]}"
+    printf "Install version [1–%d], manual [m], delete [d], or quit [q]: " "${#SUPPORTED_DOTNET_VERSIONS[@]}"
     IFS= read -rsn1 choice
     echo ""
 
     case "$choice" in
       q|Q) return ;;
       d|D) delete_dotnet_version ;;
+      m|M)
+        echo -e "\n📝 Enter .NET version to install (e.g., 10.0, 11.0):"
+        read -r manual_version
+        if is_valid_dotnet_version "$manual_version"; then
+          DOTNET_Version="$manual_version"
+          export DOTNET_Version
+          install_dotnet_version
+          read -rsn1 -p $'\n✅ Done. Press any key to return...' _
+        else
+          echo -e "❌ Invalid version. Must be $MIN_DOTNET_VERSION or higher."
+          sleep 2
+        fi
+        ;;
       [1-9])
         if (( choice >= 1 && choice <= ${#SUPPORTED_DOTNET_VERSIONS[@]} )); then
           DOTNET_Version="${SUPPORTED_DOTNET_VERSIONS[$((choice - 1))]}"
