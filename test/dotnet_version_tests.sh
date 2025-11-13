@@ -199,6 +199,51 @@ test_min_dotnet_version_constant() {
   fi
 }
 
+test_target_framework_parsing() {
+  echo ""
+  echo "Testing target framework parsing logic..."
+  echo "─────────────────────────────────────────────────────────────────"
+  
+  # Test different TargetFramework formats
+  local test_cases=(
+    "net6.0:6.0"
+    "net7.0:7.0"
+    "net8.0:8.0"
+    "net9.0:9.0"
+    "net10:10.0"
+    "net10.0:10.0"
+    "net11:11.0"
+    "net15:15.0"
+  )
+  
+  for test_case in "${test_cases[@]}"; do
+    local tf="${test_case%%:*}"
+    local expected="${test_case##*:}"
+    
+    # Simulate the parsing logic from detect_required_dotnet_versions
+    local basever
+    basever=$(echo "$tf" | grep -oE 'net([0-9]+)(\.0)?' | sed -E 's/^net//;s/\.0$//')
+    
+    # Apply the normalization
+    if [[ "$basever" =~ ^[0-9]+$ ]]; then
+      basever="$basever.0"
+    fi
+    
+    if [[ "$basever" == "$expected" ]]; then
+      echo "✅ $tf → $basever (expected: $expected)"
+    else
+      echo "❌ $tf → $basever (expected: $expected)"
+      return 1
+    fi
+    
+    # Also verify it passes validation
+    if ! is_valid_dotnet_version "$basever"; then
+      echo "❌ Parsed version $basever failed validation"
+      return 1
+    fi
+  done
+}
+
 # Run all tests
 echo "════════════════════════════════════════════════════════════════"
 echo ".NET Version Support Tests"
@@ -207,6 +252,7 @@ echo "════════════════════════�
 test_baseline_versions_exist
 test_min_dotnet_version_constant
 test_is_valid_dotnet_version
+test_target_framework_parsing
 test_get_available_dotnet_versions
 
 echo ""

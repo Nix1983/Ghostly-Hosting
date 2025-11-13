@@ -186,9 +186,10 @@ detect_required_dotnet_versions() {
     local tf="$line"
     local basever
     basever=$(echo "$tf" | grep -oE 'net([0-9]+)(\.0)?' | sed -E 's/^net//;s/\.0$//')
-    case "$basever" in
-      [6-9]) basever="$basever.0" ;;
-    esac
+    # Ensure version has .0 suffix if it's just a single number
+    if [[ "$basever" =~ ^[0-9]+$ ]]; then
+      basever="$basever.0"
+    fi
     [[ -n "$basever" ]] && candidates+=("$basever")
   done <<< "$tf_raw"
 
