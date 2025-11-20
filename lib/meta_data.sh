@@ -182,7 +182,7 @@ restore_app_meta_data() {
     ref_type=$(get_ref_type_from_meta "$file")
     msg=$(jq -r '.commit_message // "–"' "$file")
 
-    [[ ${#msg} -gt 40 ]] && msg="${msg:0:40}..."
+    [[ ${#msg} -gt 40 ]] && msg="...${msg: -37}"
 
     if [[ "$ref_type" == "branch" ]]; then
       icon="🌿"

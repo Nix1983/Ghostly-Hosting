@@ -203,7 +203,7 @@ check_for_app_update() {
   current_commit=$(get_commit_from_meta "$meta_file")
   current_message=$(get_commit_message_from_meta "$meta_file" | head -n1)
   if (( ${#current_message} > 40 )); then
-    current_message="${current_message:0:37}..."
+    current_message="...${current_message: -37}"
   fi
 
   if [[ -z "$repo_owner" || -z "$repo_name" || -z "$ref_type" || -z "$ref_name" || -z "$current_commit" ]]; then
@@ -258,7 +258,7 @@ check_for_app_update() {
   latest_message=$(curl -s -H "Authorization: Bearer $GITHUB_API_TOKEN" \
     "$GITHUB_API_BASE/repos/$repo_owner/$repo_name/commits/$latest_commit" | jq -r '.commit.message // ""' | head -n1)
   if (( ${#latest_message} > 40 )); then
-    latest_message="${latest_message:0:37}..."
+    latest_message="...${latest_message: -37}"
   fi
 
   if [[ -z "$latest_commit" ]]; then
