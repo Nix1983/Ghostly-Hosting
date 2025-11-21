@@ -20,6 +20,7 @@ TESTS=(
   "server_tests.sh"
   "app_tests.sh"
   "api_tests.sh"
+  "commit_message_truncation_tests.sh"
 )
 
 FAILED_TESTS=()
