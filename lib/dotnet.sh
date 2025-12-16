@@ -182,8 +182,11 @@ detect_required_dotnet_versions() {
   fi
 
   local candidates=()
+  local primary_tfm=""
   while IFS= read -r line; do
     local tf="$line"
+    [[ -z "$primary_tfm" ]] && primary_tfm="$tf"
+
     local basever
     basever=$(echo "$tf" | grep -oE 'net([0-9]+)(\.0)?' | sed -E 's/^net//;s/\.0$//')
     # Ensure version has .0 suffix if it's just a single number
@@ -214,6 +217,8 @@ detect_required_dotnet_versions() {
   export DOTNET_Version
   MAIN_PROJECT_FILE="$main_project"
   export MAIN_PROJECT_FILE
+  MAIN_TARGET_FRAMEWORK="${primary_tfm:-net$version}"
+  export MAIN_TARGET_FRAMEWORK
   return 0
 }
 
@@ -321,7 +326,7 @@ publish_dotnet_project() {
   local project_dir
   project_dir=$(dirname "$MAIN_PROJECT_FILE")
 
-  local tfm="net${DOTNET_Version}"
+  local tfm="${MAIN_TARGET_FRAMEWORK:-net${DOTNET_Version}}"
   local bin_release_dir="$project_dir/bin/Release/$tfm"
 
   # Ensure publish output and intermediate directories exist for content files (e.g., locales)
