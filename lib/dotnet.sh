@@ -318,6 +318,22 @@ publish_dotnet_project() {
 
   local log_file="/$CLONE_BASE_DIR/publish-${SELECTED_REPO_NAME}.log"
   rm -f "$log_file"
+  local project_dir
+  project_dir=$(dirname "$MAIN_PROJECT_FILE")
+
+  local tfm="net${DOTNET_Version}"
+  local bin_release_dir="$project_dir/bin/Release/$tfm"
+
+  # Ensure publish output and intermediate directories exist for content files (e.g., locales)
+  mkdir -p "$TMP_PUBLISH_DIR" "$bin_release_dir"
+
+  if [[ -d "$project_dir/locales" ]]; then
+    local locales_base="$project_dir/locales"
+    while IFS= read -r dir; do
+      local rel_dir="${dir#$locales_base}"
+      mkdir -p "$bin_release_dir/locales$rel_dir"
+    done < <(find "$locales_base" -type d)
+  fi
 
   # Run publish and show a simple spinner while waiting
   (
@@ -342,15 +358,15 @@ publish_dotnet_project() {
   wait "$pid"
   local status=$?
 
-  if (( status != 0 )); then
-    echo -e "\n❌ \e[31mPublish failed.\e[0m"
-    echo -e "📜 Output from dotnet publish:\n"
-    sed 's/^/   /' "$log_file"
-    return 1
+  if (( status == 0 )); then
+    echo -e "✅ Project successfully published to: \e[2m$TMP_PUBLISH_DIR\e[0m"
+    return 0
   fi
 
-  echo -e "✅ Project successfully published to: \e[2m$TMP_PUBLISH_DIR\e[0m"
-  return 0
+  echo -e "\n❌ \e[31mPublish failed.\e[0m"
+  echo -e "📜 Output from dotnet publish:\n"
+  sed 's/^/   /' "$log_file"
+  return 1
 }
 
 deploy_to_domain_folder() {
