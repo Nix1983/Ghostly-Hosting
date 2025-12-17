@@ -336,7 +336,7 @@ publish_dotnet_project() {
     local locales_base="$project_dir/locales"
     while IFS= read -r dir; do
       local rel_dir="${dir#$locales_base}"
-      mkdir -p "$bin_release_dir/locales$rel_dir"
+      mkdir -p "$bin_release_dir/locales$rel_dir" "$TMP_PUBLISH_DIR/locales$rel_dir"
     done < <(find "$locales_base" -type d)
   fi
 
