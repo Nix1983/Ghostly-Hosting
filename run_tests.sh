@@ -15,6 +15,8 @@ TESTS=(
   "common_error_logging_tests.sh"
   "upcloud_tests.sh"
   "github_tests.sh"
+  "cloudflare_tests.sh"
+  "print_tests.sh"
   "log_tests.sh"
   "meta_data_tests.sh"
   "dotnet_version_tests.sh"
@@ -51,8 +53,8 @@ for test_file in "${TESTS[@]}"; do
   # Include all ✅ lines except "SOURCES LOADED", "All tests passed", and ".sh PASSED"
   passed_count=$(echo "$output" | grep "^✅" | grep -v "SOURCES LOADED" | grep -v "All.*tests passed" | grep -v "\.sh PASSED" | wc -l)
   # For failed, only count test result lines with pattern " function_name: " or " => "
-  # This excludes error messages like "❌ Missing GitHub environment variables:"
-  failed_count=$(echo "$output" | grep "^❌" | grep -E "( [a-z_][a-z_0-9]*: | => )" | wc -l)
+  # Exclude error messages which typically end with a period
+  failed_count=$(echo "$output" | grep "^❌" | grep -E "( [a-z_][a-z_0-9]*: | => )" | grep -v "\.$" | wc -l)
   
   TOTAL_PASSED_ASSERTIONS=$((TOTAL_PASSED_ASSERTIONS + passed_count))
   TOTAL_FAILED_ASSERTIONS=$((TOTAL_FAILED_ASSERTIONS + failed_count))
