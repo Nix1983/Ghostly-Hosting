@@ -10,22 +10,22 @@ jobs:
   increment-version:
     name: Increment Version Number
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      
+
       - name: Read current version
         id: current_version
         run: |
@@ -38,30 +38,30 @@ jobs:
             echo "1.0.0" > VERSION
             echo "version=1.0.0" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Increment version
         id: new_version
         run: |
           # Read current version
           CURRENT_VERSION="${{ steps.current_version.outputs.version }}"
-          
+
           # Split version into components
           IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
           MAJOR="${VERSION_PARTS[0]}"
           MINOR="${VERSION_PARTS[1]}"
           PATCH="${VERSION_PARTS[2]}"
-          
+
           # Increment patch version
           PATCH=$((PATCH + 1))
-          
+
           # Create new version
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           echo "New version: $NEW_VERSION"
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          
+
           # Update VERSION file
           echo "$NEW_VERSION" > VERSION
-      
+
       - name: Check if version changed
         id: check_changes
         run: |
@@ -72,20 +72,20 @@ jobs:
             echo "Version file changed"
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Commit and push version update
         if: steps.check_changes.outputs.changed == 'true'
         run: |
           git add VERSION
           git commit -m "chore: bump version to ${{ steps.new_version.outputs.version }} [skip ci]"
           git push
-      
+
       - name: Create Git tag
         if: steps.check_changes.outputs.changed == 'true'
         run: |
           git tag "v${{ steps.new_version.outputs.version }}"
           git push origin "v${{ steps.new_version.outputs.version }}"
-      
+
       - name: Summary
         run: |
           echo "### Version Update Summary" >> $GITHUB_STEP_SUMMARY
@@ -93,3 +93,4 @@ jobs:
           echo "- **Previous Version:** ${{ steps.current_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **New Version:** ${{ steps.new_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag Created:** v${{ steps.new_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+

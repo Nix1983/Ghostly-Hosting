@@ -6,9 +6,9 @@ set -e
 get_app_version() {
   local version_file
   version_file="$(get_project_root)/VERSION"
-  
+
   if [[ -f "$version_file" ]]; then
-    cat "$version_file" | tr -d '[:space:]'
+    tr -d '[:space:]' < "$version_file"
   else
     echo "unknown"
   fi
