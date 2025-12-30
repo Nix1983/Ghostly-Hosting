@@ -5,7 +5,9 @@ set -e
 
 get_app_version() {
   local version_file
-  version_file="$(get_project_root)/VERSION"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  version_file="$script_dir/VERSION"
 
   if [[ -f "$version_file" ]]; then
     tr -d '[:space:]' < "$version_file"
