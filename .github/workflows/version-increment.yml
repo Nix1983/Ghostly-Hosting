@@ -29,13 +29,13 @@ jobs:
       - name: Read current version
         id: current_version
         run: |
-          if [ -f VERSION ]; then
-            VERSION=$(tr -d '[:space:]' < VERSION)
+          if [ -f lib/VERSION ]; then
+            VERSION=$(tr -d '[:space:]' < lib/VERSION)
             echo "Current version: $VERSION"
             echo "version=$VERSION" >> $GITHUB_OUTPUT
           else
             echo "VERSION file not found, starting with 1.0.0"
-            echo "1.0.0" > VERSION
+            echo "1.0.0" > lib/VERSION
             echo "version=1.0.0" >> $GITHUB_OUTPUT
           fi
 
@@ -60,12 +60,12 @@ jobs:
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
           # Update VERSION file
-          echo "$NEW_VERSION" > VERSION
+          echo "$NEW_VERSION" > lib/VERSION
 
       - name: Check if version changed
         id: check_changes
         run: |
-          if git diff --quiet VERSION; then
+          if git diff --quiet lib/VERSION; then
             echo "No version change needed"
             echo "changed=false" >> $GITHUB_OUTPUT
           else
@@ -76,7 +76,7 @@ jobs:
       - name: Commit and push version update
         if: steps.check_changes.outputs.changed == 'true'
         run: |
-          git add VERSION
+          git add lib/VERSION
           git commit -m "chore: bump version to ${{ steps.new_version.outputs.version }} [skip ci]"
           git push
 
