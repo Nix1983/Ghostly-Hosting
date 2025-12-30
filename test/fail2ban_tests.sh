@@ -31,7 +31,7 @@ echo "✅ SOURCES LOADED"
 # Test fail2ban functions exist
 test_fail2ban_functions_exist() {
   local functions=(
-    "intsall_fail2ban"
+    "install_fail2ban"
     "remove_fail2ban"
     "configure_f2b"
     "show_f2b_status"

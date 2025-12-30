@@ -288,7 +288,7 @@ init_server() {
   print_double_line
 
   install_nginx
-  intsall_fail2ban
+  install_fail2ban
   install_certbot
   install_git
 
