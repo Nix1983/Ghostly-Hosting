@@ -1,6 +1,6 @@
 # Error Logging System
 
-This document describes the centralized error logging system implemented in the Blazor-Hosting project.
+This document describes the centralized error logging system implemented in the GhostlyHosting project.
 
 ## Overview
 

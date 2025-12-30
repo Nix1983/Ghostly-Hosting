@@ -398,7 +398,7 @@ apply_upcloud_firewall_rules() {
   _clear
   printf "\n"
 
-  printf "🧱 Applying firewall rules for Blazor Hosting on UpCloud (from config/desired_firewall_rules.json)\n"
+  printf "🧱 Applying firewall rules for GhostlyHosting on UpCloud (from config/desired_firewall_rules.json)\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   local project_root rules_file

@@ -1,6 +1,6 @@
 # Testing Guide
 
-This document describes the test suite for the Blazor-Hosting project and how to run and write tests.
+This document describes the test suite for the GhostlyHosting project and how to run and write tests.
 
 ## Test Suite Overview
 

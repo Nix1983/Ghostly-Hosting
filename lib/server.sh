@@ -254,7 +254,7 @@ update_server_and_show_status() {
 
 show_init_server_prompt() {
   clear
-  echo -e "\n🚀 \e[1;34mInitialize Server for Blazor Hosting\e[0m"
+  echo -e "\n🚀 \e[1;34mInitialize Server for GhostlyHosting\e[0m"
   print_double_line
 
   echo -e "\n📋 \e[1mThe following components will be installed and configured:\e[0m"
