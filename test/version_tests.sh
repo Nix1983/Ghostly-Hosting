@@ -19,7 +19,7 @@ echo "✅ SOURCES LOADED"
 
 test_version_file_exists() {
   echo "Testing: VERSION file exists"
-  local version_file="$ROOT_DIR/VERSION"
+  local version_file="$ROOT_DIR/lib/VERSION"
   
   if [[ -f "$version_file" ]]; then
     echo "✅ VERSION file exists at $version_file"
@@ -72,7 +72,7 @@ test_format_version_display() {
 
 test_version_file_content() {
   echo "Testing: VERSION file content is clean"
-  local version_file="$ROOT_DIR/VERSION"
+  local version_file="$ROOT_DIR/lib/VERSION"
   local raw_content
   raw_content=$(cat "$version_file")
   
