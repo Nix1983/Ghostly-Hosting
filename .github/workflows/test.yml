@@ -41,8 +41,8 @@ jobs:
       - name: Run installation tests
         run: |
           echo "Running installation test suite..."
-          chmod +x test/run_all_tests.sh
-          ./test/run_all_tests.sh
+          chmod +x run_tests.sh
+          ./run_tests.sh
       
       - name: Run server setup tests
         run: |

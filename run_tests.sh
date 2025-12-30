@@ -3,6 +3,7 @@
 # Note: We don't use set -e because we want to continue running tests even if some fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEST_DIR="$SCRIPT_DIR/test"
 
 echo "════════════════════════════════════════════════════════════════"
 echo "Running All Test Suites"
@@ -30,7 +31,7 @@ TOTAL_PASSED_ASSERTIONS=0
 TOTAL_FAILED_ASSERTIONS=0
 
 for test_file in "${TESTS[@]}"; do
-  test_path="$SCRIPT_DIR/$test_file"
+  test_path="$TEST_DIR/$test_file"
   
   if [[ ! -f "$test_path" ]]; then
     echo "⚠️  Test file not found: $test_file"
