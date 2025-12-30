@@ -215,8 +215,8 @@ test_expiry_check_in_launcher() {
 test_cleanup_on_success() {
   echo "🔧 Running test_cleanup_on_success"
   
-  # Check for cleanup in generated launcher
-  if grep -q 'echo "rm -rf' "$BUILD_SCRIPT"; then
+  # Check for cleanup in generated launcher (now using trap)
+  if grep -q 'cleanup_launcher' "$BUILD_SCRIPT" || grep -q 'echo "rm -rf' "$BUILD_SCRIPT"; then
     echo "✅ Cleanup of TMPDIR found in launcher"
   else
     echo "❌ Cleanup not found in launcher"
@@ -330,7 +330,7 @@ test_launcher_output_location() {
 test_launcher_is_executable() {
   echo "🔧 Running test_launcher_is_executable"
   
-  if grep -q 'chmod +x /usr/local/bin/ghostlyHosting' "$BUILD_SCRIPT"; then
+  if grep -q 'chmod +x.*OUTPUT_BINARY' "$BUILD_SCRIPT" || grep -q 'chmod +x /usr/local/bin/ghostlyHosting' "$BUILD_SCRIPT"; then
     echo "✅ Launcher is made executable"
   else
     echo "❌ chmod +x not found for launcher"
@@ -432,6 +432,107 @@ test_error_handling_exists() {
   fi
 }
 
+test_cleanup_trap_exists() {
+  echo "🔧 Running test_cleanup_trap_exists"
+  
+  if grep -q 'trap.*EXIT' "$BUILD_SCRIPT"; then
+    echo "✅ Cleanup trap on EXIT found"
+  else
+    echo "❌ No cleanup trap found"
+    return 1
+  fi
+}
+
+test_sudo_validation_exists() {
+  echo "🔧 Running test_sudo_validation_exists"
+  
+  if grep -q 'validate_sudo_access' "$BUILD_SCRIPT"; then
+    echo "✅ Sudo validation function found"
+  else
+    echo "❌ Sudo validation function not found"
+    return 1
+  fi
+}
+
+test_output_directory_validation() {
+  echo "🔧 Running test_output_directory_validation"
+  
+  if grep -q 'validate_output_directory' "$BUILD_SCRIPT"; then
+    echo "✅ Output directory validation found"
+  else
+    echo "❌ Output directory validation not found"
+    return 1
+  fi
+}
+
+test_file_validation_exists() {
+  echo "🔧 Running test_file_validation_exists"
+  
+  if grep -q 'validate_required_files' "$BUILD_SCRIPT"; then
+    echo "✅ Required files validation found"
+  else
+    echo "❌ Required files validation not found"
+    return 1
+  fi
+}
+
+test_gpg_key_not_displayed() {
+  echo "🔧 Running test_gpg_key_not_displayed"
+  
+  # Check that GPG_KEY is not echoed with its value
+  if grep -q 'echo.*GPG_KEY:' "$BUILD_SCRIPT" && ! grep -q 'not displayed for security' "$BUILD_SCRIPT"; then
+    echo "❌ GPG_KEY appears to be displayed in output"
+    return 1
+  else
+    echo "✅ GPG_KEY is not displayed for security"
+  fi
+}
+
+test_gpg_key_prompt_in_launcher() {
+  echo "🔧 Running test_gpg_key_prompt_in_launcher"
+  
+  # Check that launcher prompts for GPG key instead of having it hardcoded
+  if grep -q 'read.*GPG_KEY' "$BUILD_SCRIPT" || grep -q 'GPG passphrase' "$BUILD_SCRIPT"; then
+    echo "✅ Launcher prompts for GPG key instead of hardcoding"
+  else
+    echo "❌ Launcher may have hardcoded GPG key"
+    return 1
+  fi
+}
+
+test_overwrite_protection() {
+  echo "🔧 Running test_overwrite_protection"
+  
+  if grep -q 'already exists' "$BUILD_SCRIPT" || grep -q 'overwrite' "$BUILD_SCRIPT"; then
+    echo "✅ Overwrite protection found"
+  else
+    echo "❌ No overwrite protection found"
+    return 1
+  fi
+}
+
+test_error_messages_in_operations() {
+  echo "🔧 Running test_error_messages_in_operations"
+  
+  local operations_with_errors=0
+  
+  # Check for error handling in critical operations
+  if grep -q 'Failed to encrypt' "$BUILD_SCRIPT"; then
+    operations_with_errors=$((operations_with_errors + 1))
+  fi
+  
+  if grep -q 'Failed to extract' "$BUILD_SCRIPT" || grep -q 'Failed to decode' "$BUILD_SCRIPT"; then
+    operations_with_errors=$((operations_with_errors + 1))
+  fi
+  
+  if [[ $operations_with_errors -ge 2 ]]; then
+    echo "✅ Error messages found for critical operations"
+  else
+    echo "❌ Missing error messages for some operations (found $operations_with_errors)"
+    return 1
+  fi
+}
+
 # Run all tests
 echo ""
 test_script_exists
@@ -462,6 +563,14 @@ test_needrestart_mode_set
 test_main_execution_flow
 test_meta_marker_variable_expansion_bug
 test_error_handling_exists
+test_cleanup_trap_exists
+test_sudo_validation_exists
+test_output_directory_validation
+test_file_validation_exists
+test_gpg_key_not_displayed
+test_gpg_key_prompt_in_launcher
+test_overwrite_protection
+test_error_messages_in_operations
 
 echo ""
 echo "✅ All tests finished"
