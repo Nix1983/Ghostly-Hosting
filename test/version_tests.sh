@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+# Disable exit-on-error for this test file to allow proper test counting
+# set -e would cause premature exit when individual tests fail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -100,19 +101,19 @@ echo ""
 
 FAILED_TESTS=0
 
-test_version_file_exists || ((FAILED_TESTS++))
+test_version_file_exists || FAILED_TESTS=$((FAILED_TESTS + 1))
 echo ""
 
-test_get_app_version || ((FAILED_TESTS++))
+test_get_app_version || FAILED_TESTS=$((FAILED_TESTS + 1))
 echo ""
 
-test_version_format || ((FAILED_TESTS++))
+test_version_format || FAILED_TESTS=$((FAILED_TESTS + 1))
 echo ""
 
-test_format_version_display || ((FAILED_TESTS++))
+test_format_version_display || FAILED_TESTS=$((FAILED_TESTS + 1))
 echo ""
 
-test_version_file_content || ((FAILED_TESTS++))
+test_version_file_content || FAILED_TESTS=$((FAILED_TESTS + 1))
 echo ""
 
 echo "═══════════════════════════════════════════════════════════════"
