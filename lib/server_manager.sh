@@ -9,6 +9,7 @@ source ./lib/fail2ban.sh
 source ./lib/upcloud.sh
 source ./lib/dotnet.sh
 source ./lib/server.sh
+source ./lib/version.sh
 
 export DISABLE_CLEAR=true
 
@@ -22,7 +23,7 @@ show_server_manager_menu() {
   local choice
   while true; do
     clear
-    echo -e "\n🖥️ \e[1;34mServer Control Panel\e[0m | $SERVER_IPv4"
+    echo -e "\n🖥️ \e[1;34mServer Control Panel\e[0m | $SERVER_IPv4 | $(format_version_display)"
     print_double_line
 
     echo -e "\n 1) 🩺  Show Server Health   2) 🛡️  Fail2Ban Admin     3) 🧩  App Control Panel"

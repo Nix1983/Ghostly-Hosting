@@ -78,6 +78,7 @@ jobs:
           test -f README.md || exit 1
           test -f start.sh || exit 1
           test -f build.sh || exit 1
+          test -f VERSION || exit 1
           test -d lib || exit 1
           test -f lib/common.sh || exit 1
           test -f lib/const.sh || exit 1
@@ -97,6 +98,7 @@ jobs:
           test -f lib/app_manager.sh || exit 1
           test -f lib/timezone.sh || exit 1
           test -f lib/meta_data.sh || exit 1
+          test -f lib/version.sh || exit 1
           echo "✓ All required files present"
       
       - name: Verify test coverage
@@ -110,6 +112,7 @@ jobs:
           test -f test/log_tests.sh || exit 1
           test -f test/meta_data_tests.sh || exit 1
           test -f test/common_error_logging_tests.sh || exit 1
+          test -f test/version_tests.sh || exit 1
           
           echo "✓ Test coverage verified"
       
