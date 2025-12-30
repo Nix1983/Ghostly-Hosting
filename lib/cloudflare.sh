@@ -415,7 +415,7 @@ setup_cloudflare_dns_for_blazor() {
     fi
   done
 
-  printf "\n☁️  \033[1mCloudflare DNS Setup for Blazor Hosting\033[0m\n"
+  printf "\n☁️  \033[1mCloudflare DNS Setup for GhostlyHosting\033[0m\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   # Ask about proxy usage
@@ -434,7 +434,7 @@ setup_cloudflare_dns_for_blazor() {
 
   # A record
   if [[ -n "${SERVER_IPv4:-}" ]]; then
-    _upsert_dns_record "A" "$HOSTNAME_FQDN" "$SERVER_IPv4" "Blazor Hosting A-record" "$use_proxy"
+    _upsert_dns_record "A" "$HOSTNAME_FQDN" "$SERVER_IPv4" "GhostlyHosting A-record" "$use_proxy"
   else
     echo -e "❌ \e[31mSERVER_IPv4 is not set – skipping A record creation.\e[0m"
   fi
@@ -442,7 +442,7 @@ setup_cloudflare_dns_for_blazor() {
 
   # AAAA record (optional)
   if [[ -n "$SERVER_IPv6" ]]; then
-    _upsert_dns_record "AAAA" "$HOSTNAME_FQDN" "$SERVER_IPv6" "Blazor Hosting AAAA-record" "$use_proxy"
+    _upsert_dns_record "AAAA" "$HOSTNAME_FQDN" "$SERVER_IPv6" "GhostlyHosting AAAA-record" "$use_proxy"
     export CLOUDFLARE_IPV6_ENABLED=true
   else
     echo -e "↪️  \033[2mNo IPv6 detected – skipping AAAA record.\033[0m"
