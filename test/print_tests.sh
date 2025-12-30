@@ -90,12 +90,13 @@ test_print_line_output() {
   line=$(print_line)
   local length=${#line}
   
-  # Line should be consistent length (checking it's a reasonable length)
-  if [[ $length -gt 100 ]]; then
+  # Line should be at least 100 characters to be useful as a separator
+  local MIN_LINE_LENGTH=100
+  if [[ $length -gt $MIN_LINE_LENGTH ]]; then
     echo "✅ print_line: Produces line of length $length"
     return 0
   else
-    echo "❌ print_line: Line too short: $length characters"
+    echo "❌ print_line: Line too short: $length characters (minimum: $MIN_LINE_LENGTH)"
     return 1
   fi
 }
@@ -109,12 +110,13 @@ test_print_double_line_output() {
   line=$(print_double_line)
   local length=${#line}
   
-  # Double line should be same length as regular line
-  if [[ $length -gt 100 ]]; then
+  # Double line should be at least 100 characters to be useful as a separator
+  local MIN_LINE_LENGTH=100
+  if [[ $length -gt $MIN_LINE_LENGTH ]]; then
     echo "✅ print_double_line: Produces line of length $length"
     return 0
   else
-    echo "❌ print_double_line: Line too short: $length characters"
+    echo "❌ print_double_line: Line too short: $length characters (minimum: $MIN_LINE_LENGTH)"
     return 1
   fi
 }

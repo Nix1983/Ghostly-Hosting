@@ -50,10 +50,12 @@ for test_file in "${TESTS[@]}"; do
   echo "$output"
   
   # Count assertions
-  # Include all ✅ lines except "SOURCES LOADED", "All tests passed", and ".sh PASSED"
+  # Include all ✅ lines except meta lines like "SOURCES LOADED", "All tests passed", and ".sh PASSED"
   passed_count=$(echo "$output" | grep "^✅" | grep -v "SOURCES LOADED" | grep -v "All.*tests passed" | grep -v "\.sh PASSED" | wc -l)
-  # For failed, only count test result lines with pattern " function_name: " or " => "
-  # Exclude error messages which typically end with a period
+  
+  # For failed assertions, only count actual test result lines, not error messages from functions
+  # Test results have pattern: " function_name: " or " => "
+  # Error messages end with "." and don't match this pattern
   failed_count=$(echo "$output" | grep "^❌" | grep -E "( [a-z_][a-z_0-9]*: | => )" | grep -v "\.$" | wc -l)
   
   TOTAL_PASSED_ASSERTIONS=$((TOTAL_PASSED_ASSERTIONS + passed_count))
