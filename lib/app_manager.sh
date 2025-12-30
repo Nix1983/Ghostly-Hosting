@@ -11,6 +11,7 @@ source ./lib/dotnet.sh
 source ./lib/nginx.sh
 source ./lib/app.sh
 source ./lib/meta_data.sh
+source ./lib/version.sh
 
 
 rollback_app_deployment() {
@@ -205,9 +206,9 @@ show_app_manager_menu() {
   while true; do
     clear
     if [[ -n "${SERVER_IPv4:-}" ]]; then
-      echo -e "\n🧩 \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4"
+      echo -e "\n🧩 \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4 | $(format_version_display)"
     else
-      echo -e "\n🧩 \e[1;34mApp Control Panel\e[0m"
+      echo -e "\n🧩 \e[1;34mApp Control Panel\e[0m | $(format_version_display)"
     fi
     print_double_line
 
