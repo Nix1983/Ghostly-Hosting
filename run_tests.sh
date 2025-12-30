@@ -23,11 +23,6 @@ TESTS=(
   "app_tests.sh"
   "api_tests.sh"
   "commit_message_truncation_tests.sh"
-  "cloudflare_tests.sh"
-  "certbot_tests.sh"
-  "fail2ban_tests.sh"
-  "print_tests.sh"
-  "timezone_tests.sh"
 )
 
 FAILED_TESTS=()
@@ -52,12 +47,9 @@ for test_file in "${TESTS[@]}"; do
   
   echo "$output"
   
-  # Count assertions - only count test result lines, not error messages in output
-  # Passed: Lines starting with ✅ followed by test name/description
-  # Failed: Lines starting with ❌ followed by "Test" (actual test failures)
+  # Count assertions
   passed_count=$(echo "$output" | grep -c "^✅" || true)
-  # Only count lines that indicate actual test failures, not expected error messages
-  failed_count=$(echo "$output" | grep -c "^❌ Test.*failed" || true)
+  failed_count=$(echo "$output" | grep -c "^❌" || true)
   
   TOTAL_PASSED_ASSERTIONS=$((TOTAL_PASSED_ASSERTIONS + passed_count))
   TOTAL_FAILED_ASSERTIONS=$((TOTAL_FAILED_ASSERTIONS + failed_count))

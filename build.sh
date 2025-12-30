@@ -19,59 +19,27 @@ fi
 
 install_if_missing() {
   local package="$1"
-  
-  if [[ -z "$package" ]]; then
-    echo "❌ No package name provided to install_if_missing"
-    return 1
-  fi
-  
   if ! dpkg -s "$package" >/dev/null 2>&1; then
     echo "📦 Installing $package..."
-    if ! sudo apt-get update -qq; then
-      echo "❌ Failed to update package lists"
-      return 1
-    fi
-    if ! sudo apt-get install -y "$package"; then
-      echo "❌ Failed to install $package"
-      return 1
-    fi
-    echo "✅ $package installed successfully"
-  else
-    echo "✅ $package is already installed"
+    sudo apt-get update
+    sudo apt-get install -y "$package"
   fi
-  
-  return 0
 }
 
 check_and_install_dependencies() {
-  echo "🔍 Checking and installing dependencies..."
-  
-  local -a packages=(build-essential tar coreutils gnupg)
-  local failed=0
-  
-  for package in "${packages[@]}"; do
-    if ! install_if_missing "$package"; then
-      echo "⚠️  Failed to install $package"
-      ((failed++))
-    fi
-  done
-  
-  if [[ $failed -gt 0 ]]; then
-    echo "❌ $failed package(s) failed to install"
-    return 1
-  fi
+  install_if_missing build-essential
+  install_if_missing tar
+  install_if_missing coreutils
+  install_if_missing gnupg
 
-  # Verify required commands are available
-  local -a commands=(base64 gpg tar)
-  for cmd in "${commands[@]}"; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-      echo "❌ Required command '$cmd' is still missing after installation"
-      return 1
-    fi
-  done
-  
-  echo "✅ All dependencies are installed and available"
-  return 0
+  if ! command -v base64 >/dev/null; then
+    echo "❌ base64 command is missing."
+    exit 1
+  fi
+  if ! command -v gpg >/dev/null; then
+    echo "❌ gpg is missing."
+    exit 1
+  fi
 }
 
 read_expiry_date() {
@@ -97,80 +65,31 @@ read_expiry_date() {
 
 prepare_payload() {
   echo "🧩 Creating payload..."
-  
-  # Clean up any existing build artifacts
-  if ! rm -rf "$TMP_DIR" "$DEPLOY_DIR"; then
-    echo "❌ Failed to clean up existing directories"
-    return 1
-  fi
-  
-  if ! mkdir -p "$TMP_DIR" "$DEPLOY_DIR"; then
-    echo "❌ Failed to create build directories"
-    return 1
-  fi
+  rm -rf "$TMP_DIR" "$DEPLOY_DIR"
+  mkdir -p "$TMP_DIR" "$DEPLOY_DIR"
 
-  # Copy required files
-  if ! cp -r config "$TMP_DIR/"; then
-    echo "❌ Failed to copy config directory"
-    return 1
-  fi
-  
-  if ! cp -r lib "$TMP_DIR/"; then
-    echo "❌ Failed to copy lib directory"
-    return 1
-  fi
-  
-  if ! cp start.sh "$TMP_DIR/"; then
-    echo "❌ Failed to copy start.sh"
-    return 1
-  fi
-  
-  # Copy optional files (non-critical)
-  cp LICENSE README.md "$TMP_DIR/" 2>/dev/null || echo "ℹ️  Optional files (LICENSE, README.md) not copied"
+  cp -r config "$TMP_DIR/"
+  cp -r lib "$TMP_DIR/"
+  cp start.sh "$TMP_DIR/"
+  cp LICENSE README.md "$TMP_DIR/" 2>/dev/null || true
 
-  # Ensure no .env file is included (security measure)
+  # Ensure no .env file is included
   rm -f "$TMP_DIR/.env"
 
-  # Add expiry date if specified
-  if [[ -n "${EXPIRY:-}" ]]; then
+  if [[ -n "$EXPIRY" ]]; then
     echo "$EXPIRY" >"$TMP_DIR/.expiry"
   fi
 
-  # Create tarball
-  echo "📦 Creating tarball..."
-  if ! tar -czf "$PAYLOAD_TAR" -C "$TMP_DIR" .; then
-    echo "❌ Failed to create tarball"
-    return 1
-  fi
+  tar -czf "$PAYLOAD_TAR" -C "$TMP_DIR" .
 
-  # Encrypt payload
   echo "🔐 Encrypting payload..."
-  if ! gpg --symmetric --cipher-algo AES256 --batch --passphrase "$GPG_KEY" \
-    --output "$PAYLOAD_GPG" "$PAYLOAD_TAR"; then
-    echo "❌ Failed to encrypt payload"
-    return 1
-  fi
+  gpg --symmetric --cipher-algo AES256 --batch --passphrase "$GPG_KEY" \
+    --output "$PAYLOAD_GPG" "$PAYLOAD_TAR"
 
-  # Encode encrypted payload
   echo "📦 Encoding encrypted payload..."
-  if ! base64 "$PAYLOAD_GPG" >"$PAYLOAD_B64"; then
-    echo "❌ Failed to encode payload"
-    return 1
-  fi
+  base64 "$PAYLOAD_GPG" >"$PAYLOAD_B64"
 
-  # Calculate hash for verification
-  if ! PAYLOAD_HASH=$(sha256sum "$PAYLOAD_TAR" | awk '{print $1}'); then
-    echo "❌ Failed to calculate payload hash"
-    return 1
-  fi
-  
-  if [[ -z "$PAYLOAD_HASH" ]]; then
-    echo "❌ Payload hash is empty"
-    return 1
-  fi
-  
-  echo "✅ Payload prepared successfully (hash: ${PAYLOAD_HASH:0:16}...)"
-  return 0
+  PAYLOAD_HASH=$(sha256sum "$PAYLOAD_TAR" | awk '{print $1}')
 }
 
 create_launcher() {
