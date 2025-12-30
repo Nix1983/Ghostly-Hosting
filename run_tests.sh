@@ -23,6 +23,11 @@ TESTS=(
   "app_tests.sh"
   "api_tests.sh"
   "commit_message_truncation_tests.sh"
+  "cloudflare_tests.sh"
+  "certbot_tests.sh"
+  "fail2ban_tests.sh"
+  "print_tests.sh"
+  "timezone_tests.sh"
 )
 
 FAILED_TESTS=()
