@@ -60,13 +60,35 @@ load_env_once() {
 is_valid_ipv4() {
   local ip=$1
   
+  # Check for empty input
+  if [[ -z "$ip" ]]; then
+    _safe_log debug "is_valid_ipv4" "Empty IP address provided"
+    return 1
+  fi
+  
+  # Check basic format: x.x.x.x
   if [[ ! "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
     _safe_log debug "is_valid_ipv4" "Invalid IP format: $ip"
     return 1
   fi
 
+  # Validate each octet is 0-255
   IFS='.' read -r -a octets <<< "$ip"
+  
+  # Ensure we have exactly 4 octets
+  if [[ ${#octets[@]} -ne 4 ]]; then
+    _safe_log debug "is_valid_ipv4" "IP does not have 4 octets: $ip"
+    return 1
+  fi
+  
   for octet in "${octets[@]}"; do
+    # Check for leading zeros (except for "0" itself)
+    if [[ ${#octet} -gt 1 && "$octet" =~ ^0 ]]; then
+      _safe_log debug "is_valid_ipv4" "Invalid octet with leading zero in IP $ip: $octet"
+      return 1
+    fi
+    
+    # Validate range 0-255
     if ! ((octet >= 0 && octet <= 255)); then
       _safe_log debug "is_valid_ipv4" "Invalid octet value in IP $ip: $octet"
       return 1
