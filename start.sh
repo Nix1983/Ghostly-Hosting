@@ -104,9 +104,20 @@ init_and_load_env() {
       echo -e "💡 Recommended: Create an \e[1mAPI token\e[0m in your UpCloud dashboard"
       echo -en "🔗 Sign up at: "
       echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
+      echo -e "⚠️  Note: You can skip this by pressing Enter without entering a token,"
+      echo -e "          but UpCloud features (firewall, PTR) will not be available."
       print_line
 
-      read -rsp "🔑 Enter UpCloud API Token: " UPCLOUD_API_TOKEN && echo
+      read -rsp "🔑 Enter UpCloud API Token (or press Enter to skip): " UPCLOUD_API_TOKEN && echo
+
+      # Allow skipping with empty token
+      if [[ -z "$UPCLOUD_API_TOKEN" ]]; then
+        echo -e "\n⚠️  \e[33mSkipping UpCloud configuration.\e[0m"
+        echo -e "    UpCloud features will not be available."
+        upcloud_ok=false
+        sleep 2
+        break
+      fi
 
       if validate_upcloud_token "$UPCLOUD_API_TOKEN"; then
         upcloud_ok=true
@@ -115,7 +126,7 @@ init_and_load_env() {
       fi
 
       echo -e "\n❌ \e[31mAuthentication failed – invalid UpCloud API token.\e[0m"
-      echo -e "🔐 \e[2mWithout a valid token, hosting features cannot be used.\e[0m"
+      echo -e "🔐 \e[2mYou can try again or press Enter to skip.\e[0m"
       sleep 1
     done
   else
@@ -138,9 +149,20 @@ init_and_load_env() {
       echo -e "   • read:org  \e[2m(optional, if using org repos)\e[0m"
       echo -en "🔗 Generate token at: "
       echo -e "\e]8;;https://github.com/settings/tokens\e\\GitHub Page\e]8;;\e\\ 🡕"
+      echo -e "⚠️  Note: You can skip this by pressing Enter without entering a token,"
+      echo -e "          but GitHub deployment features will not be available."
       print_line
 
-      read -rp "🔑 Enter GitHub API Token: " GITHUB_API_TOKEN
+      read -rp "🔑 Enter GitHub API Token (or press Enter to skip): " GITHUB_API_TOKEN
+
+      # Allow skipping with empty token
+      if [[ -z "$GITHUB_API_TOKEN" ]]; then
+        echo -e "\n⚠️  \e[33mSkipping GitHub configuration.\e[0m"
+        echo -e "    GitHub deployment features will not be available."
+        github_ok=false
+        sleep 2
+        break
+      fi
 
       if validate_github_token "$GITHUB_API_TOKEN" "$GITHUB_API_BASE"; then
         github_ok=true
@@ -149,7 +171,7 @@ init_and_load_env() {
       fi
 
       echo -e "\n❌ \e[31mInvalid GitHub token – access denied.\e[0m"
-      echo -e "🔐 \e[2mWithout this token, deployments are not possible.\e[0m"
+      echo -e "🔐 \e[2mYou can try again or press Enter to skip.\e[0m"
       sleep 1
     done
   else
@@ -176,9 +198,20 @@ init_and_load_env() {
       echo -e "   • Zone:Zone:Read"
       echo -en "🔗 Create token at: "
       echo -e "\e]8;;https://dash.cloudflare.com/profile/api-tokens\e\\Cloudflare Page\e]8;;\e\\ 🡕"
+      echo -e "⚠️  Note: You can skip this by pressing Enter without entering a token,"
+      echo -e "          but Cloudflare DNS and SSL features will not be available."
       print_line
 
-      read -rp "🔑 Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
+      read -rp "🔑 Enter Cloudflare API Token (or press Enter to skip): " CLOUDFLARE_API_TOKEN
+
+      # Allow skipping with empty token
+      if [[ -z "$CLOUDFLARE_API_TOKEN" ]]; then
+        echo -e "\n⚠️  \e[33mSkipping Cloudflare configuration.\e[0m"
+        echo -e "    DNS and SSL features will not be available."
+        cloudflare_ok=false
+        sleep 2
+        break
+      fi
 
       if validate_cloudflare_token "$CLOUDFLARE_API_TOKEN"; then
         cloudflare_ok=true
@@ -187,7 +220,7 @@ init_and_load_env() {
       fi
 
       echo -e "\n❌ \e[31mInvalid Cloudflare token – access denied.\e[0m"
-      echo -e "🔐 \e[2mWithout this token, DNS & SSL setup cannot work.\e[0m"
+      echo -e "🔐 \e[2mYou can try again or press Enter to skip.\e[0m"
       sleep 2
     done
   else
@@ -196,19 +229,20 @@ init_and_load_env() {
 
   if [[ "$updated" == true ]]; then
     {
-      echo "CLOUDFLARE_API_TOKEN=\"$CLOUDFLARE_API_TOKEN\""
-      echo "UPCLOUD_API_TOKEN=\"$UPCLOUD_API_TOKEN\""
-      echo "GITHUB_API_TOKEN=\"$GITHUB_API_TOKEN\""
+      [[ -n "$CLOUDFLARE_API_TOKEN" ]] && echo "CLOUDFLARE_API_TOKEN=\"$CLOUDFLARE_API_TOKEN\""
+      [[ -n "$UPCLOUD_API_TOKEN" ]] && echo "UPCLOUD_API_TOKEN=\"$UPCLOUD_API_TOKEN\""
+      [[ -n "$GITHUB_API_TOKEN" ]] && echo "GITHUB_API_TOKEN=\"$GITHUB_API_TOKEN\""
     } >"$ENV_FILE"
     chmod 600 "$ENV_FILE"
 
     echo -e "\n✅ \e[1;32mYour configuration has been saved securely.\e[0m"
     echo -e "📁 Stored at: \e[2m$ENV_FILE\e[0m"
     echo -en "\n"
-    [[ "$upcloud_ok" == true ]] && echo -en "🟢 UpCloud\t" || echo -en "🔴 UpCloud\t"
-    [[ "$github_ok" == true ]] && echo -en "🟢 GitHub\t" || echo -en "🔴 GitHub\t"
-    [[ "$cloudflare_ok" == true ]] && echo -en "🟢 Cloudflare\n" || echo -en "🔴 Cloudflare\n"
-    echo -e "\n⏎ Press Enter to continue..."
+    [[ "$upcloud_ok" == true ]] && echo -en "🟢 UpCloud\t" || echo -en "⚪ UpCloud\t"
+    [[ "$github_ok" == true ]] && echo -en "🟢 GitHub\t" || echo -en "⚪ GitHub\t"
+    [[ "$cloudflare_ok" == true ]] && echo -en "🟢 Cloudflare\n" || echo -en "⚪ Cloudflare\n"
+    echo -e "\n💡 Services without tokens (⚪) can be configured later if needed."
+    echo -e "⏎ Press Enter to continue..."
     read -r
   fi
 

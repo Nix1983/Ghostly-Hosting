@@ -7,6 +7,13 @@ source ./lib/print.sh
 
 CONFIG_FILE="/etc/fail2ban/jail.local"
 
+# ============================================================================
+# FAIL2BAN INSTALLATION AND REMOVAL
+# ============================================================================
+
+# Remove Fail2Ban completely from the system
+# Stops services, purges packages, removes config files
+# Also removes Python modules and binaries
 remove_fail2ban() {
   systemctl stop fail2ban 2>/dev/null || true
   systemctl disable fail2ban 2>/dev/null || true
@@ -23,7 +30,10 @@ remove_fail2ban() {
   echo -e "🗑️ Removed Fail2Ban configuration, binaries and Python modules."
 }
 
-intsall_fail2ban(){
+# Install and configure Fail2Ban intrusion prevention
+# Includes workaround for Ubuntu 20 broken installation
+# Returns: Exits on failure, continues on success
+install_fail2ban(){
     echo -e "\n🛡️ \e[1mInstalling Fail2Ban (security)...\e[0m"
   if ! command -v fail2ban-client >/dev/null 2>&1; then
     if apt-get install -y fail2ban >/dev/null 2>&1; then
