@@ -5,17 +5,7 @@ set -e
 # Logging functions are optional and will be used if available
 # Other scripts should source log.sh first if they want logging support
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
 # Helper function for safe logging - only logs if log function exists
-# This allows common.sh to be used without log.sh dependency
-# Arguments:
-#   $1: log level (error, warning, info, debug)
-#   $2: context (function name)
-#   $3: message
-#   $4: exit code (optional, for error level)
 _safe_log() {
   local level="$1"
   local context="$2"
@@ -38,13 +28,6 @@ _safe_log() {
   esac
 }
 
-# ============================================================================
-# ENVIRONMENT MANAGEMENT
-# ============================================================================
-
-# Load environment variables from .env file
-# Only loads once per session (guard: __ENV_LOADED_ALREADY)
-# Returns: 0 on success, 1 on failure
 load_env_once() {
   if [[ -n "${__ENV_LOADED_ALREADY:-}" ]]; then
     return 0
@@ -73,51 +56,17 @@ load_env_once() {
   return 0
 }
 
-# ============================================================================
-# IP ADDRESS VALIDATION
-# ============================================================================
 
-# Validate IPv4 address format and range
-# Checks for:
-#   - Proper format (x.x.x.x)
-#   - Each octet in range 0-255
-#   - No leading zeros (security consideration)
-#   - Exactly 4 octets
-# Arguments:
-#   $1: IP address to validate
-# Returns: 0 if valid, 1 if invalid
 is_valid_ipv4() {
   local ip=$1
   
-  # Check for empty input
-  if [[ -z "$ip" ]]; then
-    _safe_log debug "is_valid_ipv4" "Empty IP address provided"
-    return 1
-  fi
-  
-  # Check basic format: x.x.x.x
   if [[ ! "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
     _safe_log debug "is_valid_ipv4" "Invalid IP format: $ip"
     return 1
   fi
 
-  # Validate each octet is 0-255
   IFS='.' read -r -a octets <<< "$ip"
-  
-  # Ensure we have exactly 4 octets
-  if [[ ${#octets[@]} -ne 4 ]]; then
-    _safe_log debug "is_valid_ipv4" "IP does not have 4 octets: $ip"
-    return 1
-  fi
-  
   for octet in "${octets[@]}"; do
-    # Check for leading zeros (except for "0" itself)
-    if [[ ${#octet} -gt 1 && "$octet" =~ ^0 ]]; then
-      _safe_log debug "is_valid_ipv4" "Invalid octet with leading zero in IP $ip: $octet"
-      return 1
-    fi
-    
-    # Validate range 0-255
     if ! ((octet >= 0 && octet <= 255)); then
       _safe_log debug "is_valid_ipv4" "Invalid octet value in IP $ip: $octet"
       return 1
@@ -127,15 +76,6 @@ is_valid_ipv4() {
   return 0
 } 
 
-# ============================================================================
-# SERVER IP ADDRESS MANAGEMENT
-# ============================================================================
-
-# Load and cache server's public IPv4 and IPv6 addresses
-# Only fetches once per session (guard: __SERVER_IP_LOADED)
-# Uses external services (api.ipify.org) to determine public IPs
-# Sets global variables: SERVER_IPv4, SERVER_IPv6
-# Returns: 0 on success (at least one IP found), exits on failure
 load_server_ip_once() {
   if [[ -n "${__SERVER_IP_LOADED:-}" ]]; then
     return 0
@@ -157,14 +97,6 @@ load_server_ip_once() {
   __SERVER_IP_LOADED=1
 }
 
-# ============================================================================
-# SYSTEM CONFIGURATION
-# ============================================================================
-
-# Create and activate swap space if not already configured
-# Creates a 2GB swap file at /swapfile
-# Automatically adds to /etc/fstab for persistence
-# Returns: 0 on success, 1 on failure
 set_swap() {
   echo -e "\n🧮 \e[1;34mChecking swap space...\e[0m"
   echo "─────────────────────────────────────────────────────────────"
@@ -204,11 +136,6 @@ set_swap() {
   fi
 }
 
-# Update system packages (Ubuntu/Debian)
-# Performs: apt update, apt upgrade, autoremove, autoclean
-# Uses non-interactive mode with safe defaults
-# Logs all operations to /tmp/apt-*.log
-# Returns: 0 on success, 1 on failure
 update_server() {
   echo "📦 Updating system packages (non-interactive)..."
   export DEBIAN_FRONTEND=noninteractive
@@ -241,14 +168,6 @@ update_server() {
   _safe_log info "update_server" "System package update completed successfully"
 }
 
-# ============================================================================
-# PATH AND PROJECT UTILITIES
-# ============================================================================
-
-# Get the absolute path to the project root directory
-# Walks up the BASH_SOURCE stack to find lib/common.sh
-# Returns: Absolute path to project root (parent of lib/)
-#          Prints "." and returns 1 on failure
 get_project_root() {
   local i=0
   local source
@@ -277,16 +196,6 @@ get_project_root() {
   echo "$dir"
 }
 
-# ============================================================================
-# USER INTERACTION AND CONFIRMATION
-# ============================================================================
-
-# Display a random confirmation code and wait for user to enter it
-# Used for dangerous operations (deletion, etc.)
-# Generates a 5-digit random code
-# Supports backspace/delete key handling
-# Arguments: None
-# Returns: 0 if code matches, 1 if cancelled or mismatch
 confirm_action_code() {
   local confirm_code user_input char
   confirm_code=$((RANDOM % 90000 + 10000))
@@ -347,13 +256,6 @@ confirm_action_code() {
   return 0
 }
 
-# Read menu choice from user with input validation
-# Supports single-key or multi-digit input
-# Handles backspace/delete keys
-# Arguments:
-#   $1: Maximum valid choice number
-# Sets: REPLY variable with user's choice
-# Returns: 0 always (caller should check REPLY)
 read_menu_choice() {
   local max="$1"
   local input="" char
@@ -423,17 +325,6 @@ read_menu_choice() {
   return 0
 }
 
-# ============================================================================
-# DOMAIN AND SERVICE NAME PARSING
-# ============================================================================
-
-# Extract FQDN from app directory path
-# Examples:
-#   /var/www/example.com/root -> example.com
-#   /var/www/example.com/myapp -> myapp.example.com
-# Arguments:
-#   $1: App directory path
-# Returns: FQDN (via stdout)
 resolve_domain_from_app_dir() {
   local app_dir="$1"
   local subdir domain

@@ -1,6 +1,5 @@
 #!/bin/bash
-# Disable exit-on-error for this test file to allow proper test counting
-# set -e would cause premature exit when individual tests fail
+set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -19,7 +18,7 @@ echo "✅ SOURCES LOADED"
 
 test_version_file_exists() {
   echo "Testing: VERSION file exists"
-  local version_file="$ROOT_DIR/lib/VERSION"
+  local version_file="$ROOT_DIR/VERSION"
   
   if [[ -f "$version_file" ]]; then
     echo "✅ VERSION file exists at $version_file"
@@ -72,7 +71,7 @@ test_format_version_display() {
 
 test_version_file_content() {
   echo "Testing: VERSION file content is clean"
-  local version_file="$ROOT_DIR/lib/VERSION"
+  local version_file="$ROOT_DIR/VERSION"
   local raw_content
   raw_content=$(cat "$version_file")
   
@@ -101,19 +100,19 @@ echo ""
 
 FAILED_TESTS=0
 
-test_version_file_exists || FAILED_TESTS=$((FAILED_TESTS + 1))
+test_version_file_exists || ((FAILED_TESTS++))
 echo ""
 
-test_get_app_version || FAILED_TESTS=$((FAILED_TESTS + 1))
+test_get_app_version || ((FAILED_TESTS++))
 echo ""
 
-test_version_format || FAILED_TESTS=$((FAILED_TESTS + 1))
+test_version_format || ((FAILED_TESTS++))
 echo ""
 
-test_format_version_display || FAILED_TESTS=$((FAILED_TESTS + 1))
+test_format_version_display || ((FAILED_TESTS++))
 echo ""
 
-test_version_file_content || FAILED_TESTS=$((FAILED_TESTS + 1))
+test_version_file_content || ((FAILED_TESTS++))
 echo ""
 
 echo "═══════════════════════════════════════════════════════════════"

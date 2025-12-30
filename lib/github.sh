@@ -390,5 +390,5 @@ save_repo_metadata() {
           commit_message: $message
         }' > "$meta_file"
 
-  echo -e "📝 Metadata written to \e[2m$meta_file\e[0m"
+  echo -e "📝 Metadata written to \e[2m$]()"
 }
