@@ -52,9 +52,12 @@ for test_file in "${TESTS[@]}"; do
   
   echo "$output"
   
-  # Count assertions
+  # Count assertions - only count test result lines, not error messages in output
+  # Passed: Lines starting with ✅ followed by test name/description
+  # Failed: Lines starting with ❌ followed by "Test" (actual test failures)
   passed_count=$(echo "$output" | grep -c "^✅" || true)
-  failed_count=$(echo "$output" | grep -c "^❌" || true)
+  # Only count lines that indicate actual test failures, not expected error messages
+  failed_count=$(echo "$output" | grep -c "^❌ Test.*failed" || true)
   
   TOTAL_PASSED_ASSERTIONS=$((TOTAL_PASSED_ASSERTIONS + passed_count))
   TOTAL_FAILED_ASSERTIONS=$((TOTAL_FAILED_ASSERTIONS + failed_count))
