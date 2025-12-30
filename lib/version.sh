@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Source common.sh for get_project_root function
+# shellcheck disable=SC1091
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
 # Version management functions
 
 get_app_version() {
