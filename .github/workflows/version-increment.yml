@@ -30,7 +30,7 @@ jobs:
         id: current_version
         run: |
           if [ -f VERSION ]; then
-            VERSION=$(cat VERSION | tr -d '[:space:]')
+            VERSION=$(tr -d '[:space:]' < VERSION)
             echo "Current version: $VERSION"
             echo "version=$VERSION" >> $GITHUB_OUTPUT
           else
