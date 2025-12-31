@@ -61,8 +61,16 @@ init_and_load_env() {
   fi
 
   CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ghostly-hosting"
-  ENV_FILE="$CONFIG_DIR/.env"
+  ENV_FILE="$CONFIG_DIR/.env.secure"
   mkdir -p "$CONFIG_DIR"
+
+  # Migrate from old .env to .env.secure
+  if [[ -f "$CONFIG_DIR/.env" ]] && [[ ! -f "$ENV_FILE" ]]; then
+    echo "🔄 Migrating configuration to new format..."
+    mv "$CONFIG_DIR/.env" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    echo "✅ Migration complete"
+  fi
 
   local updated=false
   local upcloud_ok=false github_ok=false cloudflare_ok=false
