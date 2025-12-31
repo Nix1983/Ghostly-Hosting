@@ -32,11 +32,10 @@ The version number is automatically read from `lib/VERSION`.
 
 ## What Gets Packaged
 
-The installer includes all necessary files for GhostlyHosting:
+The installer includes only the essential runtime files for GhostlyHosting:
 
 - `start.sh` - Main entry point
-- `run_tests.sh` - Test runner
-- `upload.bat` - Windows upload script
+- `LICENSE` - MIT License file
 - `lib/` - All library scripts including:
   - `app.sh`, `app_manager.sh`
   - `certbot.sh`, `cloudflare.sh`
@@ -50,8 +49,6 @@ The installer includes all necessary files for GhostlyHosting:
   - `VERSION` - Version file
 - `config/` - Configuration files
   - `desired_firewall_rules.json`
-- `docs/` - Documentation (optional)
-- `test/` - Test files (optional)
 
 ## Security
 

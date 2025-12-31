@@ -77,15 +77,10 @@ cp "$SCRIPT_DIR/start.sh" "$BUILD_DIR/ghostly-hosting/" || {
   exit 1
 }
 
-echo "  • run_tests.sh"
-cp "$SCRIPT_DIR/run_tests.sh" "$BUILD_DIR/ghostly-hosting/" || {
-  echo -e "${RED}❌ Failed to copy run_tests.sh${NC}"
-  exit 1
-}
-
-echo "  • upload.bat"
-cp "$SCRIPT_DIR/upload.bat" "$BUILD_DIR/ghostly-hosting/" || {
-  echo -e "${RED}❌ Failed to copy upload.bat${NC}"
+# Copy LICENSE file
+echo "  • LICENSE"
+cp "$SCRIPT_DIR/LICENSE" "$BUILD_DIR/ghostly-hosting/" || {
+  echo -e "${RED}❌ Failed to copy LICENSE${NC}"
   exit 1
 }
 
@@ -102,22 +97,6 @@ cp -r "$SCRIPT_DIR/config" "$BUILD_DIR/ghostly-hosting/" || {
   echo -e "${RED}❌ Failed to copy config directory${NC}"
   exit 1
 }
-
-# Copy docs directory (optional)
-if [[ -d "$SCRIPT_DIR/docs" ]]; then
-  echo "  • docs/ ($(find "$SCRIPT_DIR/docs" -type f | wc -l) files)"
-  cp -r "$SCRIPT_DIR/docs" "$BUILD_DIR/ghostly-hosting/" || {
-    echo -e "${YELLOW}⚠ Warning: Failed to copy docs directory${NC}"
-  }
-fi
-
-# Copy test directory (optional)
-if [[ -d "$SCRIPT_DIR/test" ]]; then
-  echo "  • test/ ($(find "$SCRIPT_DIR/test" -type f | wc -l) files)"
-  cp -r "$SCRIPT_DIR/test" "$BUILD_DIR/ghostly-hosting/" || {
-    echo -e "${YELLOW}⚠ Warning: Failed to copy test directory${NC}"
-  }
-fi
 
 echo "─────────────────────────────────────────────────────────────────"
 echo -e "${GREEN}✓ Files collected${NC}"
