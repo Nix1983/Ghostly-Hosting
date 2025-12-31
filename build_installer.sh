@@ -65,29 +65,39 @@ echo ""
 echo "Collecting files..."
 mkdir -p "$BUILD_DIR/ghostly-hosting"
 
+# Track files being copied
+echo ""
+echo -e "${CYAN}Files being packaged:${NC}"
+echo "─────────────────────────────────────────────────────────────────"
+
 # Copy main scripts
+echo "  • start.sh"
 cp "$SCRIPT_DIR/start.sh" "$BUILD_DIR/ghostly-hosting/" || {
   echo -e "${RED}❌ Failed to copy start.sh${NC}"
   exit 1
 }
 
+echo "  • run_tests.sh"
 cp "$SCRIPT_DIR/run_tests.sh" "$BUILD_DIR/ghostly-hosting/" || {
   echo -e "${RED}❌ Failed to copy run_tests.sh${NC}"
   exit 1
 }
 
+echo "  • upload.bat"
 cp "$SCRIPT_DIR/upload.bat" "$BUILD_DIR/ghostly-hosting/" || {
   echo -e "${RED}❌ Failed to copy upload.bat${NC}"
   exit 1
 }
 
 # Copy lib directory
+echo "  • lib/ ($(find "$SCRIPT_DIR/lib" -type f | wc -l) files)"
 cp -r "$SCRIPT_DIR/lib" "$BUILD_DIR/ghostly-hosting/" || {
   echo -e "${RED}❌ Failed to copy lib directory${NC}"
   exit 1
 }
 
 # Copy config directory
+echo "  • config/ ($(find "$SCRIPT_DIR/config" -type f | wc -l) files)"
 cp -r "$SCRIPT_DIR/config" "$BUILD_DIR/ghostly-hosting/" || {
   echo -e "${RED}❌ Failed to copy config directory${NC}"
   exit 1
@@ -95,6 +105,7 @@ cp -r "$SCRIPT_DIR/config" "$BUILD_DIR/ghostly-hosting/" || {
 
 # Copy docs directory (optional)
 if [[ -d "$SCRIPT_DIR/docs" ]]; then
+  echo "  • docs/ ($(find "$SCRIPT_DIR/docs" -type f | wc -l) files)"
   cp -r "$SCRIPT_DIR/docs" "$BUILD_DIR/ghostly-hosting/" || {
     echo -e "${YELLOW}⚠ Warning: Failed to copy docs directory${NC}"
   }
@@ -102,11 +113,13 @@ fi
 
 # Copy test directory (optional)
 if [[ -d "$SCRIPT_DIR/test" ]]; then
+  echo "  • test/ ($(find "$SCRIPT_DIR/test" -type f | wc -l) files)"
   cp -r "$SCRIPT_DIR/test" "$BUILD_DIR/ghostly-hosting/" || {
     echo -e "${YELLOW}⚠ Warning: Failed to copy test directory${NC}"
   }
 fi
 
+echo "─────────────────────────────────────────────────────────────────"
 echo -e "${GREEN}✓ Files collected${NC}"
 echo ""
 
@@ -129,7 +142,7 @@ echo ""
 # Encrypt archive
 echo "Encrypting archive..."
 ENCRYPTED_FILE="$BUILD_DIR/ghostly-hosting.tar.gz.enc"
-openssl enc -aes-256-cbc -salt -in "$ARCHIVE_FILE" -out "$ENCRYPTED_FILE" -k "$ENCRYPTION_PASSWORD" || {
+openssl enc -aes-256-cbc -salt -pbkdf2 -iter 10000 -in "$ARCHIVE_FILE" -out "$ENCRYPTED_FILE" -k "$ENCRYPTION_PASSWORD" || {
   echo -e "${RED}❌ Failed to encrypt archive${NC}"
   exit 1
 }
@@ -255,7 +268,7 @@ INSTALLER_HEADER_EOF
 } >>"$OUTPUT_FILE"
 
 cat >>"$OUTPUT_FILE" <<'INSTALLER_DECRYPT_EOF'
-openssl enc -aes-256-cbc -d -in "$TEMP_DIR/payload.enc" -out "$TEMP_DIR/ghostly-hosting.tar.gz" -k "$ENCRYPTION_PASSWORD" || {
+openssl enc -aes-256-cbc -d -pbkdf2 -iter 10000 -in "$TEMP_DIR/payload.enc" -out "$TEMP_DIR/ghostly-hosting.tar.gz" -k "$ENCRYPTION_PASSWORD" || {
   echo -e "${RED}❌ Failed to decrypt payload${NC}"
   exit 1
 }
