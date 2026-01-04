@@ -197,7 +197,7 @@ fi
 
 ### Code Clarity - Before
 ```bash
-# Durchlaufe BASH_SOURCE-Stack, bis wir aus dem lib-Verzeichnis kommen
+# Traverse BASH_SOURCE stack until we exit the lib directory
 while source="${BASH_SOURCE[$i]}"; do
   if [[ "$source" == */lib/common.sh ]]; then
     break

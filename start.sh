@@ -28,7 +28,7 @@ ensure_required_tools_installed() {
   echo -e "📌 \e[2mNote: This installation is only needed on first run.\e[0m"
   echo -e "📦 Installing missing components... \e[2mPlease wait\e[0m"
 
-  # Spinner anzeigen
+  # Display spinner
   local pid spinner i
   (
     apt-get update -qq >/dev/null 2>&1
