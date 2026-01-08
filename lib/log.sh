@@ -43,7 +43,7 @@ log_error() {
   
   # Also log to stderr if debug mode
   if [[ "$DEBUG_MODE" == "true" ]]; then
-    echo "❌ [$context] $message" >&2
+    echo " [$context] $message" >&2
   fi
 }
 
@@ -60,7 +60,7 @@ log_warning() {
   echo "[$timestamp] [WARNING] [$context] $message" >> "$ERROR_LOG_FILE" 2>/dev/null || true
   
   if [[ "$DEBUG_MODE" == "true" ]]; then
-    echo "⚠️  [$context] $message" >&2
+    echo "  [$context] $message" >&2
   fi
 }
 
@@ -77,7 +77,7 @@ log_info() {
   echo "[$timestamp] [INFO] [$context] $message" >> "$ERROR_LOG_FILE" 2>/dev/null || true
   
   if [[ "$DEBUG_MODE" == "true" ]]; then
-    echo "ℹ️  [$context] $message" >&2
+    echo "  [$context] $message" >&2
   fi
 }
 
@@ -94,7 +94,7 @@ log_debug() {
   _init_error_logging
   
   echo "[$timestamp] [DEBUG] [$context] $message" >> "$ERROR_LOG_FILE" 2>/dev/null || true
-  echo "🔍 [$context] $message" >&2
+  echo " [$context] $message" >&2
 }
 
 
@@ -124,19 +124,19 @@ _show_log_file_menu() {
   local domain="$3"
 
   if [[ ! -d "$log_dir" ]]; then
-    echo -e "\n❌ No log directory found at: \e[2m$log_dir\e[0m"
+    echo -e "\n No log directory found at: \e[2m$log_dir\e[0m"
     print_press_any_key
     return
   fi
 
   while true; do
     clear
-    echo -e "\n$title 📁 \e[2m$log_dir\e[0m"
+    echo -e "\n$title  \e[2m$log_dir\e[0m"
     print_double_line
 
     mapfile -t log_files < <(find "$log_dir" -maxdepth 1 -type f \( -iname "*.log" -o -iname "*.txt" -o -iname "*.log.json" \) -size +0c -printf "%T@ %p\n" | sort -nr | cut -d' ' -f2-)
     if (( ${#log_files[@]} == 0 )); then
-      echo -e "\n  ℹ️  No non-empty log files found.\n"
+      echo -e "\n    No non-empty log files found.\n"
     else
       local i=1 row=""
       for f in "${log_files[@]}"; do
@@ -148,14 +148,14 @@ _show_log_file_menu() {
         else
           date_display=$(date -r "$f" "+%d-%m-%Y")
         fi
-        row+=" $(printf "%2d) 📄 %-10s \e[2m(%3s KB)\e[0m   " "$i" "$date_display" "$size_kb")"
+        row+=" $(printf "%2d)  %-10s \e[2m(%3s KB)\e[0m   " "$i" "$date_display" "$size_kb")"
         ((i % 3 == 0)) && { echo -e "$row"; row=""; }
         ((i++))
       done
       [[ -n "$row" ]] && echo -e "$row"
     fi
 
-    echo -e "\n  $(print_back_to_menu)  🔗 \e[94m(https://$domain)\e[0m"
+    echo -e "\n  $(print_back_to_menu)   \e[94m(https://$domain)\e[0m"
     read_menu_choice "${#log_files[@]}"
     echo ""
 
@@ -163,7 +163,7 @@ _show_log_file_menu() {
       return
     elif [[ "$REPLY" =~ ^[0-9]+$ && "$REPLY" -ge 1 && "$REPLY" -le "${#log_files[@]}" ]]; then
       local file="${log_files[$((REPLY - 1))]}"
-      echo -e "\n📖 Viewing: \e[36m$(basename "$file")\e[0m"
+      echo -e "\n Viewing: \e[36m$(basename "$file")\e[0m"
       _view_log_file_filtered "$file"
     else
       print_invalid_selection
@@ -177,7 +177,7 @@ show_app_log_files() {
   local domain log_dir
   log_dir=$(resolve_log_folder_from_service_name "$service")
   domain=$(resolve_domain_from_service_name "$service")
-  _show_log_file_menu "$log_dir" "🧩 Application Logs:" "$domain"
+  _show_log_file_menu "$log_dir" " Application Logs:" "$domain"
 }
 
 show_webserver_access_logs() {
@@ -186,7 +186,7 @@ show_webserver_access_logs() {
   log_dir=$(resolve_log_folder_from_service_name "$service")
   domain=$(resolve_domain_from_service_name "$service")
   log_dir="$log_dir$WEB_LOGS_ACCESS_DIR"
-  _show_log_file_menu "$log_dir" "🌐 Web Server Access Logs:" "$domain"
+  _show_log_file_menu "$log_dir" " Web Server Access Logs:" "$domain"
 }
 
 show_webserver_error_logs() {
@@ -195,7 +195,7 @@ show_webserver_error_logs() {
   log_dir=$(resolve_log_folder_from_service_name "$service")
   domain=$(resolve_domain_from_service_name "$service")
   log_dir="$log_dir$WEB_LOGS_ERROR_DIR"
-  _show_log_file_menu "$log_dir" "⚠️ Web Server Error Logs:" "$domain"
+  _show_log_file_menu "$log_dir" " Web Server Error Logs:" "$domain"
 }
 
 show_log_menu() {
@@ -205,10 +205,10 @@ show_log_menu() {
 
   while true; do
     clear
-    echo -e "\n📊 \033[1mLog Viewer:🔗 \e[94m($url)\e[0m"
+    echo -e "\n \033[1mLog Viewer: \e[94m($url)\e[0m"
     print_double_line
-    echo -e "\n 1) 🌐 Access Logs    \e[2m(Nginx access.log)\e[0m       2) ⚠️ Error Logs  \e[2m(Nginx error.log)\e[0m"
-    echo -e "\n 3) 🧩 App Logs       \e[2m(Serilog, runtime etc.)\e[0m  $(print_back_to_menu)\n"
+    echo -e "\n 1)  Access Logs    \e[2m(Nginx access.log)\e[0m       2)  Error Logs  \e[2m(Nginx error.log)\e[0m"
+    echo -e "\n 3)  App Logs       \e[2m(Serilog, runtime etc.)\e[0m  $(print_back_to_menu)\n"
     read_menu_choice 3
 
     case "$REPLY" in

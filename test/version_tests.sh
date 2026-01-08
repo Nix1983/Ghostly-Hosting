@@ -5,25 +5,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 if ! source "$ROOT_DIR/lib/common.sh"; then
-  echo "❌ Failed to source common.sh"
+  echo " Failed to source common.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/version.sh"; then
-  echo "❌ Failed to source version.sh"
+  echo " Failed to source version.sh"
   exit 1
 fi
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 
 test_version_file_exists() {
   echo "Testing: VERSION file exists"
   local version_file="$ROOT_DIR/lib/VERSION"
   
   if [[ -f "$version_file" ]]; then
-    echo "✅ VERSION file exists at $version_file"
+    echo " VERSION file exists at $version_file"
   else
-    echo "❌ VERSION file not found at $version_file"
+    echo " VERSION file not found at $version_file"
     return 1
   fi
 }
@@ -34,9 +34,9 @@ test_get_app_version() {
   version=$(get_app_version)
   
   if [[ -n "$version" && "$version" != "unknown" ]]; then
-    echo "✅ get_app_version returned: $version"
+    echo " get_app_version returned: $version"
   else
-    echo "❌ get_app_version returned invalid version: $version"
+    echo " get_app_version returned invalid version: $version"
     return 1
   fi
 }
@@ -48,9 +48,9 @@ test_version_format() {
   
   # Check if version matches semantic versioning pattern (x.y.z)
   if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "✅ Version format is valid: $version"
+    echo " Version format is valid: $version"
   else
-    echo "❌ Version format is invalid: $version (expected x.y.z)"
+    echo " Version format is invalid: $version (expected x.y.z)"
     return 1
   fi
 }
@@ -62,9 +62,9 @@ test_format_version_display() {
   
   # Check if version starts with 'v'
   if [[ "$formatted" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "✅ format_version_display returned: $formatted"
+    echo " format_version_display returned: $formatted"
   else
-    echo "❌ format_version_display returned invalid format: $formatted (expected vx.y.z)"
+    echo " format_version_display returned invalid format: $formatted (expected vx.y.z)"
     return 1
   fi
 }
@@ -77,16 +77,16 @@ test_version_file_content() {
   
   # Check for no leading/trailing whitespace
   if [[ "$raw_content" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "✅ VERSION file content is clean: $raw_content"
+    echo " VERSION file content is clean: $raw_content"
   else
-    echo "⚠️  VERSION file may have whitespace or invalid format: '$raw_content'"
+    echo "  VERSION file may have whitespace or invalid format: '$raw_content'"
     # Still pass if get_app_version works correctly
     local cleaned
     cleaned=$(get_app_version)
     if [[ "$cleaned" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      echo "✅ get_app_version correctly cleaned the version: $cleaned"
+      echo " get_app_version correctly cleaned the version: $cleaned"
     else
-      echo "❌ VERSION file content invalid even after cleaning"
+      echo " VERSION file content invalid even after cleaning"
       return 1
     fi
   fi
@@ -117,9 +117,9 @@ echo ""
 
 echo "═══════════════════════════════════════════════════════════════"
 if [[ $FAILED_TESTS -eq 0 ]]; then
-  echo "✅ All version tests passed!"
+  echo " All version tests passed!"
   exit 0
 else
-  echo "❌ $FAILED_TESTS test(s) failed"
+  echo " $FAILED_TESTS test(s) failed"
   exit 1
 fi

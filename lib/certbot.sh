@@ -10,35 +10,35 @@ remove_certbot() {
 
   rm -rf /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt
 
-  echo -e "🗑️ Removed Certbot and all certificate data."
+  echo -e " Removed Certbot and all certificate data."
 }
 
 install_certbot(){
-   echo -e "\n📜 \e[1mInstalling Certbot (for HTTPS)...\e[0m"
+   echo -e "\n \e[1mInstalling Certbot (for HTTPS)...\e[0m"
   if ! command -v certbot >/dev/null 2>&1; then
     if apt-get install -y certbot python3-certbot >/dev/null 2>&1; then
-      echo "✅ Certbot installed."
+      echo " Certbot installed."
     else
-      echo -e "❌ \e[31mFailed to install Certbot.\e[0m"
+      echo -e " \e[31mFailed to install Certbot.\e[0m"
       exit 1
     fi
   else
-    echo "✅ Certbot is already installed."
+    echo " Certbot is already installed."
   fi
 
   if systemctl list-unit-files --type=timer | grep -q '^certbot.timer'; then
     systemctl enable certbot.timer >/dev/null 2>&1
     systemctl start certbot.timer >/dev/null 2>&1
-    echo -e "✅ certbot.timer enabled."
+    echo -e " certbot.timer enabled."
   else
-    echo -e "⚠️  \e[33mcertbot.timer not available on this system – skipping.\e[0m"
+    echo -e "  \e[33mcertbot.timer not available on this system – skipping.\e[0m"
   fi
 }
 
 _check_required_tools() {
   for tool in openssl systemctl grep cut xargs; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-      echo "❌ Required tool '$tool' is missing. Please install it: apt install -y $tool"
+      echo " Required tool '$tool' is missing. Please install it: apt install -y $tool"
       exit 1
     fi
   done
@@ -46,17 +46,17 @@ _check_required_tools() {
 
 _ensure_certbot_installed() {
   if ! command -v certbot >/dev/null 2>&1; then
-    echo "📦 Certbot not found – installing..."
+    echo " Certbot not found – installing..."
     apt update && apt install -y certbot
   else
-    echo "✅ Certbot is already installed."
+    echo " Certbot is already installed."
   fi
 }
 
 _stop_nginx_if_running() {
   if systemctl list-unit-files | grep -q '^nginx\.service'; then
     if systemctl is-active --quiet nginx; then
-      echo "⏹️ Stopping running nginx service..."
+      echo " Stopping running nginx service..."
       systemctl stop nginx
       export NGINX_WAS_RUNNING=true
     fi
@@ -65,7 +65,7 @@ _stop_nginx_if_running() {
 
 _start_nginx_if_stopped() {
   if [[ "${NGINX_WAS_RUNNING:-false}" == true ]]; then
-    echo "▶️  Restarting nginx service..."
+    echo "  Restarting nginx service..."
     systemctl start nginx
   fi
 }
@@ -76,34 +76,34 @@ _check_certificate_validity() {
     local cn
     cn=$(openssl x509 -noout -subject -in "$path" | grep -o "CN *= *[^ ,]*" | cut -d= -f2 | xargs)
     if [[ "$cn" == "$HOSTNAME_FQDN" ]]; then
-      echo "✅ Valid certificate found: CN=$cn"
+      echo " Valid certificate found: CN=$cn"
       return 0
     else
-      echo "⚠️  Certificate found but CN mismatch: CN=$cn"
+      echo "  Certificate found but CN mismatch: CN=$cn"
       return 1
     fi
   else
-    echo "❌ No certificate found."
+    echo " No certificate found."
     return 1
   fi
 }
 
 _obtain_or_verify_certificate() {
-  echo "🔒 Checking Let's Encrypt certificate for $HOSTNAME_FQDN..."
+  echo " Checking Let's Encrypt certificate for $HOSTNAME_FQDN..."
 
   if _check_certificate_validity; then
     return
   fi
 
-  echo "🔄 Requesting new Let's Encrypt certificate..."
+  echo " Requesting new Let's Encrypt certificate..."
   _stop_nginx_if_running
   sleep 2
   if ! certbot certonly --standalone -d "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
-    echo "⚠️  First attempt failed. Retrying in 10 seconds..."
+    echo "  First attempt failed. Retrying in 10 seconds..."
     sleep 10
 
     if ! certbot certonly --standalone -d "$HOSTNAME_FQDN" --email "admin@$DOMAIN" --non-interactive --agree-tos; then
-      echo "❌ Certificate request failed after retry. Aborting."
+      echo " Certificate request failed after retry. Aborting."
       _start_nginx_if_stopped
       exit 1
     fi
@@ -111,23 +111,23 @@ _obtain_or_verify_certificate() {
 
   _start_nginx_if_stopped
 
-  echo "🔁 Verifying new certificate..."
+  echo " Verifying new certificate..."
   if _check_certificate_validity; then
-    echo "✅ New certificate successfully created and valid."
+    echo " New certificate successfully created and valid."
   else
-    echo "❌ Certificate created but invalid. Aborting."
+    echo " Certificate created but invalid. Aborting."
     exit 1
   fi
 }
 
 delete_certbot_certificate() {
   if [[ -z "$HOSTNAME_FQDN" ]]; then
-    echo -e "❌ \e[31mCannot delete certificate – HOSTNAME_FQDN is not set.\e[0m"
+    echo -e " \e[31mCannot delete certificate – HOSTNAME_FQDN is not set.\e[0m"
     return 1
   fi
 
   if ! command -v certbot >/dev/null 2>&1; then
-    echo -e "❌ \e[31mCertbot is not installed.\e[0m"
+    echo -e " \e[31mCertbot is not installed.\e[0m"
     return 1
   fi
 
@@ -136,34 +136,34 @@ delete_certbot_certificate() {
   cert_path="/etc/letsencrypt/live/$cert_name"
 
   if [[ ! -d "$cert_path" ]]; then
-    echo -e "ℹ️ No certificate found for: \e[2m$cert_name\e[0m — skipping."
+    echo -e " No certificate found for: \e[2m$cert_name\e[0m — skipping."
     return 0
   fi
 
-  echo -e "\n🔐 \e[1mChecking for active certbot process...\e[0m"
+  echo -e "\n \e[1mChecking for active certbot process...\e[0m"
   if pgrep -f certbot >/dev/null; then
-    echo -e "⏳ Another certbot instance is running. Waiting up to 20s..."
+    echo -e " Another certbot instance is running. Waiting up to 20s..."
 
     for _ in {1..20}; do
       sleep 1
       if ! pgrep -f certbot >/dev/null; then
-        echo -e "✅ Previous certbot process has finished."
+        echo -e " Previous certbot process has finished."
         break
       fi
     done
 
     if pgrep -f certbot >/dev/null; then
-      echo -e "❌ \e[31mCertbot is still running after 20 seconds.\e[0m"
-      echo -e "💡 Please wait or terminate the process manually before retrying."
+      echo -e " \e[31mCertbot is still running after 20 seconds.\e[0m"
+      echo -e " Please wait or terminate the process manually before retrying."
       return 1
     fi
   fi
 
-  echo -e "\n🧹 \e[1;31mDeleting Let's Encrypt certificate:\e[0m \e[36m$cert_name\e[0m"
+  echo -e "\n \e[1;31mDeleting Let's Encrypt certificate:\e[0m \e[36m$cert_name\e[0m"
   if certbot delete --cert-name "$cert_name" --non-interactive --quiet; then
-    echo -e "✅ \e[32mCertificate successfully deleted.\e[0m"
+    echo -e " \e[32mCertificate successfully deleted.\e[0m"
   else
-    echo -e "❌ \e[31mFailed to delete certificate.\e[0m"
+    echo -e " \e[31mFailed to delete certificate.\e[0m"
     return 1
   fi
 }
@@ -180,11 +180,11 @@ run_certbot_workflow() {
 check_certbot_status() {
   clear
   echo ""
-  echo -e "🔒 \e[1mCertbot Certificate Overview\e[0m"
+  echo -e " \e[1mCertbot Certificate Overview\e[0m"
   echo "────────────────────────────────────────────────────────────"
 
   if ! certbot_cert_info=$(certbot certificates 2>/dev/null); then
-    echo "❌ Certbot does not seem installed or is malfunctioning."
+    echo " Certbot does not seem installed or is malfunctioning."
     return 1
   fi
 
@@ -201,65 +201,65 @@ check_certbot_status() {
   days_left=$(( (expiry_ts - now_ts) / 86400 ))
 
   if [[ -n "$cert_domain" ]]; then
-    printf "✅ \e[1m%-42s\e[0m %s\n" "Certificate domain" "$cert_domain"
+    printf " \e[1m%-42s\e[0m %s\n" "Certificate domain" "$cert_domain"
   else
-    printf "⚠️ \e[1m%-42s\e[0m %s\n" "Certificate domain" "Not found"
+    printf " \e[1m%-42s\e[0m %s\n" "Certificate domain" "Not found"
   fi
 
   if [[ -n "$cert_path" && -f "$cert_path" ]]; then
-    printf "✅ \e[1m%-42s\e[0m %s\n" "Certificate path" "$cert_path"
+    printf " \e[1m%-42s\e[0m %s\n" "Certificate path" "$cert_path"
   else
-    printf "⚠️ \e[1m%-42s\e[0m %s\n" "Certificate path" "Missing or invalid"
+    printf " \e[1m%-42s\e[0m %s\n" "Certificate path" "Missing or invalid"
   fi
 
   if [[ $days_left -ge 0 ]]; then
-    printf "✅ \e[1m%-42s\e[0m %s (in $days_left days)\n" "Valid until" "$cert_expiry"
+    printf " \e[1m%-42s\e[0m %s (in $days_left days)\n" "Valid until" "$cert_expiry"
   else
-    printf "❌ \e[1m%-42s\e[0m %s (expired ${days_left#-} days ago!)\n" "Valid until" "$cert_expiry"
+    printf " \e[1m%-42s\e[0m %s (expired ${days_left#-} days ago!)\n" "Valid until" "$cert_expiry"
   fi
 
   if systemctl list-timers | grep -q certbot.timer; then
     timer_status=$(systemctl is-enabled certbot.timer 2>/dev/null)
     next_run=$(systemctl list-timers --all | grep certbot.timer | awk '{print $1, $2}')
-    printf "✅ \e[1m%-42s\e[0m %s (next run: %s)\n" "Auto-renewal via systemd" "$timer_status" "$next_run"
-    printf "⚠️  \e[1m%-42s\e[0m %s\n" "Cronjob for certbot" "Not needed – systemd is active"
+    printf " \e[1m%-42s\e[0m %s (next run: %s)\n" "Auto-renewal via systemd" "$timer_status" "$next_run"
+    printf "  \e[1m%-42s\e[0m %s\n" "Cronjob for certbot" "Not needed – systemd is active"
   else
-    printf "⚠️  \e[1m%-42s\e[0m %s\n" "Auto-renewal via systemd" "Not active or missing"
+    printf "  \e[1m%-42s\e[0m %s\n" "Auto-renewal via systemd" "Not active or missing"
 
     cron_check=$(crontab -l 2>/dev/null | grep certbot || true)
     if [[ -n "$cron_check" ]]; then
-      printf "✅ \e[1m%-42s\e[0m %s\n" "Certbot cronjob found" "$cron_check"
+      printf " \e[1m%-42s\e[0m %s\n" "Certbot cronjob found" "$cron_check"
     else
-      printf "⚠️  \e[1m%-42s\e[0m %s\n" "Certbot cronjob" "Not found"
+      printf "  \e[1m%-42s\e[0m %s\n" "Certbot cronjob" "Not found"
     fi
   fi
 
   echo ""
-  echo -e "🧪 \e[1mDry-run to test auto-renewal\e[0m"
+  echo -e " \e[1mDry-run to test auto-renewal\e[0m"
 
   nginx_was_running=false
   if systemctl list-unit-files | grep -q '^nginx\.service'; then
     if systemctl is-active --quiet nginx; then
-      echo "⏹️ Stopping nginx for dry-run..."
+      echo " Stopping nginx for dry-run..."
       systemctl stop nginx
       nginx_was_running=true
     fi
   fi
 
   if certbot renew --dry-run >/dev/null 2>&1; then
-    echo -e "✅ Dry-run successful – auto-renewal ready"
+    echo -e " Dry-run successful – auto-renewal ready"
   else
-    echo -e "❌ Dry-run failed – please check configuration!"
+    echo -e " Dry-run failed – please check configuration!"
   fi
 
   if [[ "$nginx_was_running" == true ]]; then
-    echo "▶️  Restarting nginx after dry-run..."
+    echo "  Restarting nginx after dry-run..."
     systemctl start nginx
   fi
 
   echo ""
-  echo -e "📍 \e[1mTip:\e[0m View more: \e[2mcertbot certificates\e[0m"
-  echo -e "💡 \e[2mTip:\e[0m Use: \e[2mopenssl x509 -in cert.pem -noout -dates\e[0m"
+  echo -e " \e[1mTip:\e[0m View more: \e[2mcertbot certificates\e[0m"
+  echo -e " \e[2mTip:\e[0m Use: \e[2mopenssl x509 -in cert.pem -noout -dates\e[0m"
   echo ""
 }
 

@@ -6,16 +6,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 if ! source "$ROOT_DIR/lib/meta_data.sh"; then
-  echo "❌ Failed to source meta_data.sh"
+  echo " Failed to source meta_data.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/const.sh"; then
-  echo "❌ Failed to source const.sh"
+  echo " Failed to source const.sh"
   exit 1
 fi
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 
 declare -g META_BASE="/tmp/meta_test"
 declare -g META_DIR1="$META_BASE/app1"
@@ -43,9 +43,9 @@ test_get_repo_owner_from_meta() {
     local result
     result=$(get_repo_owner_from_meta "$file")
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ get_repo_owner_from_meta => $result"
+      echo " get_repo_owner_from_meta => $result"
     else
-      echo "❌ get_repo_owner_from_meta: got '$result', expected '$expected'"
+      echo " get_repo_owner_from_meta: got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -69,9 +69,9 @@ test_get_repo_name_from_meta() {
     fi
 
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ get_repo_name_from_meta ($file, $maxlen) => '$result'"
+      echo " get_repo_name_from_meta ($file, $maxlen) => '$result'"
     else
-      echo "❌ get_repo_name_from_meta ($file, $maxlen): got '$result', expected '$expected'"
+      echo " get_repo_name_from_meta ($file, $maxlen): got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -90,9 +90,9 @@ test_get_ref_type_from_meta() {
     local result
     result=$(get_ref_type_from_meta "$file")
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ get_ref_type_from_meta => $result"
+      echo " get_ref_type_from_meta => $result"
     else
-      echo "❌ get_ref_type_from_meta: got '$result', expected '$expected'"
+      echo " get_ref_type_from_meta: got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -109,9 +109,9 @@ test_get_ref_name_from_meta() {
     local result
     result=$(get_ref_name_from_meta "$file")
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ get_ref_name_from_meta => $result"
+      echo " get_ref_name_from_meta => $result"
     else
-      echo "❌ get_ref_name_from_meta: got '$result', expected '$expected'"
+      echo " get_ref_name_from_meta: got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -128,9 +128,9 @@ test_get_commit_from_meta() {
     local result
     result=$(get_commit_from_meta "$file")
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ get_commit_from_meta => $result"
+      echo " get_commit_from_meta => $result"
     else
-      echo "❌ get_commit_from_meta: got '$result', expected '$expected'"
+      echo " get_commit_from_meta: got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -147,9 +147,9 @@ test_get_commit_message_from_meta_local() {
     local result
     result=$(jq -r '.commit_message // "–"' "$file")
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ get_commit_message_from_meta_local => $result"
+      echo " get_commit_message_from_meta_local => $result"
     else
-      echo "❌ get_commit_message_from_meta_local: got '$result', expected '$expected'"
+      echo " get_commit_message_from_meta_local: got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -211,15 +211,15 @@ WRAPPER_EOF
   if backup_app_metadata "$test_service" 2>/dev/null; then
     local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
     if [[ "$backup_count" -eq 1 ]]; then
-      echo "✅ backup_app_metadata: Successfully created backup file"
+      echo " backup_app_metadata: Successfully created backup file"
     else
-      echo "❌ backup_app_metadata: Expected 1 backup file, found $backup_count"
+      echo " backup_app_metadata: Expected 1 backup file, found $backup_count"
       export exec_dir="$old_exec_dir"
       rm -rf "$test_base"
       return 1
     fi
   else
-    echo "❌ backup_app_metadata: Function failed unexpectedly"
+    echo " backup_app_metadata: Function failed unexpectedly"
     export exec_dir="$old_exec_dir"
     rm -rf "$test_base"
     return 1
@@ -230,15 +230,15 @@ WRAPPER_EOF
   if backup_app_metadata "$test_service" 2>/dev/null; then
     local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
     if [[ "$backup_count" -eq 1 ]]; then
-      echo "✅ backup_app_metadata: Correctly deduplicated backup with same commit"
+      echo " backup_app_metadata: Correctly deduplicated backup with same commit"
     else
-      echo "❌ backup_app_metadata: Expected 1 backup file after deduplication, found $backup_count"
+      echo " backup_app_metadata: Expected 1 backup file after deduplication, found $backup_count"
       export exec_dir="$old_exec_dir"
       rm -rf "$test_base"
       return 1
     fi
   else
-    echo "❌ backup_app_metadata: Second backup failed"
+    echo " backup_app_metadata: Second backup failed"
     export exec_dir="$old_exec_dir"
     rm -rf "$test_base"
     return 1
@@ -261,15 +261,15 @@ EOF
   if backup_app_metadata "$test_service" 2>/dev/null; then
     local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
     if [[ "$backup_count" -eq 2 ]]; then
-      echo "✅ backup_app_metadata: Correctly created backup for different commit"
+      echo " backup_app_metadata: Correctly created backup for different commit"
     else
-      echo "❌ backup_app_metadata: Expected 2 backup files, found $backup_count"
+      echo " backup_app_metadata: Expected 2 backup files, found $backup_count"
       export exec_dir="$old_exec_dir"
       rm -rf "$test_base"
       return 1
     fi
   else
-    echo "❌ backup_app_metadata: Third backup failed"
+    echo " backup_app_metadata: Third backup failed"
     export exec_dir="$old_exec_dir"
     rm -rf "$test_base"
     return 1
@@ -278,12 +278,12 @@ EOF
   # Test 4: Backup fails when meta file is missing
   rm -f "$meta_file"
   if backup_app_metadata "$test_service" 2>/dev/null; then
-    echo "❌ backup_app_metadata: Should fail when meta file is missing"
+    echo " backup_app_metadata: Should fail when meta file is missing"
     export exec_dir="$old_exec_dir"
     rm -rf "$test_base"
     return 1
   else
-    echo "✅ backup_app_metadata: Correctly failed when meta file is missing"
+    echo " backup_app_metadata: Correctly failed when meta file is missing"
   fi
   
   # Restore original function
@@ -308,4 +308,4 @@ test_backup_app_metadata
 
 cleanup_meta_test_data
 
-echo -e "\n✅ All meta field tests passed."
+echo -e "\n All meta field tests passed."

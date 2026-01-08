@@ -7,39 +7,39 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source required files
 if ! source "$ROOT_DIR/lib/const.sh"; then
-  echo "❌ Failed to source const.sh"
+  echo " Failed to source const.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/common.sh"; then
-  echo "❌ Failed to source common.sh"
+  echo " Failed to source common.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/print.sh"; then
-  echo "❌ Failed to source print.sh"
+  echo " Failed to source print.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/dotnet.sh"; then
-  echo "❌ Failed to source dotnet.sh"
+  echo " Failed to source dotnet.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/github.sh"; then
-  echo "❌ Failed to source github.sh"
+  echo " Failed to source github.sh"
   exit 1
 fi
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 
 # Test validate_github_token with missing token
 test_validate_github_token_missing() {
   if ! validate_github_token "" "$GITHUB_API_BASE" 2>/dev/null; then
-    echo "✅ validate_github_token: Missing token properly rejected"
+    echo " validate_github_token: Missing token properly rejected"
     return 0
   else
-    echo "❌ validate_github_token: Missing token improperly accepted"
+    echo " validate_github_token: Missing token improperly accepted"
     return 1
   fi
 }
@@ -47,10 +47,10 @@ test_validate_github_token_missing() {
 # Test validate_github_token with missing API base
 test_validate_github_token_missing_base() {
   if ! validate_github_token "some_token" "" 2>/dev/null; then
-    echo "✅ validate_github_token: Missing API base properly rejected"
+    echo " validate_github_token: Missing API base properly rejected"
     return 0
   else
-    echo "❌ validate_github_token: Missing API base improperly accepted"
+    echo " validate_github_token: Missing API base improperly accepted"
     return 1
   fi
 }
@@ -58,10 +58,10 @@ test_validate_github_token_missing_base() {
 # Test validate_github_token with both missing
 test_validate_github_token_both_missing() {
   if ! validate_github_token "" "" 2>/dev/null; then
-    echo "✅ validate_github_token: Missing both parameters properly rejected"
+    echo " validate_github_token: Missing both parameters properly rejected"
     return 0
   else
-    echo "❌ validate_github_token: Missing both parameters improperly accepted"
+    echo " validate_github_token: Missing both parameters improperly accepted"
     return 1
   fi
 }
@@ -73,11 +73,11 @@ test_check_github_env_vars_missing_token() {
   GITHUB_API_TOKEN=""
   
   if ! check_github_env_vars 2>/dev/null; then
-    echo "✅ check_github_env_vars: Missing token properly detected"
+    echo " check_github_env_vars: Missing token properly detected"
     GITHUB_API_TOKEN="$saved_token"
     return 0
   else
-    echo "❌ check_github_env_vars: Missing token not detected"
+    echo " check_github_env_vars: Missing token not detected"
     GITHUB_API_TOKEN="$saved_token"
     return 1
   fi
@@ -93,12 +93,12 @@ test_resolve_github_user_no_token() {
   resolve_github_user_from_token
   
   if [[ -z "$GITHUB_API_USER" ]]; then
-    echo "✅ resolve_github_user_from_token: No user resolved when token missing"
+    echo " resolve_github_user_from_token: No user resolved when token missing"
     GITHUB_API_TOKEN="$saved_token"
     GITHUB_API_USER="$saved_user"
     return 0
   else
-    echo "❌ resolve_github_user_from_token: User was set without token"
+    echo " resolve_github_user_from_token: User was set without token"
     GITHUB_API_TOKEN="$saved_token"
     GITHUB_API_USER="$saved_user"
     return 1
@@ -112,10 +112,10 @@ test_count_alternative_refs_params() {
   result=$(count_alternative_refs "" "" "branch" "main" 2>/dev/null || echo "0")
   
   if [[ "$result" == "0" ]]; then
-    echo "✅ count_alternative_refs: Handles empty parameters safely"
+    echo " count_alternative_refs: Handles empty parameters safely"
     return 0
   else
-    echo "ℹ️  count_alternative_refs: Returned $result for empty params (API call may have succeeded)"
+    echo "  count_alternative_refs: Returned $result for empty params (API call may have succeeded)"
     return 0
   fi
 }
@@ -127,11 +127,11 @@ test_load_github_repositories_no_token() {
   
   # Use timeout and echo empty string to avoid blocking on read -r
   if ! (echo "" | timeout 5 load_github_repositories 2>/dev/null); then
-    echo "✅ load_github_repositories: Handles missing token appropriately"
+    echo " load_github_repositories: Handles missing token appropriately"
     GITHUB_API_TOKEN="$saved_token"
     return 0
   else
-    echo "ℹ️  load_github_repositories: Function completed (may have used different auth)"
+    echo "  load_github_repositories: Function completed (may have used different auth)"
     GITHUB_API_TOKEN="$saved_token"
     return 0
   fi
@@ -145,12 +145,12 @@ test_clone_repository_missing_repo_name() {
   SELECTED_REPO_OWNER=""
   
   if ! clone_repository 2>/dev/null; then
-    echo "✅ clone_repository: Properly fails with missing repo info"
+    echo " clone_repository: Properly fails with missing repo info"
     SELECTED_REPO_NAME="$saved_name"
     SELECTED_REPO_OWNER="$saved_owner"
     return 0
   else
-    echo "❌ clone_repository: Should fail with missing repo info"
+    echo " clone_repository: Should fail with missing repo info"
     SELECTED_REPO_NAME="$saved_name"
     SELECTED_REPO_OWNER="$saved_owner"
     # Cleanup any created directory
@@ -175,7 +175,7 @@ test_save_repo_metadata_missing_data() {
   SELECTED_REF_NAME=""
   
   if ! save_repo_metadata "$test_dir" 2>/dev/null; then
-    echo "✅ save_repo_metadata: Properly fails with missing data"
+    echo " save_repo_metadata: Properly fails with missing data"
     SELECTED_REPO_OWNER="$saved_owner"
     SELECTED_REPO_NAME="$saved_name"
     SELECTED_REF_TYPE="$saved_type"
@@ -183,7 +183,7 @@ test_save_repo_metadata_missing_data() {
     rm -rf "$test_dir"
     return 0
   else
-    echo "❌ save_repo_metadata: Should fail with missing data"
+    echo " save_repo_metadata: Should fail with missing data"
     SELECTED_REPO_OWNER="$saved_owner"
     SELECTED_REPO_NAME="$saved_name"
     SELECTED_REF_TYPE="$saved_type"
@@ -210,7 +210,7 @@ test_save_repo_metadata_valid() {
   
   if save_repo_metadata "$test_dir" 2>/dev/null; then
     if [[ -f "$test_dir/$META_FILE_NAME" ]]; then
-      echo "✅ save_repo_metadata: Creates metadata file successfully"
+      echo " save_repo_metadata: Creates metadata file successfully"
       SELECTED_REPO_OWNER="$saved_owner"
       SELECTED_REPO_NAME="$saved_name"
       SELECTED_REF_TYPE="$saved_type"
@@ -218,7 +218,7 @@ test_save_repo_metadata_valid() {
       rm -rf "$test_dir"
       return 0
     else
-      echo "❌ save_repo_metadata: Metadata file not created"
+      echo " save_repo_metadata: Metadata file not created"
       SELECTED_REPO_OWNER="$saved_owner"
       SELECTED_REPO_NAME="$saved_name"
       SELECTED_REF_TYPE="$saved_type"
@@ -227,7 +227,7 @@ test_save_repo_metadata_valid() {
       return 1
     fi
   else
-    echo "❌ save_repo_metadata: Failed with valid data"
+    echo " save_repo_metadata: Failed with valid data"
     SELECTED_REPO_OWNER="$saved_owner"
     SELECTED_REPO_NAME="$saved_name"
     SELECTED_REF_TYPE="$saved_type"
@@ -238,9 +238,9 @@ test_save_repo_metadata_valid() {
 }
 
 run_test() {
-  echo -e "\n🔧 Running $1"
+  echo -e "\n Running $1"
   if ! "$1"; then
-    echo "❌ Test '$1' failed"
+    echo " Test '$1' failed"
     return 1
   fi
   return 0
@@ -261,9 +261,9 @@ run_test test_save_repo_metadata_missing_data || ((FAILED++))
 run_test test_save_repo_metadata_valid || ((FAILED++))
 
 if [[ $FAILED -eq 0 ]]; then
-  echo -e "\n✅ All github tests passed successfully"
+  echo -e "\n All github tests passed successfully"
   exit 0
 else
-  echo -e "\n❌ $FAILED test(s) failed"
+  echo -e "\n $FAILED test(s) failed"
   exit 1
 fi

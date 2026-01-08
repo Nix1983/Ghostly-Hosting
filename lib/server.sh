@@ -2,7 +2,7 @@
 # shellcheck disable=SC1091
 set -e
 
-# ✨ Funktionen einbinden
+#  Funktionen einbinden
 source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/upcloud.sh
@@ -18,7 +18,7 @@ remove_snapd() {
   rm -rf ~/snap /snap /var/snap /var/lib/snapd \
          /etc/systemd/system/snap* \
          /etc/systemd/system/multi-user.target.wants/snap* >/dev/null 2>&1
-  echo -e "🗑️ Removed Snapd and all residual files."
+  echo -e " Removed Snapd and all residual files."
 }
 
 remove_swap() {
@@ -26,7 +26,7 @@ remove_swap() {
     swapoff /swapfile
     rm -f /swapfile
     sed -i '/\/swapfile/d' /etc/fstab
-    echo -e "🗑️ Removed swap file."
+    echo -e " Removed swap file."
   fi
 }
 
@@ -36,7 +36,7 @@ remove_ufw() {
   systemctl reset-failed ufw 2>/dev/null || true
   apt-get purge -y ufw >/dev/null 2>&1
   rm -rf /etc/ufw /var/log/ufw.log /lib/ufw /var/lib/ufw 2>/dev/null
-  echo -e "🗑️ Removed UFW and all firewall configurations."
+  echo -e " Removed UFW and all firewall configurations."
 }
 
 show_server_health() {
@@ -45,7 +45,7 @@ show_server_health() {
   local tools=(hostname uptime ip curl grep awk sed free df systemctl apt lsb_release timedatectl)
   for tool in "${tools[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-      echo -e "❌ \e[31mMissing required tool:\e[0m $tool"
+      echo -e " \e[31mMissing required tool:\e[0m $tool"
       return 1
     fi
   done
@@ -94,51 +94,53 @@ show_server_health() {
   local service_line=""
 
   for svc in "${services[@]}"; do
-    local icon="❌"
+    local status="MISSING"
     if [[ "$svc" == "git" ]]; then
-      command -v git >/dev/null 2>&1 && icon="✅"
+      command -v git >/dev/null 2>&1 && status="OK"
     else
       if systemctl list-unit-files | grep -q "^$svc"; then
         if systemctl is-active "$svc" &>/dev/null; then
-          icon="✅"
+          status="ACTIVE"
         elif systemctl is-enabled "$svc" &>/dev/null; then
-          icon="⚠️"
+          status="ENABLED"
+        else
+          status="INSTALLED"
         fi
       fi
     fi
-    service_line+="$svc $icon   "
+    service_line+="$svc $status   "
   done
 
   # Output
-  echo -e "\e[1m🩺 Server Health Summary\e[0m"
+  echo -e "\e[1m Server Health Summary\e[0m"
   print_double_line
-  printf "🖥️ %-13s \e[36m%s\e[0m\n" "Kernel:" "$kernel"
-  printf "🧾 %-13s \e[36m%s\e[0m\n" "OS:" "$os"
-  printf "⏳ %-12s \e[36m%s\e[0m\n" "Uptime:" "$uptime"
-  printf "♻️ %-13s \e[36m%s\e[0m\n" "Last boot:" "$boot"
-  printf "🕒 %-13s \e[36m%s\e[0m  \e[2m(%s)\e[0m\n" "Time zone:" "$time_zone_name" "$time_zone_offset"
+  printf " %-13s \e[36m%s\e[0m\n" "Kernel:" "$kernel"
+  printf " %-13s \e[36m%s\e[0m\n" "OS:" "$os"
+  printf " %-12s \e[36m%s\e[0m\n" "Uptime:" "$uptime"
+  printf " %-13s \e[36m%s\e[0m\n" "Last boot:" "$boot"
+  printf " %-13s \e[36m%s\e[0m  \e[2m(%s)\e[0m\n" "Time zone:" "$time_zone_name" "$time_zone_offset"
 
   print_line
-  printf "📡 %-13s \e[36m%s\e[0m\n" "Internal IP:" "$ip_local"
-  printf "🌍 %-13s \e[36m%s\e[0m\n" "External IP:" "$ip_external"
-  printf "🚪 %-13s \e[36m%s\e[0m\n" "Gateway:" "$gateway"
-  printf "🔎 %-13s \e[36m%s\e[0m\n" "DNS servers:" "$dns"
+  printf " %-13s \e[36m%s\e[0m\n" "Internal IP:" "$ip_local"
+  printf " %-13s \e[36m%s\e[0m\n" "External IP:" "$ip_external"
+  printf " %-13s \e[36m%s\e[0m\n" "Gateway:" "$gateway"
+  printf " %-13s \e[36m%s\e[0m\n" "DNS servers:" "$dns"
 
   print_line
-  printf "🧠 %-13s Total: \e[36m%4sMB\e[0m | Used: \e[33m%4sMB\e[0m | Free: \e[32m%4sMB\e[0m | Cache: \e[2m%4sMB\e[0m     Usage: \e[1m%3s%%\e[0m\n" \
+  printf " %-13s Total: \e[36m%4sMB\e[0m | Used: \e[33m%4sMB\e[0m | Free: \e[32m%4sMB\e[0m | Cache: \e[2m%4sMB\e[0m     Usage: \e[1m%3s%%\e[0m\n" \
     "RAM:" "$mem_total" "$mem_used" "$mem_free" "$mem_cache" "$mem_usage_pct"
-  printf "📥 %-13s Total: \e[36m%4sMB\e[0m | Used: \e[33m%4sMB\e[0m | Free: \e[32m%4sMB\e[0m                     Usage: \e[1m%3s%%\e[0m\n" \
+  printf " %-13s Total: \e[36m%4sMB\e[0m | Used: \e[33m%4sMB\e[0m | Free: \e[32m%4sMB\e[0m                     Usage: \e[1m%3s%%\e[0m\n" \
     "SWAP:" "$swap_total" "$swap_used" "$swap_free" "$swap_usage_pct"
 
   print_line
-  printf "💾 %-13s Total: \e[36m%5sG\e[0m | Used: \e[33m%5sG\e[0m | Free: \e[32m%5sG\e[0m                     Usage:  \e[1m%3s\e[0m\n" \
+  printf " %-13s Total: \e[36m%5sG\e[0m | Used: \e[33m%5sG\e[0m | Free: \e[32m%5sG\e[0m                     Usage:  \e[1m%3s\e[0m\n" \
     "Disk (/):" "$d_total" "$d_used" "$d_free" "$d_perc"
-  printf "⚙️ %-13s 1 min:   \e[36m%s\e[0m | 5 min:  \e[36m%s\e[0m | 15 min: \e[36m%s\e[0m\n" \
+  printf " %-13s 1 min:   \e[36m%s\e[0m | 5 min:  \e[36m%s\e[0m | 15 min: \e[36m%s\e[0m\n" \
     "CPU Load:" "$load1" "$load5" "$load15"
-  printf "📦 %-13s \e[36m%s\e[0m\n" "Pending Updates:" "$updates_count"
+  printf " %-13s \e[36m%s\e[0m\n" "Pending Updates:" "$updates_count"
 
   print_line
-  echo -e "\e[1m🔌 Services:\e[0m"
+  echo -e "\e[1m Services:\e[0m"
   echo -e "   $service_line"
   print_double_line
   echo ""
@@ -146,20 +148,20 @@ show_server_health() {
 
 check_and_offer_reboot() {
   if [[ -f /var/run/reboot-required ]]; then
-    echo -e "\n🔁 \e[1;31mReboot required\e[0m"
-    echo -e "\n⚠️ \e[1mYour system requires a reboot to complete updates.\e[0m"
-    echo -e "🔌 SSH connection will be lost temporarily during reboot."
-    echo -e "⏳ Wait ~\e[36m60 seconds\e[0m and reconnect manually after reboot."
+    echo -e "\n \e[1;31mReboot required\e[0m"
+    echo -e "\n \e[1mYour system requires a reboot to complete updates.\e[0m"
+    echo -e " SSH connection will be lost temporarily during reboot."
+    echo -e " Wait ~\e[36m60 seconds\e[0m and reconnect manually after reboot."
 
-    echo -e "\n❓ \e[1mWhat do you want to do?\e[0m"
+    echo -e "\n \e[1mWhat do you want to do?\e[0m"
     print_line
-    echo -e " 1) ♻️  Reboot now    q) ⏭️  Skip reboot (you can run \e[36mreboot\e[0m manually later)"
+    echo -e " 1)   Reboot now    q)   Skip reboot (you can run \e[36mreboot\e[0m manually later)"
     
     read_menu_choice 1
 
     case "$REPLY" in
       1)
-        echo -e "\n♻️  Rebooting system..."
+        echo -e "\n  Rebooting system..."
         sleep 2
         reboot
         exit 0
@@ -168,48 +170,48 @@ check_and_offer_reboot() {
         ;;
     esac
   else
-    echo -e "🔁 Reboot required: \e[1;32mNo\e[0m"
+    echo -e " Reboot required: \e[1;32mNo\e[0m"
   fi
 }
 
 update_server_and_show_status() {
   clear
-  echo -e "\n🔄 \e[1;34mSystem Update – Ubuntu Package Manager (APT)\e[0m"
+  echo -e "\n \e[1;34mSystem Update – Ubuntu Package Manager (APT)\e[0m"
   print_double_line
 
-  echo -ne "\n🛰️ \e[1mUpdating APT sources...\e[0m "
+  echo -ne "\n \e[1mUpdating APT sources...\e[0m "
   if apt-get update -y >/dev/null 2>&1; then
-    echo -e "✅ Done"
+    echo -e " Done"
   else
-    echo -e "❌ Failed"
+    echo -e " Failed"
   fi
 
-  echo -e "\n📦 \e[1mUpgrading installed packages (this may take a while)...\e[0m"
-  echo -e "   ➤ Running: \e[2mapt-get upgrade\e[0m"
+  echo -e "\n \e[1mUpgrading installed packages (this may take a while)...\e[0m"
+  echo -e "    Running: \e[2mapt-get upgrade\e[0m"
   echo ""
 
   if DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" \
       -o Dpkg::Options::="--force-confold" -y upgrade; then
-    echo -e "\n   ✅ Packages upgraded successfully."
+    echo -e "\n    Packages upgraded successfully."
   else
-    echo -e "\n   ❌ Upgrade failed. Check manually."
+    echo -e "\n    Upgrade failed. Check manually."
   fi
 
-  echo -e "\n🧼 \e[1mCleaning up system ...\e[0m"
-  echo -ne "   ➤ Removing unused packages... "
-  apt-get -y autoremove >/dev/null 2>&1 && echo "✅ Done"
-  echo -ne "   ➤ Cleaning package cache... "
-  apt-get -y autoclean >/dev/null 2>&1 && echo "✅ Done"
+  echo -e "\n \e[1mCleaning up system ...\e[0m"
+  echo -ne "    Removing unused packages... "
+  apt-get -y autoremove >/dev/null 2>&1 && echo " Done"
+  echo -ne "    Cleaning package cache... "
+  apt-get -y autoclean >/dev/null 2>&1 && echo " Done"
 
-  echo -e "\n🧠 \e[1mSystem Status\e[0m"
+  echo -e "\n \e[1mSystem Status\e[0m"
   print_line
 
   local kernel version
   kernel=$(uname -r)
   version=$(lsb_release -ds 2>/dev/null || echo "Unknown")
 
-  printf "💻 %-17s %s\n" "OS Version:" "$version"
-  printf "🧬 %-17s %s\n" "Kernel:" "$kernel"
+  printf " %-17s %s\n" "OS Version:" "$version"
+  printf " %-17s %s\n" "Kernel:" "$kernel"
 
   local pending_updates
   pending_updates=$(apt list --upgradable 2>/dev/null || true)
@@ -243,35 +245,35 @@ update_server_and_show_status() {
   }
 
   echo ""
-  check_package_status nginx    "Nginx"     "🌐" nginx
-  check_package_status fail2ban "Fail2Ban"  "🛡️"
-  check_package_status git      "Git"       "🔧" git
+  check_package_status nginx    "Nginx"     "" nginx
+  check_package_status fail2ban "Fail2Ban"  ""
+  check_package_status git      "Git"       "" git
 
-  echo -e "\n✅ \e[1mSystem update completed.\e[0m"
+  echo -e "\n \e[1mSystem update completed.\e[0m"
   print_line
   read -rsn1 -p $'\nPress any key to return to menu...'
 }
 
 show_init_server_prompt() {
   clear
-  echo -e "\n🚀 \e[1;34mInitialize Server for GhostlyHosting\e[0m"
+  echo -e "\n \e[1;34mInitialize Server for GhostlyHosting\e[0m"
   print_double_line
 
-  echo -e "\n📋 \e[1mThe following components will be installed and configured:\e[0m"
+  echo -e "\n \e[1mThe following components will be installed and configured:\e[0m"
   print_line
-  echo -e " 🌐 Nginx (Reverse Proxy)"
-  echo -e " 🛡️ Fail2Ban (SSH protection)"
-  echo -e " 🔐 Certbot (HTTPS / Let's Encrypt)"
-  echo -e " 🔧 Git (for deployment)"
-  echo -e " 🕒 Timezone will be set to Europe/Vienna"
-  echo -e " 📦 Swap file for memory management"
-  echo -e " ☁️ UpCloud firewall rules will be applied"
-  echo -e " 📈 System update and package upgrade"
+  echo -e "  Nginx (Reverse Proxy)"
+  echo -e "  Fail2Ban (SSH protection)"
+  echo -e "  Certbot (HTTPS / Let's Encrypt)"
+  echo -e "  Git (for deployment)"
+  echo -e "  Timezone will be set to Europe/Vienna"
+  echo -e "  Swap file for memory management"
+  echo -e "  UpCloud firewall rules will be applied"
+  echo -e "  System update and package upgrade"
   print_line
-  echo -e "💡 \e[3mYou can add apps after this setup is completed.\e[0m"
+  echo -e " \e[3mYou can add apps after this setup is completed.\e[0m"
 
-  echo -e "\n❓ \e[1mDo you want to initialize the server now?\e[0m"
-  echo -e "\n 1) ✅ Yes, proceed with initialization  $(print_back_to_menu)"
+  echo -e "\n \e[1mDo you want to initialize the server now?\e[0m"
+  echo -e "\n 1)  Yes, proceed with initialization  $(print_back_to_menu)"
 
   read_menu_choice 1
 
@@ -284,7 +286,7 @@ show_init_server_prompt() {
 
 init_server() {
   clear
-  echo -e "\n🚀 \e[1;34mInitialize Server for .NET Hosting\e[0m"
+  echo -e "\n \e[1;34mInitialize Server for .NET Hosting\e[0m"
   print_double_line
 
   install_nginx
@@ -299,24 +301,24 @@ init_server() {
   configure_f2b
   update_server
 
-  echo -e "\n🧩 \e[1mSystemd ready for .NET apps\e[0m"
-  echo -e "   ➤ Apps will run as individual system services with unique port assignments"
-  echo -e "   ➤ You can add new apps anytime via:"
-  echo -e "      ➕ \e[1mOption 2) Add new App\e[0m in the App Manager"
+  echo -e "\n \e[1mSystemd ready for .NET apps\e[0m"
+  echo -e "    Apps will run as individual system services with unique port assignments"
+  echo -e "    You can add new apps anytime via:"
+  echo -e "       \e[1mOption 2) Add new App\e[0m in the App Manager"
 
-  echo -e "\n✅ \e[1mServer initialization completed.\e[0m"
+  echo -e "\n \e[1mServer initialization completed.\e[0m"
   print_double_line
   print_press_any_key
 }
 
 remove_all_kestrel_services() {
-  echo -e "\n🧹 \e[1mRemoving all .NET (Kestrel) systemd services...\e[0m"
+  echo -e "\n \e[1mRemoving all .NET (Kestrel) systemd services...\e[0m"
 
   local services
   mapfile -t services < <(find /etc/systemd/system -type f -name "*@*:*[5-9][0-9][0-9][0-9].service")
 
   if [[ ${#services[@]} -eq 0 ]]; then
-    echo -e "ℹ️ No Kestrel services found."
+    echo -e " No Kestrel services found."
     return 0
   fi
 
@@ -325,45 +327,45 @@ remove_all_kestrel_services() {
     service_name=$(basename "$service_path")
 
     if systemctl list-units --all --type=service | grep -qF -- "$service_name"; then
-      echo -e "\n⏹️ Stopping: \e[36m$service_name\e[0m"
+      echo -e "\n Stopping: \e[36m$service_name\e[0m"
       systemctl stop "$service_name" || true
-      echo -e "❌ Disabling: \e[36m$service_name\e[0m"
+      echo -e " Disabling: \e[36m$service_name\e[0m"
       systemctl disable "$service_name" &>/dev/null || true
     fi
 
-    echo -e "🧽 Removing file: \e[2m$service_path\e[0m"
+    echo -e " Removing file: \e[2m$service_path\e[0m"
     rm -f "$service_path"
   done
 
   systemctl daemon-reexec
   systemctl daemon-reload
-  echo -e "\n✅ \e[32mAll Kestrel services removed.\e[0m"
+  echo -e "\n \e[32mAll Kestrel services removed.\e[0m"
 }
 
 reset_server() {
   clear
-  echo -e "\n🧨 \e[1;31mWARNING: FULL SERVER RESET\e[0m"
+  echo -e "\n \e[1;31mWARNING: FULL SERVER RESET\e[0m"
   print_double_line
   echo -e "\nThis operation will completely wipe all installed services and data:"
   print_line
-  echo -e "🔸 Remove \e[36mNGINX\e[0m and its configs"
-  echo -e "🔸 Remove \e[36mCertbot\e[0m and all certificates"
-  echo -e "🔸 Remove \e[36mFail2Ban\e[0m and blocklists"
-  echo -e "🔸 Remove \e[36mGit\e[0m and all related binaries"
-  echo -e "🔸 Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
-  echo -e "🔸 Remove \e[36mSnapd\e[0m and related core services"
-  echo -e "🔸 Remove \e[36mufw\e[0m and all firewall rules"
-  echo -e "🔸 Remove all .NET apps in \e[36m$APP_BASE_DIR/\e[0m"
-  echo -e "🔸 Remove all systemd services for hosted .NET apps"
-  echo -e "🔸 Remove \e[36m/swapfile\e[0m"
-  echo -e "🔸 Remove all \e[36mUpCloud firewall rules\e[0m (via API)"
-  echo -e "🔸 Reset timezone to \e[36mUTC\e[0m"
+  echo -e " Remove \e[36mNGINX\e[0m and its configs"
+  echo -e " Remove \e[36mCertbot\e[0m and all certificates"
+  echo -e " Remove \e[36mFail2Ban\e[0m and blocklists"
+  echo -e " Remove \e[36mGit\e[0m and all related binaries"
+  echo -e " Remove \e[36m/opt/dotnet\e[0m and installed .NET SDKs"
+  echo -e " Remove \e[36mSnapd\e[0m and related core services"
+  echo -e " Remove \e[36mufw\e[0m and all firewall rules"
+  echo -e " Remove all .NET apps in \e[36m$APP_BASE_DIR/\e[0m"
+  echo -e " Remove all systemd services for hosted .NET apps"
+  echo -e " Remove \e[36m/swapfile\e[0m"
+  echo -e " Remove all \e[36mUpCloud firewall rules\e[0m (via API)"
+  echo -e " Reset timezone to \e[36mUTC\e[0m"
   print_line
-  echo -e "⚠️ \e[1mThis cannot be undone.\e[0m"
+  echo -e " \e[1mThis cannot be undone.\e[0m"
 
   if ! confirm_action_code; then return 1; fi
 
-  echo -e "\n🚧 \e[1mResetting server – please wait...\e[0m"
+  echo -e "\n \e[1mResetting server – please wait...\e[0m"
   print_line
 
   remove_nginx_log_timer
@@ -379,59 +381,59 @@ reset_server() {
 
   rm -rf "${APP_BASE_DIR:?}/"* "/var/${CLONE_BASE_DIR:?}"
 
-  echo -e "\n🌐 \e[1mResetting system timezone...\e[0m"
+  echo -e "\n \e[1mResetting system timezone...\e[0m"
   timedatectl set-timezone UTC
-  echo -e "🌐 Timezone reset to UTC."
+  echo -e " Timezone reset to UTC."
 
-  echo -e "\n🧱 \e[1mDeleting UpCloud firewall rules...\e[0m"
+  echo -e "\n \e[1mDeleting UpCloud firewall rules...\e[0m"
   export DISABLE_CLEAR=true
   delete_all_upcloud_firewall_rules
 
-  echo -e "\n✅ \e[1;32mServer reset completed.\e[0m"
+  echo -e "\n \e[1;32mServer reset completed.\e[0m"
   print_double_line
-  read -rsn1 -p $'\n↩️  Press any key to return to menu...'
+  read -rsn1 -p $'\n  Press any key to return to menu...'
 }
 
 ensure_server_initialized() {
   local missing=()
 
-  # 🔍 Check for required system components
-  command -v nginx >/dev/null 2>&1            || missing+=("🌐 Nginx (Reverse Proxy)")
-  command -v fail2ban-client >/dev/null 2>&1  || missing+=("🛡️ Fail2Ban (SSH protection)")
-  command -v certbot >/dev/null 2>&1          || missing+=("🔒 Certbot (HTTPS / Let's Encrypt)")
-  command -v git >/dev/null 2>&1              || missing+=("🔧 Git (for deployments)")
-  [[ -f /swapfile ]]                          || missing+=("📦 Swap file")
+  #  Check for required system components
+  command -v nginx >/dev/null 2>&1            || missing+=(" Nginx (Reverse Proxy)")
+  command -v fail2ban-client >/dev/null 2>&1  || missing+=(" Fail2Ban (SSH protection)")
+  command -v certbot >/dev/null 2>&1          || missing+=(" Certbot (HTTPS / Let's Encrypt)")
+  command -v git >/dev/null 2>&1              || missing+=(" Git (for deployments)")
+  [[ -f /swapfile ]]                          || missing+=(" Swap file")
 
   if (( ${#missing[@]} == 0 )); then
     return 0
   fi
 
   clear
-  echo -e "\n⚠️ \e[1;31mServer is not yet initialized for .NET App Hosting.\e[0m"
+  echo -e "\n \e[1;31mServer is not yet initialized for .NET App Hosting.\e[0m"
   echo -e "\nThe following components are missing:"
   print_line
   for item in "${missing[@]}"; do
-    echo " ❌ $item"
+    echo "  $item"
   done
   print_line
 
-  echo -e "\n🔧 \e[1mThe following will be configured by 'Init Server':\e[0m"
-  echo -e "   • Nginx (Reverse Proxy)"
-  echo -e "   • Fail2Ban (SSH Security)"
-  echo -e "   • Certbot (Let's Encrypt)"
-  echo -e "   • Git (deployment)"
-  echo -e "   • Swap space"
-  echo -e "   • Timezone + Firewall Setup"
+  echo -e "\n \e[1mThe following will be configured by 'Init Server':\e[0m"
+  echo -e "   - Nginx (Reverse Proxy)"
+  echo -e "   - Fail2Ban (SSH Security)"
+  echo -e "   - Certbot (Let's Encrypt)"
+  echo -e "   - Git (deployment)"
+  echo -e "   - Swap space"
+  echo -e "   - Timezone + Firewall Setup"
 
-  echo -e "\n❓ \e[1mHow do you want to proceed?\e[0m"
+  echo -e "\n \e[1mHow do you want to proceed?\e[0m"
   print_line
-  echo -e " 1) 🛠️ Run init server now     $(print_back_to_menu)"
+  echo -e " 1)  Run init server now     $(print_back_to_menu)"
   read_menu_choice 1
 
   case "$REPLY" in
     1)
       if ! prompt_and_set_timezone; then
-        echo -e "\nℹ️ \e[2mYou must run \e[36minit server\e[0m before adding an app.\e[0m"
+        echo -e "\n \e[2mYou must run \e[36minit server\e[0m before adding an app.\e[0m"
         return 1
       fi
       init_server
@@ -439,7 +441,7 @@ ensure_server_initialized() {
       return 0
       ;;
     q|Q)
-      echo -e "\nℹ️ \e[2mYou must run \e[36minit server\e[0m before adding an app.\e[0m"
+      echo -e "\n \e[2mYou must run \e[36minit server\e[0m before adding an app.\e[0m"
       return 1
       ;;
   esac

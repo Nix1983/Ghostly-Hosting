@@ -62,7 +62,7 @@ remove_dotnet() {
   rm -rf /opt/dotnet
   sed -i '/DOTNET_ROOT/d' ~/.profile
   sed -i '/\/opt\/dotnet/d' ~/.profile
-  echo -e "🗑️ Removed .NET SDK and path config."
+  echo -e " Removed .NET SDK and path config."
 }
 
 install_dotnet_version() {
@@ -70,26 +70,26 @@ install_dotnet_version() {
 
   # Check if DOTNET_Version is set
   if [[ -z "$DOTNET_Version" ]]; then
-    echo -e "\n❌ \e[31mNo .NET SDK version specified.\e[0m"
-    echo -e "💡 Make sure to run \e[36mdetect_required_dotnet_versions\e[0m before installing."
+    echo -e "\n \e[31mNo .NET SDK version specified.\e[0m"
+    echo -e " Make sure to run \e[36mdetect_required_dotnet_versions\e[0m before installing."
     return 1
   fi
 
   if [[ -x "$install_dir/dotnet" ]] && "$install_dir/dotnet" --list-sdks | grep -q "^$DOTNET_Version"; then
-    echo -e "\n✅ .NET SDK $DOTNET_Version is already installed."
+    echo -e "\n .NET SDK $DOTNET_Version is already installed."
     return 0
   fi
 
-  echo -e "\n🧩 Installing .NET SDK $DOTNET_Version..."
+  echo -e "\n Installing .NET SDK $DOTNET_Version..."
   curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
   chmod +x /tmp/dotnet-install.sh
 
   if ! /tmp/dotnet-install.sh --channel "$DOTNET_Version" --install-dir "$install_dir" --no-path; then
-    echo -e "❌ Failed to install .NET SDK version: $DOTNET_Version" >&2
+    echo -e " Failed to install .NET SDK version: $DOTNET_Version" >&2
     return 1
   fi
 
-  echo -e "\n✅ .NET SDK $DOTNET_Version installed to $install_dir"
+  echo -e "\n .NET SDK $DOTNET_Version installed to $install_dir"
   return 0
 }
 
@@ -100,37 +100,37 @@ show_app_deployment_requirements() {
   fi
   
   clear
-  echo -e "\n📋 \e[1;34mRequirements for Deploying a New App\e[0m"
+  echo -e "\n \e[1;34mRequirements for Deploying a New App\e[0m"
   print_double_line
 
-  echo -e "🔐 \e[1mGitHub Access\e[0m"
-  echo -e "   • GitHub repository with your app source code"
-  echo -e "   • GitHub Personal Access Token with at least:"
-  echo -e "     → \e[36mrepo\e[0m (to read the repository)"
+  echo -e " \e[1mGitHub Access\e[0m"
+  echo -e "   - GitHub repository with your app source code"
+  echo -e "   - GitHub Personal Access Token with at least:"
+  echo -e "     -> \e[36mrepo\e[0m (to read the repository)"
   echo
 
-  echo -e "🌐 \e[1mDomain & DNS (Cloudflare)\e[0m"
-  echo -e "   • Domain managed by Cloudflare"
-  echo -e "   • Cloudflare Zone ID and API Token with:"
-  echo -e "     → \e[36mZone:DNS:Edit\e[0m (for DNS automation)"
+  echo -e " \e[1mDomain & DNS (Cloudflare)\e[0m"
+  echo -e "   - Domain managed by Cloudflare"
+  echo -e "   - Cloudflare Zone ID and API Token with:"
+  echo -e "     -> \e[36mZone:DNS:Edit\e[0m (for DNS automation)"
   echo
 
-  echo -e "🛠️ \e[1mSupported Frameworks\e[0m"
-  echo -e "   • .NET SDK (${SUPPORTED_DOTNET_VERSIONS[*]:-${BASELINE_DOTNET_VERSIONS[*]}} and higher)"
-  echo -e "   • Supported project types:"
-  echo -e "     → \e[32mBlazor Server\e[0m"
-  echo -e "     → \e[32mASP.NET Core Web App\e[0m (MVC / Razor Pages)"
+  echo -e " \e[1mSupported Frameworks\e[0m"
+  echo -e "   - .NET SDK (${SUPPORTED_DOTNET_VERSIONS[*]:-${BASELINE_DOTNET_VERSIONS[*]}} and higher)"
+  echo -e "   - Supported project types:"
+  echo -e "     -> \e[32mBlazor Server\e[0m"
+  echo -e "     -> \e[32mASP.NET Core Web App\e[0m (MVC / Razor Pages)"
   echo
 
-  echo -e "📁 \e[1mStructure Expectations\e[0m"
-  echo -e "   • Must include a valid \e[36m.csproj\e[0m file"
-  echo -e "   • Must compile using: \e[36mdotnet publish\e[0m"
-  echo -e "   • Must produce an executable DLL file"
+  echo -e " \e[1mStructure Expectations\e[0m"
+  echo -e "   - Must include a valid \e[36m.csproj\e[0m file"
+  echo -e "   - Must compile using: \e[36mdotnet publish\e[0m"
+  echo -e "   - Must produce an executable DLL file"
   echo
 
   print_double_line
-  echo -e "❓ Would you like to continue with deployment?\n"
-  echo -e " 1) ✅ Yes, proceed with app deployment      $(print_back_to_menu)"
+  echo -e " Would you like to continue with deployment?\n"
+  echo -e " 1)  Yes, proceed with app deployment      $(print_back_to_menu)"
 
   read_menu_choice 1
   case "$REPLY" in
@@ -145,7 +145,7 @@ detect_required_dotnet_versions() {
   local version=""
 
   if [[ ! -d "$dir" ]]; then
-    echo -e "\n❌ \e[31mProject directory not found:\e[0m $dir"
+    echo -e "\n \e[31mProject directory not found:\e[0m $dir"
     return 1
   fi
 
@@ -153,7 +153,7 @@ detect_required_dotnet_versions() {
   sln=$(find "$dir" -maxdepth 1 -name "*.sln" | head -n 1)
 
   if [[ -n "$sln" ]]; then
-    echo -e "\n📘 Found solution file: \e[2m${sln##*/}\e[0m"
+    echo -e "\n Found solution file: \e[2m${sln##*/}\e[0m"
     main_project=$(grep -oE '"[^"]+\.csproj"' "$sln" | head -n 1 | tr -d '"')
 
     # Normalize path: convert Windows-style "\" to "/"
@@ -166,18 +166,18 @@ detect_required_dotnet_versions() {
   fi
 
   if [[ ! -f "$main_project" ]]; then
-    echo -e "\n❌ \e[31mNo project file (.csproj) found in the repository.\e[0m"
-    echo -e "⚠️ This does not appear to be a valid .NET project."
+    echo -e "\n \e[31mNo project file (.csproj) found in the repository.\e[0m"
+    echo -e " This does not appear to be a valid .NET project."
     return 1
   fi
 
-  echo -e "📄 Main project: \e[36m${main_project#"$dir"/}\e[0m"
+  echo -e " Main project: \e[36m${main_project#"$dir"/}\e[0m"
 
   local tf_raw
   tf_raw=$(grep -oE '<TargetFrameworks?>[^<]+' "$main_project" | sed -E 's/<[^>]+>//g' | tr ';' '\n')
 
   if [[ -z "$tf_raw" ]]; then
-    echo -e "\n⚠️  \e[33mNo TargetFramework found in:\e[0m ${main_project##*/}"
+    echo -e "\n  \e[33mNo TargetFramework found in:\e[0m ${main_project##*/}"
     return 1
   fi
 
@@ -197,7 +197,7 @@ detect_required_dotnet_versions() {
   done <<< "$tf_raw"
 
   if (( ${#candidates[@]} == 0 )); then
-    echo -e "\n⚠️  \e[33mCould not parse any usable .NET version.\e[0m"
+    echo -e "\n  \e[33mCould not parse any usable .NET version.\e[0m"
     return 1
   fi
 
@@ -206,13 +206,13 @@ detect_required_dotnet_versions() {
 
   # Validate the detected version
   if ! is_valid_dotnet_version "$version"; then
-    echo -e "\n❌ \e[1;31mUnsupported .NET version detected:\e[0m \e[36m$version\e[0m"
-    echo -e "✅ Minimum supported version: \e[32m$MIN_DOTNET_VERSION\e[0m"
-    echo -e "💡 This system supports .NET $MIN_DOTNET_VERSION and higher."
+    echo -e "\n \e[1;31mUnsupported .NET version detected:\e[0m \e[36m$version\e[0m"
+    echo -e " Minimum supported version: \e[32m$MIN_DOTNET_VERSION\e[0m"
+    echo -e " This system supports .NET $MIN_DOTNET_VERSION and higher."
     return 1
   fi
 
-  echo -e "\n🔍 Required .NET SDK version: \e[36m$version\e[0m"
+  echo -e "\n Required .NET SDK version: \e[36m$version\e[0m"
   DOTNET_Version="$version"
   export DOTNET_Version
   MAIN_PROJECT_FILE="$main_project"
@@ -231,7 +231,7 @@ delete_dotnet_version() {
     declare -A deletable
 
     clear
-    echo -e "\n🗑️  \e[1;31mDelete installed .NET SDK\e[0m"
+    echo -e "\n  \e[1;31mDelete installed .NET SDK\e[0m"
     echo "═════════════════════════════════════════════════════════════"
 
     for dir in "$install_dir"/*; do
@@ -243,7 +243,7 @@ delete_dotnet_version() {
       local used=""
 
       if check_apps_using_sdk "$basever"; then
-        used=" (🚫 in use – cannot be deleted)"
+        used=" ( in use – cannot be deleted)"
       else
         deletable[$index]="$basever"
       fi
@@ -253,12 +253,12 @@ delete_dotnet_version() {
     done
 
     if [[ "${#deletable[@]}" -eq 0 ]]; then
-      echo -e "\n⚠️  No deletable SDK versions found."
-      read -rsn1 -p $'\n↩️  Press any key to return...'
+      echo -e "\n  No deletable SDK versions found."
+      read -rsn1 -p $'\n  Press any key to return...'
       return
     fi
 
-    echo -e "\n q) 🔙 Cancel"
+    echo -e "\n q)  Cancel"
     echo "─────────────────────────────────────────────────────────────"
     printf "Select version number to delete: "
     IFS= read -rsn1 selected
@@ -271,15 +271,15 @@ delete_dotnet_version() {
 
       mapfile -t matching_versions < <(find "$install_dir" -maxdepth 1 -type d -printf "%f\n" | grep -E "^$version")
       if (( ${#matching_versions[@]} == 0 )); then
-        echo "⚠️  No SDKs matching version $version found."
+        echo "  No SDKs matching version $version found."
         return 1
       fi
 
       echo ""
-      echo "🗑️  The following .NET SDK versions will be removed:"
+      echo "  The following .NET SDK versions will be removed:"
       echo "──────────────────────────────────────────────────────"
       for ver in "${matching_versions[@]}"; do
-        printf "🧩 .NET %s\n" "$ver"
+        printf " .NET %s\n" "$ver"
       done
       echo "──────────────────────────────────────────────────────"
 
@@ -287,11 +287,11 @@ delete_dotnet_version() {
         rm -rf -- "$install_dir/${ver:?}"
       done
 
-      echo "✅ .NET SDK $version removed successfully."
-      read -rsn1 -p $'\n↩️  Press any key to return...'
+      echo " .NET SDK $version removed successfully."
+      read -rsn1 -p $'\n  Press any key to return...'
       return
     else
-      echo "❌ Invalid selection. Please try again..."
+      echo " Invalid selection. Please try again..."
       sleep 1
       continue
     fi
@@ -300,12 +300,12 @@ delete_dotnet_version() {
 
 publish_dotnet_project() {
   if [[ -z "$MAIN_PROJECT_FILE" || ! -f "$MAIN_PROJECT_FILE" ]]; then
-    echo -e "\n❌ \e[31mMain project file not found.\e[0m"
+    echo -e "\n \e[31mMain project file not found.\e[0m"
     return 1
   fi
 
   if [[ -z "$DOTNET_Version" ]]; then
-    echo -e "\n❌ \e[31mNo .NET SDK version specified.\e[0m"
+    echo -e "\n \e[31mNo .NET SDK version specified.\e[0m"
     return 1
   fi
 
@@ -313,13 +313,13 @@ publish_dotnet_project() {
   export TMP_PUBLISH_DIR
 
   if [[ -d "$TMP_PUBLISH_DIR" ]]; then
-    echo -e "\n♻️  Removing previous publish directory: \e[2m$TMP_PUBLISH_DIR\e[0m"
+    echo -e "\n  Removing previous publish directory: \e[2m$TMP_PUBLISH_DIR\e[0m"
     rm -rf "$TMP_PUBLISH_DIR"
   fi
 
-  echo -e "\n🚀 Publishing project..."
-  echo -e "📄 Project: \e[36m${MAIN_PROJECT_FILE##*/}\e[0m"
-  echo -e "📦 Output:  \e[2m$TMP_PUBLISH_DIR\e[0m"
+  echo -e "\n Publishing project..."
+  echo -e " Project: \e[36m${MAIN_PROJECT_FILE##*/}\e[0m"
+  echo -e " Output:  \e[2m$TMP_PUBLISH_DIR\e[0m"
 
   local log_file="/$CLONE_BASE_DIR/publish-${SELECTED_REPO_NAME}.log"
   rm -f "$log_file"
@@ -355,7 +355,7 @@ publish_dotnet_project() {
 
   while kill -0 "$pid" 2>/dev/null; do
     i=$(( (i + 1) % 4 ))
-    printf "\r⏳ Publishing... %s" "${spin:$i:1}"
+    printf "\r Publishing... %s" "${spin:$i:1}"
     sleep 0.2
   done
   printf "\r"
@@ -364,12 +364,12 @@ publish_dotnet_project() {
   local status=$?
 
   if (( status == 0 )); then
-    echo -e "✅ Project successfully published to: \e[2m$TMP_PUBLISH_DIR\e[0m"
+    echo -e " Project successfully published to: \e[2m$TMP_PUBLISH_DIR\e[0m"
     return 0
   fi
 
-  echo -e "\n❌ \e[31mPublish failed.\e[0m"
-  echo -e "📜 Output from dotnet publish:\n"
+  echo -e "\n \e[31mPublish failed.\e[0m"
+  echo -e " Output from dotnet publish:\n"
   sed 's/^/   /' "$log_file"
   return 1
 }
@@ -389,20 +389,20 @@ deploy_to_domain_folder() {
   mkdir -p "$APP_BASE_DIR"
 
   if [[ -d "$target_dir" ]]; then
-    echo -e "\n⚠️ \e[33mDeployment folder already exists:\e[0m \e[2m$target_dir\e[0m"
+    echo -e "\n \e[33mDeployment folder already exists:\e[0m \e[2m$target_dir\e[0m"
     echo -e "   This may overwrite an existing app and its services.\n"
-    echo -e "1) 🗑️ Delete and redeploy"
-    echo -e "2) 🔙 Cancel deployment"
+    echo -e "1)  Delete and redeploy"
+    echo -e "2)  Cancel deployment"
 
-    read -rsn1 -p $'\n❓ Your choice [1–2]: ' choice
+    read -rsn1 -p $'\n Your choice [1–2]: ' choice
     echo
 
     if [[ "$choice" != "1" ]]; then
-      echo -e "\n↩️  Deployment cancelled by user."
+      echo -e "\n  Deployment cancelled by user."
       return 1
     fi
 
-    echo -e "\n🛑 \e[1mStopping and removing related services...\e[0m"
+    echo -e "\n \e[1mStopping and removing related services...\e[0m"
     local service_name
 
     if [[ -n "$SERVICE_NAME" ]]; then
@@ -416,57 +416,57 @@ deploy_to_domain_folder() {
     local service_path="/etc/systemd/system/$service_name"
 
     if systemctl list-units --type=service | grep -q "$service_name"; then
-      echo -e "   ⏹️ Stopping: \e[36m$service_name\e[0m"
+      echo -e "    Stopping: \e[36m$service_name\e[0m"
       systemctl stop "$service_name" || true
     fi
 
     if systemctl is-enabled "$service_name" &>/dev/null; then
-      echo -e "   ❌ Disabling: \e[36m$service_name\e[0m"
+      echo -e "    Disabling: \e[36m$service_name\e[0m"
       systemctl disable "$service_name" &>/dev/null || true
     fi
 
     if [[ -f "$service_path" ]]; then
-      echo -e "   🧹 Removing: \e[36m$service_path\e[0m"
+      echo -e "    Removing: \e[36m$service_path\e[0m"
       rm -f "$service_path"
     fi
 
-    echo -e "\n♻️ Removing old deployment folder: \e[2m$target_dir\e[0m"
+    echo -e "\n Removing old deployment folder: \e[2m$target_dir\e[0m"
     rm -rf "$target_dir"
   fi
 
-  echo -e "\n📂 Copying published files to: \e[36m$target_dir\e[0m"
+  echo -e "\n Copying published files to: \e[36m$target_dir\e[0m"
   mkdir -p "$target_dir"
 
   if ! cp -r "$TMP_PUBLISH_DIR"/. "$target_dir"; then
-    echo -e "\n❌ \e[31mFailed to copy published files.\e[0m"
+    echo -e "\n \e[31mFailed to copy published files.\e[0m"
     return 1
   fi
 
   clean_published_output "$target_dir" "${SERVICE_NAME:-}"
-  echo -e "✅ Files successfully copied to: \e[2m$target_dir\e[0m"
+  echo -e " Files successfully copied to: \e[2m$target_dir\e[0m"
   return 0
 }
 
 cleanup_temp_folders() {
-  echo -e "\n🧹 Cleaning up temporary folders..."
+  echo -e "\n Cleaning up temporary folders..."
 
   if [[ -n "$TMP_CLONE_DIR" && -d "$TMP_CLONE_DIR" ]]; then
-    echo -e "   🔻 Removing clone folder: \e[2m$TMP_CLONE_DIR\e[0m"
+    echo -e "    Removing clone folder: \e[2m$TMP_CLONE_DIR\e[0m"
     rm -rf "$TMP_CLONE_DIR"
   fi
 
   if [[ -n "$TMP_PUBLISH_DIR" && -d "$TMP_PUBLISH_DIR" ]]; then
-    echo -e "   🔻 Removing publish folder: \e[2m$TMP_PUBLISH_DIR\e[0m"
+    echo -e "    Removing publish folder: \e[2m$TMP_PUBLISH_DIR\e[0m"
     rm -rf "$TMP_PUBLISH_DIR"
   fi
 
   local log_file="/$CLONE_BASE_DIR/publish-${SELECTED_REPO_NAME}.log"
   if [[ -f "$log_file" ]]; then
-    echo -e "   🗑️ Removing log file: \e[2m$log_file\e[0m"
+    echo -e "    Removing log file: \e[2m$log_file\e[0m"
     rm -f "$log_file"
   fi
 
-  echo -e "✅ Temporary files cleaned up."
+  echo -e " Temporary files cleaned up."
 }
 
 clean_published_output() {
@@ -474,7 +474,7 @@ clean_published_output() {
   local service_name="$2"
 
   if [[ -z "$dir" || ! -d "$dir" ]]; then
-    echo -e "❌ \033[31mInvalid or missing publish directory:\033[0m \033[2m$dir\033[0m"
+    echo -e " \033[31mInvalid or missing publish directory:\033[0m \033[2m$dir\033[0m"
     return 1
   fi
 
@@ -483,7 +483,7 @@ clean_published_output() {
     env_value=$(systemctl show "$service_name" --property=Environment | grep -oP 'DOTNET_ENVIRONMENT=\K[^ ]+' || echo "Production")
   fi
 
-  echo -e "\n🧹 \033[1mCleaning publish folder...\033[0m (\e[36mEnvironment: $env_value\e[0m)"
+  echo -e "\n \033[1mCleaning publish folder...\033[0m (\e[36mEnvironment: $env_value\e[0m)"
 
   local removed=false
   local file
@@ -497,10 +497,10 @@ clean_published_output() {
   for file in "${matches[@]}"; do
     case "$(basename "$file")" in
       web.config)
-        echo -e "🗑️ Removing: \e[2mweb.config\e[0m \e[33m(Only required for IIS on Windows)\e[0m"
+        echo -e " Removing: \e[2mweb.config\e[0m \e[33m(Only required for IIS on Windows)\e[0m"
         ;;
       *)
-        echo -e "🗑️ Removing: \e[2m$(basename "$file")\e[0m"
+        echo -e " Removing: \e[2m$(basename "$file")\e[0m"
         ;;
     esac
     rm -f "$file"
@@ -510,14 +510,14 @@ clean_published_output() {
   if [[ "$env_value" != "Development" ]]; then
     mapfile -t devfiles < <(find "$dir" -maxdepth 1 -type f -name "*Development.json")
     for file in "${devfiles[@]}"; do
-      echo -e "🗑️ Removing dev config: \e[2m$(basename "$file")\e[0m"
+      echo -e " Removing dev config: \e[2m$(basename "$file")\e[0m"
       rm -f "$file"
       removed=true
     done
   fi
 
   if [[ "$removed" != true ]]; then
-    echo -e "✅ Nothing to clean. All good."
+    echo -e " Nothing to clean. All good."
   fi
 
   return 0
@@ -527,7 +527,7 @@ find_dotnet_executable_dll() {
   local publish_dir="$1"
 
   if [[ -z "$publish_dir" || ! -d "$publish_dir" ]]; then
-    echo "❌ Invalid or missing publish directory: $publish_dir" >&2
+    echo " Invalid or missing publish directory: $publish_dir" >&2
     return 1
   fi
 
@@ -541,7 +541,7 @@ find_dotnet_executable_dll() {
   done)
 
   if [[ -z "$dll" ]]; then
-    echo "❌ No executable DLL found in $publish_dir" >&2
+    echo " No executable DLL found in $publish_dir" >&2
     return 1
   fi
 
@@ -578,31 +578,31 @@ show_dotnet_version_menu() {
 
   while true; do
     clear
-    echo -e "\n🧰 \e[1;34m.NET SDK Management\e[0m"
+    echo -e "\n \e[1;34m.NET SDK Management\e[0m"
     echo "═════════════════════════════════════════════════════════════════════════════════"
 
     for i in "${!SUPPORTED_DOTNET_VERSIONS[@]}"; do
       local ver="${SUPPORTED_DOTNET_VERSIONS[$i]}"
-      local status="➕  Not installed"
-      local used="➕ Not used"
+      local status="  Not installed"
+      local used=" Not used"
       local disk="–       "
       local realver="–"
 
       if [[ -x "$install_dir/dotnet" ]] && "$install_dir/dotnet" --list-sdks | grep -q "^$ver"; then
-        status="✅  Installed"
+        status="  Installed"
         realver=$("$install_dir/dotnet" --list-sdks | grep "^$ver" | awk '{print $1}')
         disk=$(du -sh "$install_dir/sdk"/* 2>/dev/null | grep "$ver" | awk '{sum+=$1} END{print sum " MB"}')
       fi
 
       if check_apps_using_sdk "$ver"; then
-        used="✅ Used"
+        used=" Used"
       fi
 
-      printf " %d) .NET %-4s │ %-20s │ %-12s │ 💾 Size: %-8s │ 🔢 Version: %-15s\n" \
+      printf " %d) .NET %-4s │ %-20s │ %-12s │  Size: %-8s │  Version: %-15s\n" \
         $((i + 1)) "$ver" "$status" "$used" "$disk" "$realver"
     done
 
-    echo -e "\n d) 🗑️  Delete version     m) 🔄 Manual version     q) 🔙 Back to main menu"
+    echo -e "\n d)   Delete version     m)  Manual version     q)  Back to main menu"
     echo "───────────────────────────────────────────────────────────────────────────────"
     printf "Install version [1–%d], manual [m], delete [d], or quit [q]: " "${#SUPPORTED_DOTNET_VERSIONS[@]}"
     IFS= read -rsn1 choice
@@ -612,15 +612,15 @@ show_dotnet_version_menu() {
       q|Q) return ;;
       d|D) delete_dotnet_version ;;
       m|M)
-        echo -e "\n📝 Enter .NET version to install (e.g., 10.0, 11.0):"
+        echo -e "\n Enter .NET version to install (e.g., 10.0, 11.0):"
         read -r manual_version
         if is_valid_dotnet_version "$manual_version"; then
           DOTNET_Version="$manual_version"
           export DOTNET_Version
           install_dotnet_version
-          read -rsn1 -p $'\n✅ Done. Press any key to return...' _
+          read -rsn1 -p $'\n Done. Press any key to return...' _
         else
-          echo -e "❌ Invalid version. Must be $MIN_DOTNET_VERSION or higher."
+          echo -e " Invalid version. Must be $MIN_DOTNET_VERSION or higher."
           sleep 2
         fi
         ;;
@@ -629,11 +629,11 @@ show_dotnet_version_menu() {
           DOTNET_Version="${SUPPORTED_DOTNET_VERSIONS[$((choice - 1))]}"
           export DOTNET_Version
           install_dotnet_version
-          read -rsn1 -p $'\n✅ Done. Press any key to return...' _
+          read -rsn1 -p $'\n Done. Press any key to return...' _
         fi
         ;;
       *)
-        echo "❌ Invalid selection."
+        echo " Invalid selection."
         sleep 1
         ;;
     esac
@@ -657,7 +657,7 @@ create_kestrel_service() {
   done
 
   if [[ -z "$KESTREL_PORT" ]]; then
-    echo -e "\n❌ \033[31mNo available port in range 5000–5099.\033[0m"
+    echo -e "\n \033[31mNo available port in range 5000–5099.\033[0m"
     return 1
   fi
 
@@ -672,13 +672,13 @@ create_kestrel_service() {
 
   # Replace existing service cleanly if present
   if systemctl list-units --type=service | grep -q "$SERVICE_NAME"; then
-    echo -e "\n♻️  \033[33mReplacing existing service:\033[0m \033[36m$SERVICE_NAME\033[0m"
-    echo -e "   ⏹️  Stopping service..."
+    echo -e "\n  \033[33mReplacing existing service:\033[0m \033[36m$SERVICE_NAME\033[0m"
+    echo -e "     Stopping service..."
     systemctl stop "$SERVICE_NAME" || true
-    echo -e "   ❌ Disabling service..."
+    echo -e "    Disabling service..."
     systemctl disable "$SERVICE_NAME" &>/dev/null || true
     if [[ -f "$SERVICE_PATH" ]]; then
-      echo -e "   🧹 Removing: \033[2m$SERVICE_PATH\033[0m"
+      echo -e "    Removing: \033[2m$SERVICE_PATH\033[0m"
       rm -f "$SERVICE_PATH"
     fi
   fi
@@ -686,7 +686,7 @@ create_kestrel_service() {
   # Detect main .dll in publish dir
   DOTNET_DLL=$(find_dotnet_executable_dll "$PUBLISH_DIR")
   if [[ -z "$DOTNET_DLL" ]]; then
-    echo -e "\n❌ \033[31mCould not detect main .dll in: $PUBLISH_DIR\033[0m"
+    echo -e "\n \033[31mCould not detect main .dll in: $PUBLISH_DIR\033[0m"
     return 1
   fi
 
@@ -696,7 +696,7 @@ create_kestrel_service() {
   chown -R www-data:www-data "$log_dir"
   chmod -R 755 "$log_dir"
 
-  # 🔐 WRITE PERMISSIONS FIX FOR RUNTIME-GENERATED FILES (e.g., sitemap.xml in wwwroot)
+  #  WRITE PERMISSIONS FIX FOR RUNTIME-GENERATED FILES (e.g., sitemap.xml in wwwroot)
   # Make wwwroot tree owned by www-data and writable (dirs 2775, files 664).
   local webroot="$PUBLISH_DIR/wwwroot"
   if [[ -d "$webroot" ]]; then
@@ -708,7 +708,7 @@ create_kestrel_service() {
     find "$webroot" -type f -exec chmod 664 {} \;
   fi
 
-  echo -e "\n⚙️ \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
+  echo -e "\n \033[1mCreating systemd service:\033[0m \033[36m$SERVICE_NAME\033[0m"
 
   {
     echo "[Unit]"
@@ -740,7 +740,7 @@ create_kestrel_service() {
   systemctl enable "$SERVICE_NAME"
   systemctl start "$SERVICE_NAME"
 
-  echo -e "✅ \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
+  echo -e " \033[32mService started:\033[0m \033[36m$SERVICE_NAME\033[0m"
 }
 
 

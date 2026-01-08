@@ -12,36 +12,36 @@
 #
 # Security Issues:
 # 1. GPG_KEY was displayed in console during generation
-#    → FIXED: Hidden with informational message only
+#    -> FIXED: Hidden with informational message only
 #
 # 2. GPG_KEY was embedded in plain text in the generated binary
-#    → FIXED: Changed to prompt user at runtime instead
+#    -> FIXED: Changed to prompt user at runtime instead
 #
 # Validation Issues:
 # 3. No sudo validation before running sudo commands
-#    → FIXED: Added validate_sudo_access() function
+#    -> FIXED: Added validate_sudo_access() function
 #
 # 4. No permission check for /usr/local/bin write access
-#    → FIXED: Added validate_output_directory() function
+#    -> FIXED: Added validate_output_directory() function
 #
 # 5. No validation that required files exist before copying
-#    → FIXED: Added validate_required_files() function
+#    -> FIXED: Added validate_required_files() function
 #
 # 6. No overwrite protection for existing binary
-#    → FIXED: Added user confirmation prompt
+#    -> FIXED: Added user confirmation prompt
 #
 # Robustness Issues:
 # 7. No cleanup of temporary files on error
-#    → FIXED: Added cleanup trap with cleanup_on_error() function
+#    -> FIXED: Added cleanup trap with cleanup_on_error() function
 #
 # 8. Missing error handling for critical operations (gpg, tar, base64)
-#    → FIXED: Added error checking for all critical operations
+#    -> FIXED: Added error checking for all critical operations
 #
 # 9. No cleanup trap in generated launcher
-#    → FIXED: Added cleanup_launcher() trap in generated binary
+#    -> FIXED: Added cleanup_launcher() trap in generated binary
 #
 # 10. Poor or missing error messages
-#     → FIXED: Added specific, helpful error messages throughout
+#     -> FIXED: Added specific, helpful error messages throughout
 #
 # TESTS CREATED (43 total):
 # =========================
@@ -75,33 +75,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BUILD_SCRIPT="$ROOT_DIR/build.sh"
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  BUILD.SH ANALYSIS DOCUMENTATION"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "📋 Task: Analyze script, fix bugs, create tests, then delete"
+echo " Task: Analyze script, fix bugs, create tests, then delete"
 echo ""
-echo "📊 Analysis Results:"
-echo "   • Tests Created: 43"
-echo "   • Bugs Found: 10"
-echo "   • Bugs Fixed: 10"
-echo "   • Security Issues: 2 (both fixed)"
-echo "   • Validation Checks Added: 4"
-echo "   • Robustness Improvements: 4"
+echo " Analysis Results:"
+echo "   - Tests Created: 43"
+echo "   - Bugs Found: 10"
+echo "   - Bugs Fixed: 10"
+echo "   - Security Issues: 2 (both fixed)"
+echo "   - Validation Checks Added: 4"
+echo "   - Robustness Improvements: 4"
 echo ""
-echo "✅ All 43 tests passed before deletion"
+echo " All 43 tests passed before deletion"
 echo ""
 
 # Verify build.sh is actually deleted
 if [[ ! -f "$BUILD_SCRIPT" ]]; then
-  echo "✅ build.sh successfully deleted as requested"
+  echo " build.sh successfully deleted as requested"
   echo ""
-  echo "📝 This file remains as documentation of the analysis"
+  echo " This file remains as documentation of the analysis"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   exit 0
 else
-  echo "❌ ERROR: build.sh still exists but should have been deleted"
+  echo " ERROR: build.sh still exists but should have been deleted"
   exit 1
 fi

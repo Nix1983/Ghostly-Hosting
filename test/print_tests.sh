@@ -7,22 +7,22 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source the print module
 if ! source "$ROOT_DIR/lib/print.sh"; then
-  echo "❌ Failed to source print.sh"
+  echo " Failed to source print.sh"
   exit 1
 fi
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 
 # Test print.sh syntax
 test_print_syntax() {
   echo ""
-  echo "🔧 Running test_print_syntax"
+  echo " Running test_print_syntax"
   
   if bash -n "$ROOT_DIR/lib/print.sh" 2>/dev/null; then
-    echo "✅ print.sh: Valid bash syntax"
+    echo " print.sh: Valid bash syntax"
     return 0
   else
-    echo "❌ print.sh: Syntax errors detected"
+    echo " print.sh: Syntax errors detected"
     return 1
   fi
 }
@@ -30,7 +30,7 @@ test_print_syntax() {
 # Test that all print functions exist
 test_print_functions_exist() {
   echo ""
-  echo "🔧 Running test_print_functions_exist"
+  echo " Running test_print_functions_exist"
   
   local failed=0
   local functions=(
@@ -45,9 +45,9 @@ test_print_functions_exist() {
   
   for func in "${functions[@]}"; do
     if declare -f "$func" >/dev/null; then
-      echo "✅ print: $func function exists"
+      echo " print: $func function exists"
     else
-      echo "❌ print: $func function missing"
+      echo " print: $func function missing"
       failed=1
     fi
   done
@@ -58,23 +58,23 @@ test_print_functions_exist() {
 # Test print_select_prompt output
 test_print_select_prompt_output() {
   echo ""
-  echo "🔧 Running test_print_select_prompt_output"
+  echo " Running test_print_select_prompt_output"
   
   local output
   output=$(print_select_prompt 3)
   
   if [[ "$output" == "Please select [1–3, q]: " ]]; then
-    echo "✅ print_select_prompt: Correct output for max=3"
+    echo " print_select_prompt: Correct output for max=3"
   else
-    echo "❌ print_select_prompt: Unexpected output: $output"
+    echo " print_select_prompt: Unexpected output: $output"
     return 1
   fi
   
   output=$(print_select_prompt 0)
   if [[ "$output" == "Please select [q]: " ]]; then
-    echo "✅ print_select_prompt: Correct output for max=0"
+    echo " print_select_prompt: Correct output for max=0"
   else
-    echo "❌ print_select_prompt: Unexpected output for max=0: $output"
+    echo " print_select_prompt: Unexpected output for max=0: $output"
     return 1
   fi
   
@@ -84,7 +84,7 @@ test_print_select_prompt_output() {
 # Test print_line output length
 test_print_line_output() {
   echo ""
-  echo "🔧 Running test_print_line_output"
+  echo " Running test_print_line_output"
   
   local line
   line=$(print_line)
@@ -93,10 +93,10 @@ test_print_line_output() {
   # Line should be at least 100 characters to be useful as a separator
   local MIN_LINE_LENGTH=100
   if [[ $length -gt $MIN_LINE_LENGTH ]]; then
-    echo "✅ print_line: Produces line of length $length"
+    echo " print_line: Produces line of length $length"
     return 0
   else
-    echo "❌ print_line: Line too short: $length characters (minimum: $MIN_LINE_LENGTH)"
+    echo " print_line: Line too short: $length characters (minimum: $MIN_LINE_LENGTH)"
     return 1
   fi
 }
@@ -104,7 +104,7 @@ test_print_line_output() {
 # Test print_double_line output length
 test_print_double_line_output() {
   echo ""
-  echo "🔧 Running test_print_double_line_output"
+  echo " Running test_print_double_line_output"
   
   local line
   line=$(print_double_line)
@@ -113,10 +113,10 @@ test_print_double_line_output() {
   # Double line should be at least 100 characters to be useful as a separator
   local MIN_LINE_LENGTH=100
   if [[ $length -gt $MIN_LINE_LENGTH ]]; then
-    echo "✅ print_double_line: Produces line of length $length"
+    echo " print_double_line: Produces line of length $length"
     return 0
   else
-    echo "❌ print_double_line: Line too short: $length characters (minimum: $MIN_LINE_LENGTH)"
+    echo " print_double_line: Line too short: $length characters (minimum: $MIN_LINE_LENGTH)"
     return 1
   fi
 }
@@ -144,9 +144,9 @@ echo "Failed: $FAILED_TESTS"
 echo ""
 
 if [[ $FAILED_TESTS -eq 0 ]]; then
-  echo "✅ All print tests passed!"
+  echo " All print tests passed!"
   exit 0
 else
-  echo "❌ $FAILED_TESTS print test(s) failed"
+  echo " $FAILED_TESTS print test(s) failed"
   exit 1
 fi

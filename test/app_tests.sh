@@ -11,38 +11,38 @@ echo "════════════════════════�
 
 # Source required libraries
 if ! source "$ROOT_DIR/lib/const.sh"; then
-  echo "❌ Failed to source const.sh"
+  echo " Failed to source const.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/common.sh"; then
-  echo "❌ Failed to source common.sh"
+  echo " Failed to source common.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/print.sh"; then
-  echo "❌ Failed to source print.sh"
+  echo " Failed to source print.sh"
   exit 1
 fi
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 echo ""
 
 # Test 1: Check if app.sh exists and is readable
 test_app_script_exists() {
-  echo "🔧 Running test_app_script_exists"
+  echo " Running test_app_script_exists"
   
   if [[ -f "$ROOT_DIR/lib/app.sh" ]]; then
-    echo "✅ app.sh exists"
+    echo " app.sh exists"
   else
-    echo "❌ app.sh does not exist"
+    echo " app.sh does not exist"
     return 1
   fi
   
   if [[ -r "$ROOT_DIR/lib/app.sh" ]]; then
-    echo "✅ app.sh is readable"
+    echo " app.sh is readable"
   else
-    echo "❌ app.sh is not readable"
+    echo " app.sh is not readable"
     return 1
   fi
   
@@ -51,26 +51,26 @@ test_app_script_exists() {
 
 # Test 2: Check if app_manager.sh exists
 test_app_manager_exists() {
-  echo "🔧 Running test_app_manager_exists"
+  echo " Running test_app_manager_exists"
   
   if [[ -f "$ROOT_DIR/lib/app_manager.sh" ]]; then
-    echo "✅ app_manager.sh exists"
+    echo " app_manager.sh exists"
     return 0
   else
-    echo "❌ app_manager.sh does not exist"
+    echo " app_manager.sh does not exist"
     return 1
   fi
 }
 
 # Test 3: Validate app.sh syntax
 test_app_script_syntax() {
-  echo "🔧 Running test_app_script_syntax"
+  echo " Running test_app_script_syntax"
   
   if bash -n "$ROOT_DIR/lib/app.sh" 2>/dev/null; then
-    echo "✅ app.sh has valid syntax"
+    echo " app.sh has valid syntax"
     return 0
   else
-    echo "❌ app.sh has syntax errors"
+    echo " app.sh has syntax errors"
     bash -n "$ROOT_DIR/lib/app.sh"
     return 1
   fi
@@ -78,13 +78,13 @@ test_app_script_syntax() {
 
 # Test 4: Validate app_manager.sh syntax
 test_app_manager_syntax() {
-  echo "🔧 Running test_app_manager_syntax"
+  echo " Running test_app_manager_syntax"
   
   if bash -n "$ROOT_DIR/lib/app_manager.sh" 2>/dev/null; then
-    echo "✅ app_manager.sh has valid syntax"
+    echo " app_manager.sh has valid syntax"
     return 0
   else
-    echo "❌ app_manager.sh has syntax errors"
+    echo " app_manager.sh has syntax errors"
     bash -n "$ROOT_DIR/lib/app_manager.sh"
     return 1
   fi
@@ -92,41 +92,41 @@ test_app_manager_syntax() {
 
 # Test 5: Check git module exists
 test_git_module_exists() {
-  echo "🔧 Running test_git_module_exists"
+  echo " Running test_git_module_exists"
   
   if [[ -f "$ROOT_DIR/lib/git.sh" ]]; then
-    echo "✅ git.sh module exists"
+    echo " git.sh module exists"
     return 0
   else
-    echo "❌ git.sh module does not exist"
+    echo " git.sh module does not exist"
     return 1
   fi
 }
 
 # Test 6: Test is_valid_kestrel_service_name function
 test_is_valid_kestrel_service_name() {
-  echo "🔧 Running test_is_valid_kestrel_service_name"
+  echo " Running test_is_valid_kestrel_service_name"
   
   # Valid service names
   if is_valid_kestrel_service_name "myapp@ghostlypick.com:5000.service"; then
-    echo "✅ Valid service name accepted: myapp@ghostlypick.com:5000.service"
+    echo " Valid service name accepted: myapp@ghostlypick.com:5000.service"
   else
-    echo "❌ Valid service name rejected: myapp@ghostlypick.com:5000.service"
+    echo " Valid service name rejected: myapp@ghostlypick.com:5000.service"
     return 1
   fi
   
   if is_valid_kestrel_service_name "@ghostlypick.com:5001.service"; then
-    echo "✅ Valid service name accepted: @ghostlypick.com:5001.service"
+    echo " Valid service name accepted: @ghostlypick.com:5001.service"
   else
-    echo "❌ Valid service name rejected: @ghostlypick.com:5001.service"
+    echo " Valid service name rejected: @ghostlypick.com:5001.service"
     return 1
   fi
   
   # Invalid service names
   if ! is_valid_kestrel_service_name "invalid-service-name.service"; then
-    echo "✅ Invalid service name rejected: invalid-service-name.service"
+    echo " Invalid service name rejected: invalid-service-name.service"
   else
-    echo "❌ Invalid service name accepted: invalid-service-name.service"
+    echo " Invalid service name accepted: invalid-service-name.service"
     return 1
   fi
   
@@ -135,7 +135,7 @@ test_is_valid_kestrel_service_name() {
 
 # Test 7: Check deployment dependencies exist
 test_deployment_dependencies() {
-  echo "🔧 Running test_deployment_dependencies"
+  echo " Running test_deployment_dependencies"
   
   local modules=(
     "cloudflare.sh"
@@ -146,9 +146,9 @@ test_deployment_dependencies() {
   
   for module in "${modules[@]}"; do
     if [[ -f "$ROOT_DIR/lib/$module" ]]; then
-      echo "✅ Dependency module exists: $module"
+      echo " Dependency module exists: $module"
     else
-      echo "❌ Dependency module missing: $module"
+      echo " Dependency module missing: $module"
       return 1
     fi
   done
@@ -196,6 +196,6 @@ echo ""
 if [[ $FAILED -gt 0 ]]; then
   exit 1
 else
-  echo "✅ All app deployment tests passed!"
+  echo " All app deployment tests passed!"
   exit 0
 fi

@@ -7,11 +7,11 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source log.sh which contains the error logging functions
 if ! source "$ROOT_DIR/lib/log.sh"; then
-  echo "❌ Failed to source log.sh"
+  echo " Failed to source log.sh"
   exit 1
 fi
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 
 # Test initialization
 test_init_error_logging() {
@@ -22,11 +22,11 @@ test_init_error_logging() {
   _init_error_logging
   
   if [[ -d "$test_dir" ]]; then
-    echo "✅ _init_error_logging: Created log directory"
+    echo " _init_error_logging: Created log directory"
     rm -rf "$test_dir"
     return 0
   else
-    echo "❌ _init_error_logging: Failed to create directory"
+    echo " _init_error_logging: Failed to create directory"
     return 1
   fi
 }
@@ -45,17 +45,17 @@ test_log_error() {
        grep -q "test_context" "$ERROR_LOG_FILE" && \
        grep -q "test error message" "$ERROR_LOG_FILE" && \
        grep -q "Exit code: 42" "$ERROR_LOG_FILE"; then
-      echo "✅ log_error: Message logged correctly with all fields"
+      echo " log_error: Message logged correctly with all fields"
       rm -rf "$test_dir"
       return 0
     else
-      echo "❌ log_error: Log content incomplete"
+      echo " log_error: Log content incomplete"
       cat "$ERROR_LOG_FILE"
       rm -rf "$test_dir"
       return 1
     fi
   else
-    echo "❌ log_error: Log file not created"
+    echo " log_error: Log file not created"
     rm -rf "$test_dir"
     return 1
   fi
@@ -74,17 +74,17 @@ test_log_warning() {
     if grep -q "WARNING" "$ERROR_LOG_FILE" && \
        grep -q "warning_context" "$ERROR_LOG_FILE" && \
        grep -q "test warning message" "$ERROR_LOG_FILE"; then
-      echo "✅ log_warning: Warning logged correctly"
+      echo " log_warning: Warning logged correctly"
       rm -rf "$test_dir"
       return 0
     else
-      echo "❌ log_warning: Log content incomplete"
+      echo " log_warning: Log content incomplete"
       cat "$ERROR_LOG_FILE"
       rm -rf "$test_dir"
       return 1
     fi
   else
-    echo "❌ log_warning: Log file not created"
+    echo " log_warning: Log file not created"
     rm -rf "$test_dir"
     return 1
   fi
@@ -103,17 +103,17 @@ test_log_info() {
     if grep -q "INFO" "$ERROR_LOG_FILE" && \
        grep -q "info_context" "$ERROR_LOG_FILE" && \
        grep -q "test info message" "$ERROR_LOG_FILE"; then
-      echo "✅ log_info: Info logged correctly"
+      echo " log_info: Info logged correctly"
       rm -rf "$test_dir"
       return 0
     else
-      echo "❌ log_info: Log content incomplete"
+      echo " log_info: Log content incomplete"
       cat "$ERROR_LOG_FILE"
       rm -rf "$test_dir"
       return 1
     fi
   else
-    echo "❌ log_info: Log file not created"
+    echo " log_info: Log file not created"
     rm -rf "$test_dir"
     return 1
   fi
@@ -130,11 +130,11 @@ test_log_debug_disabled() {
   log_debug "debug_context" "this should not appear"
   
   if [[ ! -f "$ERROR_LOG_FILE" ]] || ! grep -q "DEBUG" "$ERROR_LOG_FILE" 2>/dev/null; then
-    echo "✅ log_debug: Debug disabled works correctly"
+    echo " log_debug: Debug disabled works correctly"
     rm -rf "$test_dir"
     return 0
   else
-    echo "❌ log_debug: Debug logged when it shouldn't be"
+    echo " log_debug: Debug logged when it shouldn't be"
     cat "$ERROR_LOG_FILE"
     rm -rf "$test_dir"
     return 1
@@ -155,19 +155,19 @@ test_log_debug_enabled() {
     if grep -q "DEBUG" "$ERROR_LOG_FILE" && \
        grep -q "debug_context" "$ERROR_LOG_FILE" && \
        grep -q "test debug message" "$ERROR_LOG_FILE"; then
-      echo "✅ log_debug: Debug enabled works correctly"
+      echo " log_debug: Debug enabled works correctly"
       rm -rf "$test_dir"
       DEBUG_MODE="false"
       return 0
     else
-      echo "❌ log_debug: Debug log content incomplete"
+      echo " log_debug: Debug log content incomplete"
       cat "$ERROR_LOG_FILE"
       rm -rf "$test_dir"
       DEBUG_MODE="false"
       return 1
     fi
   else
-    echo "❌ log_debug: Debug log file not created"
+    echo " log_debug: Debug log file not created"
     rm -rf "$test_dir"
     DEBUG_MODE="false"
     return 1
@@ -190,11 +190,11 @@ test_multiple_log_entries() {
   
   # Expected: 4 lines total (2 from error, 1 from warning, 1 from info)
   if [[ "$count" -ge 4 ]]; then
-    echo "✅ Multiple log entries: All entries recorded ($count lines)"
+    echo " Multiple log entries: All entries recorded ($count lines)"
     rm -rf "$test_dir"
     return 0
   else
-    echo "❌ Multiple log entries: Expected at least 4 lines, got $count"
+    echo " Multiple log entries: Expected at least 4 lines, got $count"
     cat "$ERROR_LOG_FILE"
     rm -rf "$test_dir"
     return 1
@@ -210,10 +210,10 @@ test_log_fallback_to_tmp() {
   _init_error_logging
   
   if [[ "$ERROR_LOG_DIR" == "/tmp/ghostly-hosting-logs" ]]; then
-    echo "✅ Log fallback: Correctly fell back to /tmp"
+    echo " Log fallback: Correctly fell back to /tmp"
     return 0
   else
-    echo "❌ Log fallback: Did not fall back correctly. DIR=$ERROR_LOG_DIR"
+    echo " Log fallback: Did not fall back correctly. DIR=$ERROR_LOG_DIR"
     return 1
   fi
 }
@@ -230,26 +230,26 @@ test_timestamp_format() {
   if [[ -f "$ERROR_LOG_FILE" ]]; then
     # Check if timestamp matches YYYY-MM-DD HH:MM:SS format
     if grep -qE '^\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\]' "$ERROR_LOG_FILE"; then
-      echo "✅ Timestamp format: Correct format YYYY-MM-DD HH:MM:SS"
+      echo " Timestamp format: Correct format YYYY-MM-DD HH:MM:SS"
       rm -rf "$test_dir"
       return 0
     else
-      echo "❌ Timestamp format: Incorrect format"
+      echo " Timestamp format: Incorrect format"
       cat "$ERROR_LOG_FILE"
       rm -rf "$test_dir"
       return 1
     fi
   else
-    echo "❌ Timestamp format: Log file not created"
+    echo " Timestamp format: Log file not created"
     rm -rf "$test_dir"
     return 1
   fi
 }
 
 run_test() {
-  echo -e "\n🔧 Running $1"
+  echo -e "\n Running $1"
   if ! "$1"; then
-    echo "❌ Test '$1' failed"
+    echo " Test '$1' failed"
     return 1
   fi
   return 0
@@ -269,9 +269,9 @@ run_test test_log_fallback_to_tmp || ((FAILED++))
 run_test test_timestamp_format || ((FAILED++))
 
 if [[ $FAILED -eq 0 ]]; then
-  echo -e "\n✅ All log tests passed successfully"
+  echo -e "\n All log tests passed successfully"
   exit 0
 else
-  echo -e "\n❌ $FAILED test(s) failed"
+  echo -e "\n $FAILED test(s) failed"
   exit 1
 fi

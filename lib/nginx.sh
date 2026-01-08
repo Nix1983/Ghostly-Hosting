@@ -17,29 +17,29 @@ remove_nginx() {
          /etc/systemd/system/nginx.service \
          /etc/systemd/system/multi-user.target.wants/nginx.service
 
-  echo -e "🗑️ Removed NGINX configuration, binaries and related files."
+  echo -e " Removed NGINX configuration, binaries and related files."
 }
 
 install_nginx() {
-  echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
+  echo -e "\n \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
 
   if ! command -v nginx >/dev/null 2>&1; then
     apt-get update -y >/dev/null 2>&1
     if apt-get install -y nginx >/dev/null 2>&1; then
-      echo "✅ Nginx installed."
+      echo " Nginx installed."
     else
-      echo -e "❌ \e[31mFailed to install Nginx – aborting setup.\e[0m"
+      echo -e " \e[31mFailed to install Nginx – aborting setup.\e[0m"
       exit 1
     fi
   else
-    echo "✅ Nginx is already installed."
+    echo " Nginx is already installed."
   fi
 
-  echo -e "\n🔌 \e[1mEnabling and starting Nginx...\e[0m"
+  echo -e "\n \e[1mEnabling and starting Nginx...\e[0m"
   if systemctl enable nginx >/dev/null 2>&1 && systemctl start nginx >/dev/null 2>&1; then
-    echo "✅ Nginx service is running."
+    echo " Nginx service is running."
   else
-    echo -e "❌ \e[31mFailed to start or enable Nginx.\e[0m"
+    echo -e " \e[31mFailed to start or enable Nginx.\e[0m"
     exit 1
   fi
 }
@@ -68,14 +68,14 @@ setup_nginx_log_timer() {
   local script_path="/usr/local/bin/nginx-loglink"
 
   if systemctl list-timers --all | grep -q nginx-loglink.timer; then
-    echo -e "⏱️ \033[1mSystemd timer already set up:\033[0m nginx-loglink.timer"
+    echo -e " \033[1mSystemd timer already set up:\033[0m nginx-loglink.timer"
     local next_run
     next_run=$(systemctl list-timers | grep nginx-loglink.timer | awk '{print $1, $2}')
-    echo -e "📆 Next execution: \033[36m$next_run\033[0m"
+    echo -e " Next execution: \033[36m$next_run\033[0m"
     return
   fi
 
-  echo -e "\n🛠️ \033[1mSetting up daily Nginx log rotation timer...\033[0m"
+  echo -e "\n \033[1mSetting up daily Nginx log rotation timer...\033[0m"
 
   mkdir -p "$(dirname "$script_path")"
 
@@ -96,7 +96,7 @@ setup_nginx_log_timer() {
 
 
   chmod +x "$script_path"
-  echo -e "📄 Created log rotation script at: \033[2m$script_path\033[0m"
+  echo -e " Created log rotation script at: \033[2m$script_path\033[0m"
 
   {
     echo "[Unit]"
@@ -106,7 +106,7 @@ setup_nginx_log_timer() {
     echo "Type=oneshot"
     echo "ExecStart=$script_path"
   } > "$service_path"
-  echo -e "🧩 Created systemd service file: \033[2m$service_path\033[0m"
+  echo -e " Created systemd service file: \033[2m$service_path\033[0m"
 
   {
     echo "[Unit]"
@@ -119,14 +119,14 @@ setup_nginx_log_timer() {
     echo "[Install]"
     echo "WantedBy=timers.target"
   } > "$timer_path"
-  echo -e "⏲️ Created systemd timer file: \033[2m$timer_path\033[0m"
+  echo -e " Created systemd timer file: \033[2m$timer_path\033[0m"
 
   systemctl daemon-reload
   systemctl enable --now nginx-loglink.timer
 
   local next_run
   next_run=$(systemctl list-timers | grep nginx-loglink.timer | awk '{print $1, $2}')
-  echo -e "✅ \033[32mTimer activated.\033[0m Next execution: \033[36m$next_run\033[0m"
+  echo -e " \033[32mTimer activated.\033[0m Next execution: \033[36m$next_run\033[0m"
 }
 
 create_cloudflare_real_ip_conf() {
@@ -138,7 +138,7 @@ create_cloudflare_real_ip_conf() {
   local tmp_file
   tmp_file="$(mktemp -t realip.XXXXXXXX)"
 
-  echo -e "\n🛡️ Configuring Nginx to trust Cloudflare real client IP (IPv4 preferred)..."
+  echo -e "\n Configuring Nginx to trust Cloudflare real client IP (IPv4 preferred)..."
 
   mkdir -p "$conf_dir"
 
@@ -147,13 +147,13 @@ create_cloudflare_real_ip_conf() {
   if ips_v4="$(curl -fsS https://www.cloudflare.com/ips-v4)"; then
     :
   else
-    echo "⚠️ Could not fetch Cloudflare IPv4 ranges. Using existing config if present."
+    echo " Could not fetch Cloudflare IPv4 ranges. Using existing config if present."
   fi
 
   if ips_v6="$(curl -fsS https://www.cloudflare.com/ips-v6)"; then
     :
   else
-    echo "⚠️ Could not fetch Cloudflare IPv6 ranges. Using existing config if present."
+    echo " Could not fetch Cloudflare IPv6 ranges. Using existing config if present."
   fi
 
   {
@@ -189,9 +189,9 @@ create_cloudflare_real_ip_conf() {
 
   if nginx -t >/dev/null 2>&1; then
     systemctl reload nginx
-    echo -e "✅ Cloudflare real IP config applied."
+    echo -e " Cloudflare real IP config applied."
   else
-    echo -e "❌ Nginx test failed after writing $conf_file. Please verify."
+    echo -e " Nginx test failed after writing $conf_file. Please verify."
     return 1
   fi
 }
@@ -217,7 +217,7 @@ create_nginx_config() {
     sed -i "/http {/a\    log_format timed_combined '\$client_ip_preferring_v4 - \$remote_user [\$time_local] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\"';" /etc/nginx/nginx.conf
   fi
 
-  echo -e "\n⚙️ \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN → localhost:$KESTREL_PORT\033[0m"
+  echo -e "\n \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN -> localhost:$KESTREL_PORT\033[0m"
 
   {
     echo "server {"
@@ -269,10 +269,10 @@ create_nginx_config() {
 
   if nginx -t >/dev/null 2>&1; then
     systemctl reload nginx
-    echo -e "✅ Nginx config applied and reloaded."
+    echo -e " Nginx config applied and reloaded."
     force_nginx_log_symlink_rotation "$log_dir"
   else
-    echo -e "❌ \033[31mNginx config test failed.\033[0m Please check manually."
+    echo -e " \033[31mNginx config test failed.\033[0m Please check manually."
     return 1
   fi
 }
@@ -282,30 +282,30 @@ remove_nginx_log_timer() {
   local service_path="/etc/systemd/system/nginx-loglink.service"
   local script_path="/usr/local/bin/nginx-loglink"
 
-  echo -e "\n🧹 \e[1mRemoving NGINX log rotation timer and related components...\e[0m"
+  echo -e "\n \e[1mRemoving NGINX log rotation timer and related components...\e[0m"
 
   if systemctl list-timers --all | grep -q nginx-loglink.timer; then
-    echo -e "⏹️ Disabling and stopping nginx-loglink.timer..."
+    echo -e " Disabling and stopping nginx-loglink.timer..."
     systemctl disable --now nginx-loglink.timer 2>/dev/null || true
   fi
 
   if systemctl list-units --all | grep -q nginx-loglink.service; then
-    echo -e "❌ Disabling nginx-loglink.service..."
+    echo -e " Disabling nginx-loglink.service..."
     systemctl disable nginx-loglink.service 2>/dev/null || true
   fi
 
-  echo -e "🧽 Removing timer, service and script files..."
+  echo -e " Removing timer, service and script files..."
   rm -f "$timer_path" "$service_path" "$script_path"
 
   systemctl daemon-reexec
   systemctl daemon-reload
 
-  echo -e "✅ \e[32mNGINX log timer removed.\e[0m"
+  echo -e " \e[32mNGINX log timer removed.\e[0m"
 }
 
 setup_nginx_for_blazor_app() {
   if [[ -z "$HOSTNAME_FQDN" || -z "$KESTREL_PORT" ]]; then
-    echo "❌ Required variables HOSTNAME_FQDN or KESTREL_PORT are missing." >&2
+    echo " Required variables HOSTNAME_FQDN or KESTREL_PORT are missing." >&2
     return 1
   fi
 
@@ -314,7 +314,7 @@ setup_nginx_for_blazor_app() {
   create_nginx_config || return 1
   setup_nginx_log_timer
 
-  echo -e "\n🌐 \033[1mBlazor App is now accessible at:\033[0m 🔗 \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
+  echo -e "\n \033[1mBlazor App is now accessible at:\033[0m  \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
 }
 
 get_nginx_config_value() {
@@ -332,7 +332,7 @@ get_nginx_config_value() {
       grep -oP "ssl_ciphers\s+\K[^;]+" "$conf_path" | head -n1 || echo "HIGH:!aNULL:!MD5"
       ;;
     hsts_enabled)
-      grep -q "Strict-Transport-Security" "$conf_path" && echo "✅" || echo "❌"
+      grep -q "Strict-Transport-Security" "$conf_path" && echo "" || echo ""
       ;;
     hsts_max_age)
       grep -oP "max-age=\K[0-9]+" "$conf_path" | head -n1 || echo "63072000"
@@ -341,7 +341,7 @@ get_nginx_config_value() {
       grep -oP "X-Frame-Options\s+\K[^;]+" "$conf_path" | head -n1 || echo "DENY"
       ;;
     x_content_type)
-      grep -q "X-Content-Type-Options nosniff" "$conf_path" && echo "✅" || echo "❌"
+      grep -q "X-Content-Type-Options nosniff" "$conf_path" && echo "" || echo ""
       ;;
     referrer_policy)
       grep -oP "Referrer-Policy\s+\K[^;]+" "$conf_path" | head -n1 || echo "no-referrer-when-downgrade"
@@ -353,7 +353,7 @@ get_nginx_config_value() {
       grep -oP "proxy_http_version\s+\K[^;]+" "$conf_path" | head -n1 || echo "1.1"
       ;;
     websocket_support)
-      grep -q "proxy_set_header Upgrade" "$conf_path" && echo "✅" || echo "❌"
+      grep -q "proxy_set_header Upgrade" "$conf_path" && echo "" || echo ""
       ;;
   esac
 }
@@ -369,10 +369,10 @@ update_nginx_ssl_protocols() {
   
   if nginx -t >/dev/null 2>&1; then
     systemctl reload nginx
-    echo -e "✅ SSL protocols updated to: \e[36m$protocols\e[0m"
+    echo -e " SSL protocols updated to: \e[36m$protocols\e[0m"
     return 0
   else
-    echo -e "❌ \e[31mNginx config test failed. Reverting changes...\e[0m"
+    echo -e " \e[31mNginx config test failed. Reverting changes...\e[0m"
     return 1
   fi
 }
@@ -388,10 +388,10 @@ update_nginx_hsts_max_age() {
   
   if nginx -t >/dev/null 2>&1; then
     systemctl reload nginx
-    echo -e "✅ HSTS max-age updated to: \e[36m$max_age seconds\e[0m"
+    echo -e " HSTS max-age updated to: \e[36m$max_age seconds\e[0m"
     return 0
   else
-    echo -e "❌ \e[31mNginx config test failed. Reverting changes...\e[0m"
+    echo -e " \e[31mNginx config test failed. Reverting changes...\e[0m"
     return 1
   fi
 }
@@ -407,10 +407,10 @@ update_nginx_x_frame_options() {
   
   if nginx -t >/dev/null 2>&1; then
     systemctl reload nginx
-    echo -e "✅ X-Frame-Options updated to: \e[36m$value\e[0m"
+    echo -e " X-Frame-Options updated to: \e[36m$value\e[0m"
     return 0
   else
-    echo -e "❌ \e[31mNginx config test failed. Reverting changes...\e[0m"
+    echo -e " \e[31mNginx config test failed. Reverting changes...\e[0m"
     return 1
   fi
 }
@@ -426,10 +426,10 @@ update_nginx_referrer_policy() {
   
   if nginx -t >/dev/null 2>&1; then
     systemctl reload nginx
-    echo -e "✅ Referrer-Policy updated to: \e[36m$value\e[0m"
+    echo -e " Referrer-Policy updated to: \e[36m$value\e[0m"
     return 0
   else
-    echo -e "❌ \e[31mNginx config test failed. Reverting changes...\e[0m"
+    echo -e " \e[31mNginx config test failed. Reverting changes...\e[0m"
     return 1
   fi
 }
@@ -440,14 +440,14 @@ show_nginx_settings_menu() {
   
   if [[ ! -f "$conf_path" ]]; then
     clear
-    echo -e "\n❌ \e[1;31mNginx config file not found:\e[0m \e[2m$conf_path\e[0m"
+    echo -e "\n \e[1;31mNginx config file not found:\e[0m \e[2m$conf_path\e[0m"
     print_press_any_key
     return 1
   fi
   
   while true; do
     clear
-    echo -e "\n⚙️ \e[1;34mNginx Settings\e[0m | \e[36m$fqdn\e[0m"
+    echo -e "\n \e[1;34mNginx Settings\e[0m | \e[36m$fqdn\e[0m"
     print_double_line
     
     # Read current settings
@@ -465,23 +465,23 @@ show_nginx_settings_menu() {
     ws_support=$(get_nginx_config_value "$fqdn" "websocket_support")
     
     # Display current settings
-    echo -e "\n📋 \e[1mCurrent Configuration\e[0m"
+    echo -e "\n \e[1mCurrent Configuration\e[0m"
     print_line
     
-    printf "🔒 %-30s \e[36m%-30s\e[0m\n" "SSL/TLS Protocols:" "$ssl_protocols"
-    printf "🛡️ %-30s %s  \e[2m(max-age: \e[0m\e[36m%s\e[0m\e[2m seconds)\e[0m\n" "HSTS Enabled:" "$hsts_enabled" "$hsts_max_age"
-    printf "🖼️ %-30s \e[36m%-30s\e[0m\n" "X-Frame-Options:" "$x_frame"
-    printf "📄 %-30s %s\n" "X-Content-Type-Options:" "$x_content"
-    printf "🔗 %-30s \e[36m%-30s\e[0m\n" "Referrer-Policy:" "$referrer_policy"
-    printf "🌐 %-30s \e[36m%-30s\e[0m\n" "HTTP Version:" "$http_version"
-    printf "🔌 %-30s \e[36m%-30s\e[0m\n" "Proxy HTTP Version:" "$proxy_http"
-    printf "🔄 %-30s %s\n" "WebSocket Support:" "$ws_support"
+    printf " %-30s \e[36m%-30s\e[0m\n" "SSL/TLS Protocols:" "$ssl_protocols"
+    printf " %-30s %s  \e[2m(max-age: \e[0m\e[36m%s\e[0m\e[2m seconds)\e[0m\n" "HSTS Enabled:" "$hsts_enabled" "$hsts_max_age"
+    printf " %-30s \e[36m%-30s\e[0m\n" "X-Frame-Options:" "$x_frame"
+    printf " %-30s %s\n" "X-Content-Type-Options:" "$x_content"
+    printf " %-30s \e[36m%-30s\e[0m\n" "Referrer-Policy:" "$referrer_policy"
+    printf " %-30s \e[36m%-30s\e[0m\n" "HTTP Version:" "$http_version"
+    printf " %-30s \e[36m%-30s\e[0m\n" "Proxy HTTP Version:" "$proxy_http"
+    printf " %-30s %s\n" "WebSocket Support:" "$ws_support"
     
     print_line
-    echo -e "\n 1) 🔒 Edit SSL/TLS Protocols       2) 🛡️  Edit HSTS Max-Age"
-    echo -e " 3) 🖼️  Edit X-Frame-Options        4) 🔗 Edit Referrer-Policy"
-    echo -e " 5) 📂 View Full Config             6) ♻️  Reload Nginx Config"
-    echo -e " 7) 🧪 Test Nginx Config            $(print_back_to_menu)"
+    echo -e "\n 1)  Edit SSL/TLS Protocols       2)   Edit HSTS Max-Age"
+    echo -e " 3)   Edit X-Frame-Options        4)  Edit Referrer-Policy"
+    echo -e " 5)  View Full Config             6)   Reload Nginx Config"
+    echo -e " 7)  Test Nginx Config            $(print_back_to_menu)"
     
     read_menu_choice 7
     
@@ -489,11 +489,11 @@ show_nginx_settings_menu() {
       1)
         while true; do
           clear
-          echo -e "\n🔒 \e[1mEdit SSL/TLS Protocols\e[0m"
+          echo -e "\n \e[1mEdit SSL/TLS Protocols\e[0m"
           print_line
           echo -e "Current: \e[36m$ssl_protocols\e[0m\n"
           
-          echo -e "ℹ️  \e[1mInfo:\e[0m SSL/TLS protocols determine which encryption versions"
+          echo -e "  \e[1mInfo:\e[0m SSL/TLS protocols determine which encryption versions"
           echo -e "   are allowed for HTTPS connections. Newer versions are more secure"
           echo -e "   but may not be supported by very old browsers.\n"
           
@@ -527,12 +527,12 @@ show_nginx_settings_menu() {
       2)
         while true; do
           clear
-          echo -e "\n🛡️ \e[1mEdit HSTS Max-Age\e[0m"
+          echo -e "\n \e[1mEdit HSTS Max-Age\e[0m"
           print_line
           echo -e "Current: \e[36m$hsts_max_age seconds\e[0m"
           echo -e "        (≈ $((hsts_max_age / 86400)) days)\n"
           
-          echo -e "ℹ️  \e[1mInfo:\e[0m HSTS (HTTP Strict Transport Security) tells browsers"
+          echo -e "  \e[1mInfo:\e[0m HSTS (HTTP Strict Transport Security) tells browsers"
           echo -e "   to always use HTTPS when visiting your site. The max-age value"
           echo -e "   determines how long browsers remember this setting.\n"
           
@@ -566,11 +566,11 @@ show_nginx_settings_menu() {
       3)
         while true; do
           clear
-          echo -e "\n🖼️ \e[1mEdit X-Frame-Options\e[0m"
+          echo -e "\n \e[1mEdit X-Frame-Options\e[0m"
           print_line
           echo -e "Current: \e[36m$x_frame\e[0m\n"
           
-          echo -e "ℹ️  \e[1mInfo:\e[0m X-Frame-Options protects against clickjacking attacks"
+          echo -e "  \e[1mInfo:\e[0m X-Frame-Options protects against clickjacking attacks"
           echo -e "   by controlling whether your site can be embedded in frames/iframes.\n"
           
           echo -e " 1) DENY         \e[2m(Never allow framing - most secure)\e[0m"
@@ -597,11 +597,11 @@ show_nginx_settings_menu() {
       4)
         while true; do
           clear
-          echo -e "\n🔗 \e[1mEdit Referrer-Policy\e[0m"
+          echo -e "\n \e[1mEdit Referrer-Policy\e[0m"
           print_line
           echo -e "Current: \e[36m$referrer_policy\e[0m\n"
           
-          echo -e "ℹ️  \e[1mInfo:\e[0m Referrer-Policy controls how much information about"
+          echo -e "  \e[1mInfo:\e[0m Referrer-Policy controls how much information about"
           echo -e "   the referring page is sent when users navigate to other sites.\n"
           
           echo -e " 1) no-referrer                      \e[2m(Never send referrer - most private)\e[0m"
@@ -657,7 +657,7 @@ show_nginx_settings_menu() {
         ;;
       5)
         clear
-        echo -e "\n📂 \e[1mFull Nginx Config\e[0m | \e[36m$fqdn\e[0m"
+        echo -e "\n \e[1mFull Nginx Config\e[0m | \e[36m$fqdn\e[0m"
         print_line
         echo ""
         cat "$conf_path"
@@ -666,15 +666,15 @@ show_nginx_settings_menu() {
         ;;
       6)
         clear
-        echo -e "\n♻️ \e[1mReloading Nginx...\e[0m"
+        echo -e "\n \e[1mReloading Nginx...\e[0m"
         if nginx -t >/dev/null 2>&1; then
           if systemctl reload nginx; then
-            echo -e "✅ \e[32mNginx reloaded successfully\e[0m"
+            echo -e " \e[32mNginx reloaded successfully\e[0m"
           else
-            echo -e "❌ \e[31mFailed to reload Nginx\e[0m"
+            echo -e " \e[31mFailed to reload Nginx\e[0m"
           fi
         else
-          echo -e "❌ \e[31mNginx config test failed\e[0m"
+          echo -e " \e[31mNginx config test failed\e[0m"
           echo -e "\nRunning detailed test:"
           nginx -t
         fi
@@ -682,12 +682,12 @@ show_nginx_settings_menu() {
         ;;
       7)
         clear
-        echo -e "\n🧪 \e[1mTesting Nginx Config...\e[0m"
+        echo -e "\n \e[1mTesting Nginx Config...\e[0m"
         echo ""
         if nginx -t; then
-          echo -e "\n✅ \e[32mConfiguration test passed\e[0m"
+          echo -e "\n \e[32mConfiguration test passed\e[0m"
         else
-          echo -e "\n❌ \e[31mConfiguration test failed\e[0m"
+          echo -e "\n \e[31mConfiguration test failed\e[0m"
         fi
         print_press_any_key
         ;;

@@ -17,23 +17,23 @@ _get_upcloud_server_uuid_by_ip() {
   fi
 
   if [[ -z "$SERVER_IPv4" ]]; then
-    printf "❌ SERVER_IPv4 is not set.\n"
+    printf " SERVER_IPv4 is not set.\n"
     declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "SERVER_IPv4 is not set"
     return 1
   fi
 
   if [[ -z "$UPCLOUD_API_TOKEN" || -z "$UPCLOUD_API_BASE" ]]; then
-    printf "❌ Missing API credentials.\n"
+    printf " Missing API credentials.\n"
     declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "Missing UPCLOUD_API_TOKEN or UPCLOUD_API_BASE"
     return 1
   fi
 
-  printf "🔍 Searching for server UUID using IP: \033[36m%s\033[0m ...\n" "$SERVER_IPv4"
+  printf " Searching for server UUID using IP: \033[36m%s\033[0m ...\n" "$SERVER_IPv4"
   declare -f _safe_log >/dev/null 2>&1 && _safe_log info "_get_upcloud_server_uuid_by_ip" "Looking up server UUID for IP: $SERVER_IPv4"
   
   local response uuid
   if ! response=$(_upcloud_api_get "ip_address/$SERVER_IPv4" 2>&1); then
-    printf "❌ Failed to query UpCloud API\n"
+    printf " Failed to query UpCloud API\n"
     declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "API query failed for IP: $SERVER_IPv4"
     return 1
   fi
@@ -42,11 +42,11 @@ _get_upcloud_server_uuid_by_ip() {
 
   if [[ -n "$uuid" && "$uuid" != "null" ]]; then
     SERVER_UUID="$uuid"
-    printf "✅ SERVER_UUID detected and set: %s\n" "$SERVER_UUID"
+    printf " SERVER_UUID detected and set: %s\n" "$SERVER_UUID"
     declare -f _safe_log >/dev/null 2>&1 && _safe_log info "_get_upcloud_server_uuid_by_ip" "Successfully resolved SERVER_UUID: $SERVER_UUID"
     return 0
   else
-    printf "❌ IP not directly associated with a server (possibly floating IP or error)\n"
+    printf " IP not directly associated with a server (possibly floating IP or error)\n"
     declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "Could not resolve server UUID from IP $SERVER_IPv4. Response: $response"
     return 1
   fi
@@ -54,23 +54,23 @@ _get_upcloud_server_uuid_by_ip() {
 
 _verify_upcloud_context() {
   if [[ -z "$UPCLOUD_API_TOKEN" || -z "$UPCLOUD_API_BASE" ]]; then
-    printf "❌ Missing API credentials.\n"
+    printf " Missing API credentials.\n"
     return 1
   fi
 
   if [[ -z "$SERVER_IPv4" && -z "$SERVER_IPv6" ]]; then
-    printf "❌ Neither SERVER_IPv4 nor SERVER_IPv6 is set.\n"
+    printf " Neither SERVER_IPv4 nor SERVER_IPv6 is set.\n"
     return 1
   fi
 
   if [[ -z "$SERVER_IPv4" ]]; then
-    printf "⚠️  Only IPv6 is set – server UUID cannot be resolved automatically.\n"
-    printf "   ➜ Please set SERVER_UUID manually.\n"
+    printf "  Only IPv6 is set – server UUID cannot be resolved automatically.\n"
+    printf "    Please set SERVER_UUID manually.\n"
     return 1
   fi
 
   if ! _get_upcloud_server_uuid_by_ip; then
-    printf "❌ Could not resolve server UUID – aborting.\n"
+    printf " Could not resolve server UUID – aborting.\n"
     return 1
   fi
 
@@ -101,11 +101,11 @@ _upcloud_firewall_rules_match_desired() {
   desired_file="$project_root/config/desired_firewall_rules.json"
 
   if [[ ! -f "$desired_file" ]]; then
-    printf "❌ Desired firewall rules file not found: %s\n" "$desired_file"
+    printf " Desired firewall rules file not found: %s\n" "$desired_file"
     return 1
   fi
 
-  printf "🔍 Comparing current UpCloud rules with desired state...\n"
+  printf " Comparing current UpCloud rules with desired state...\n"
 
   # Normalize desired rules
   desired_json=$(jq -S '
@@ -130,7 +130,7 @@ _upcloud_firewall_rules_match_desired() {
   current_response=$(_upcloud_api_get "server/$SERVER_UUID/firewall_rule")
 
   if ! echo "$current_response" | jq -e '.firewall_rules.firewall_rule' >/dev/null 2>&1; then
-    printf "❌ Could not load current firewall rules from API.\n"
+    printf " Could not load current firewall rules from API.\n"
     return 1
   fi
 
@@ -160,11 +160,11 @@ _upcloud_firewall_rules_match_desired() {
   echo "$current_json" > "$tmp_current"
 
   if diff -q "$tmp_desired" "$tmp_current" >/dev/null; then
-    printf "✅ Firewall rules match desired configuration.\n"
+    printf " Firewall rules match desired configuration.\n"
     rm -f "$tmp_desired" "$tmp_current"
     return 0
   else
-    printf "❌ Firewall rules differ. Here's the diff:\n"
+    printf " Firewall rules differ. Here's the diff:\n"
     diff -u "$tmp_desired" "$tmp_current" || true
     rm -f "$tmp_desired" "$tmp_current"
     return 1
@@ -201,31 +201,31 @@ _print_firewall_rule() {
   esac
 
   # Main rule line without comment
-  printf "🔸 ${family_color}%-5s\e[0m │ ${action_color}%-6s\e[0m │ \e[36m%-6s\e[0m │ Src: %-17s Port: %-8s │ Dst: %-17s Port: %-8s\n" \
+  printf " ${family_color}%-5s\e[0m │ ${action_color}%-6s\e[0m │ \e[36m%-6s\e[0m │ Src: %-17s Port: %-8s │ Dst: %-17s Port: %-8s\n" \
     "$family" "$action" "$protocol" "$src_ip" "$src_port" "$dst_ip" "$dst_port"
 
   # Separate comment line
-  printf "📝 \e[2m%s\e[0m\n" "$comment"
+  printf " \e[2m%s\e[0m\n" "$comment"
   printf "\n"
 }
 
 delete_all_upcloud_firewall_rules() {
   _clear
-  printf "\n🧨 Deleting All UpCloud Firewall Rules\n"
+  printf "\n Deleting All UpCloud Firewall Rules\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   if [[ -z "$UPCLOUD_API_TOKEN" ]]; then
-    printf "❌ Missing UpCloud API credentials.\n"
+    printf " Missing UpCloud API credentials.\n"
     return 1
   fi
 
   if [[ -z "$SERVER_IPv4" ]]; then
-    printf "❌ SERVER_IPv4 is not set.\n"
+    printf " SERVER_IPv4 is not set.\n"
     return 1
   fi
 
   if ! _get_upcloud_server_uuid_by_ip; then
-    printf "❌ Could not resolve server UUID – aborting.\n"
+    printf " Could not resolve server UUID – aborting.\n"
     return 1
   fi
 
@@ -234,43 +234,43 @@ delete_all_upcloud_firewall_rules() {
   firewall_enabled=$(echo "$server_info" | jq -r '.server.firewall // ""')
 
   if [[ "$firewall_enabled" != "on" && "$firewall_enabled" != "true" ]]; then
-    printf "⚠️ Firewall is currently disabled – enabling now...\n"
+    printf " Firewall is currently disabled – enabling now...\n"
     local enable_response
     enable_response=$(_upcloud_api_put "server/$SERVER_UUID" '{"server": { "firewall": "on" }}')
     firewall_enabled=$(echo "$enable_response" | jq -r '.server.firewall // ""')
     if [[ "$firewall_enabled" != "on" && "$firewall_enabled" != "true" ]]; then
-      printf "❌ Failed to enable firewall:\n"
+      printf " Failed to enable firewall:\n"
       echo "$enable_response" | jq -r '.error.message // "Unknown error"'
       return 1
     fi
-    printf "✅ Firewall successfully \e[32menabled\e[0m.\n"
+    printf " Firewall successfully \e[32menabled\e[0m.\n"
   else
-    printf "✅ Firewall is already \e[32menabled\e[0m – loading rules...\n"
+    printf " Firewall is already \e[32menabled\e[0m – loading rules...\n"
   fi
 
   local response
   response=$(_upcloud_api_get "server/$SERVER_UUID/firewall_rule")
 
   if ! echo "$response" | jq -e '.firewall_rules.firewall_rule' >/dev/null 2>&1; then
-    printf "ℹ️ No firewall rules found or API returned no data.\n"
+    printf " No firewall rules found or API returned no data.\n"
     return 0
   fi
 
   mapfile -t rules < <(echo "$response" | jq -c '.firewall_rules.firewall_rule[]')
 
   if [[ ${#rules[@]} -eq 0 ]]; then
-    printf "ℹ️ No firewall rules present.\n"
+    printf " No firewall rules present.\n"
     return 0
   fi
 
-  printf "📋 %d firewall rules found – starting deletion...\n\n" "${#rules[@]}"
+  printf " %d firewall rules found – starting deletion...\n\n" "${#rules[@]}"
 
   for ((i=${#rules[@]}-1; i>=0; i--)); do
     local rule="${rules[$i]}"
     local position
     position=$(echo "$rule" | jq -r '.position')
 
-    printf "❌ Deleting rule at position %s:\n" "$position"
+    printf " Deleting rule at position %s:\n" "$position"
     _print_firewall_rule "$rule"
 
     local del_response
@@ -279,24 +279,24 @@ delete_all_upcloud_firewall_rules() {
       -X DELETE "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule/$position")
 
     if [[ -z "$del_response" ]]; then
-      printf "✅ Rule deleted (no response, assumed success).\n"
+      printf " Rule deleted (no response, assumed success).\n"
     elif echo "$del_response" | jq -e '.error?' >/dev/null 2>&1; then
-      printf "⚠️ Failed to delete rule:\n"
+      printf " Failed to delete rule:\n"
       echo "$del_response" | jq -r '.error.message // .error // .'
     else
-      printf "✅ Rule deleted successfully.\n"
+      printf " Rule deleted successfully.\n"
     fi
    printf "────────────────────────────────────────────────────────────\n"
 
   done
 
-  printf "\n✅ All rules deleted (unless errors occurred).\n"
+  printf "\n All rules deleted (unless errors occurred).\n"
   printf "═════════════════════════════════════════════════════════════\n"
 }
 
 _enable_upcloud_firewall() {
   _clear
-  printf "\n🔒 Enabling UpCloud Firewall\n"
+  printf "\n Enabling UpCloud Firewall\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   _verify_upcloud_context || return 1
@@ -306,10 +306,10 @@ _enable_upcloud_firewall() {
   new_status=$(echo "$response" | jq -r '.server.firewall // ""')
 
   if [[ "$new_status" == "on" || "$new_status" == "true" ]]; then
-    printf "✅ Firewall was successfully \e[32menabled\e[0m.\n"
+    printf " Firewall was successfully \e[32menabled\e[0m.\n"
     return 0
   else
-    printf "❌ Failed to enable firewall:\n"
+    printf " Failed to enable firewall:\n"
     echo "$response" | jq -r '.error.message // "Unknown error"'
     return 1
   fi
@@ -317,7 +317,7 @@ _enable_upcloud_firewall() {
 
 _disable_upcloud_firewall() {
   _clear
-  printf "\n🔓 Disabling UpCloud Firewall\n"
+  printf "\n Disabling UpCloud Firewall\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   _verify_upcloud_context || return 1
@@ -327,10 +327,10 @@ _disable_upcloud_firewall() {
   new_status=$(echo "$response" | jq -r '.server.firewall // ""')
 
   if [[ "$new_status" == "off" || "$new_status" == "false" ]]; then
-    printf "✅ Firewall was successfully \e[33mdisabled\e[0m.\n"
+    printf " Firewall was successfully \e[33mdisabled\e[0m.\n"
     return 0
   else
-    printf "❌ Failed to disable firewall:\n"
+    printf " Failed to disable firewall:\n"
     echo "$response" | jq -r '.error.message // "Unknown error"'
     return 1
   fi
@@ -338,7 +338,7 @@ _disable_upcloud_firewall() {
 
 _show_upcloud_firewall_status() {
   _clear
-  printf "\n🔎 UpCloud Firewall Status Overview\n"
+  printf "\n UpCloud Firewall Status Overview\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   _verify_upcloud_context || return 1
@@ -348,41 +348,41 @@ _show_upcloud_firewall_status() {
   firewall_enabled=$(echo "$server_info" | jq -r '.server.firewall // ""')
 
   if [[ "$firewall_enabled" != "on" && "$firewall_enabled" != "true" ]]; then
-    printf "ℹ️  Firewall is currently \e[33mdisabled\e[0m (Status: '%s')\n" "$firewall_enabled"
+    printf "  Firewall is currently \e[33mdisabled\e[0m (Status: '%s')\n" "$firewall_enabled"
     printf "────────────────────────────────────────────────────────────\n"
     return 0
   fi
 
-  printf "✅ Firewall is \e[32menabled\e[0m\n\n"
+  printf " Firewall is \e[32menabled\e[0m\n\n"
 
   local response rules
   response=$(_upcloud_api_get "server/$SERVER_UUID/firewall_rule")
 
   if [[ -z "$response" ]]; then
-    echo "❌ No response from API (response is empty)."
+    echo " No response from API (response is empty)."
     return 1
   fi
 
   if ! echo "$response" | jq -e '.firewall_rules.firewall_rule' >/dev/null 2>&1; then
-    echo "❌ Structure 'firewall_rules.firewall_rule' not found – API format may differ:"
+    echo " Structure 'firewall_rules.firewall_rule' not found – API format may differ:"
     echo "$response"
     return 1
   fi
 
   rules=$(echo "$response" | jq -c '.firewall_rules.firewall_rule // [] | .[]')
   [[ -z "$rules" ]] && {
-    echo "ℹ️  No firewall rules defined."
+    echo "  No firewall rules defined."
     return 0
   }
 
-  echo "📥 Incoming Rules"
+  echo " Incoming Rules"
   echo "────────────────────────────────────────────────────────────"
   while IFS= read -r rule; do
     [[ "$(echo "$rule" | jq -r '.direction')" == "in" ]] && _print_firewall_rule "$rule"
   done <<< "$rules"
 
   echo ""
-  echo "📤 Outgoing Rules"
+  echo " Outgoing Rules"
   echo "────────────────────────────────────────────────────────────"
   while IFS= read -r rule; do
     [[ "$(echo "$rule" | jq -r '.direction')" == "out" ]] && _print_firewall_rule "$rule"
@@ -398,7 +398,7 @@ apply_upcloud_firewall_rules() {
   _clear
   printf "\n"
 
-  printf "🧱 Applying firewall rules for GhostlyHosting on UpCloud (from config/desired_firewall_rules.json)\n"
+  printf " Applying firewall rules for GhostlyHosting on UpCloud (from config/desired_firewall_rules.json)\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   local project_root rules_file
@@ -406,41 +406,41 @@ apply_upcloud_firewall_rules() {
   rules_file="$project_root/config/desired_firewall_rules.json"
 
   if [[ ! -f "$rules_file" ]]; then
-    printf "❌ Firewall rule file is missing: %s\n" "$rules_file"
+    printf " Firewall rule file is missing: %s\n" "$rules_file"
     return 1
   fi
 
   # Verify context and enable firewall
   if ! _verify_upcloud_context; then
-    printf "❌ API context invalid or SERVER_UUID missing.\n"
+    printf " API context invalid or SERVER_UUID missing.\n"
     return 1
   fi
 
   if ! _enable_upcloud_firewall; then
-    printf "❌ Failed to enable firewall.\n"
+    printf " Failed to enable firewall.\n"
     return 1
   fi
 
   if _upcloud_firewall_rules_match_desired; then
-  printf "✅ Existing firewall rules already match desired configuration – nothing to do.\n"
+  printf " Existing firewall rules already match desired configuration – nothing to do.\n"
   return 0
   else
-    printf "🔄 Existing rules do not match desired state – resetting...\n"
+    printf " Existing rules do not match desired state – resetting...\n"
     if ! delete_all_upcloud_firewall_rules; then
-      printf "⚠️  Warning: Could not delete existing firewall rules.\n"
+      printf "  Warning: Could not delete existing firewall rules.\n"
     fi
   fi
 
-  printf "➕ Loading new rules from: %s\n" "$rules_file"
+  printf " Loading new rules from: %s\n" "$rules_file"
   mapfile -t new_rules < <(jq -c '.firewall_rules.firewall_rule[]' "$rules_file" 2>/dev/null)
 
   if [[ ${#new_rules[@]} -eq 0 ]]; then
-    printf "❌ No firewall rules found in JSON or syntax is invalid.\n"
+    printf " No firewall rules found in JSON or syntax is invalid.\n"
     jq . "$rules_file" || cat "$rules_file"
     return 1
   fi
 
-  printf "📦 %d rules found. Starting to apply...\n\n" "${#new_rules[@]}"
+  printf " %d rules found. Starting to apply...\n\n" "${#new_rules[@]}"
 
   local success_count=0
   local fail_count=0
@@ -449,10 +449,10 @@ apply_upcloud_firewall_rules() {
   for rule in "${new_rules[@]}"; do
     ((index++))
     printf "────────────────────────────────────────────────────────────\n"
-    printf "➕ Adding rule [%d/%d]\n" "$index" "${#new_rules[@]}"
+    printf " Adding rule [%d/%d]\n" "$index" "${#new_rules[@]}"
 
     if [[ -z "$rule" ]]; then
-      printf "⚠️  Empty rule – skipped.\n"
+      printf "  Empty rule – skipped.\n"
       ((fail_count++))
       continue
     fi
@@ -470,22 +470,22 @@ apply_upcloud_firewall_rules() {
 
     if [[ "$status" == "201" && "$body" == *"firewall_rule"* ]]; then
       _print_firewall_rule "$rule"
-      printf "✅ Rule added successfully.\n"
+      printf " Rule added successfully.\n"
       ((success_count++))
     else
-      printf "❌ Failed to add rule.\n"
-      printf "🔸 HTTP status: %s\n" "$status"
-      printf "🔸 Sent rule:\n"
+      printf " Failed to add rule.\n"
+      printf " HTTP status: %s\n" "$status"
+      printf " Sent rule:\n"
       _print_firewall_rule "$rule"
-      printf "🔸 API response:\n"
+      printf " API response:\n"
       echo "$body" | jq . || echo "$body"
       ((fail_count++))
     fi
   done
 
-  printf "\n📊 Summary:\n"
-  printf "✅ Successfully added: %d\n" "$success_count"
-  printf "❌ Failed to add:      %d\n" "$fail_count"
+  printf "\n Summary:\n"
+  printf " Successfully added: %d\n" "$success_count"
+  printf " Failed to add:      %d\n" "$fail_count"
   printf "────────────────────────────────────────────────────────────\n"
 }
 
@@ -493,7 +493,7 @@ validate_upcloud_token() {
   local token="$1"
 
   if [[ -z "$token" || -z "$UPCLOUD_API_BASE" ]]; then
-    printf "❌ Missing API token or API base.\n"
+    printf " Missing API token or API base.\n"
     declare -f _safe_log >/dev/null 2>&1 && _safe_log error "validate_upcloud_token" "Missing token or API base"
     return 1
   fi
@@ -522,11 +522,11 @@ show_upcloud_menu() {
   while true; do
     clear
     echo ""
-    echo -e "\n 🌩️  \e[1mUpCloud Firewall Rules\e[0m"
+    echo -e "\n   \e[1mUpCloud Firewall Rules\e[0m"
     echo -e "\e[1m──────────────────────────────────────────────────────\e[0m"
-    echo -e "\n 1) 🔐 Enable Firewall              2) 🔓 Disable Firewall"
-    echo -e "\n 3) 📊 Show Firewall Status         4) 💣 Delete All Rules"
-    echo -e "\n 5) 📦 Apply Server Rules           $(print_back_to_menu)"
+    echo -e "\n 1)  Enable Firewall              2)  Disable Firewall"
+    echo -e "\n 3)  Show Firewall Status         4)  Delete All Rules"
+    echo -e "\n 5)  Apply Server Rules           $(print_back_to_menu)"
     echo -e "\n─────────────────────────────────────────────────────────────"
     print_select_prompt 5
 

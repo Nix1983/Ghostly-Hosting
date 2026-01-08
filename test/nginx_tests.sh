@@ -5,30 +5,30 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 if ! source "$ROOT_DIR/lib/const.sh"; then
-  echo "❌ Failed to source const.sh"
+  echo " Failed to source const.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/common.sh"; then
-  echo "❌ Failed to source common.sh"
+  echo " Failed to source common.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/print.sh"; then
-  echo "❌ Failed to source print.sh"
+  echo " Failed to source print.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/nginx.sh"; then
-  echo "❌ Failed to source nginx.sh"
+  echo " Failed to source nginx.sh"
   exit 1
 fi
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 
 test_nginx_functions_exist() {
   echo ""
-  echo "🔧 Running test_nginx_functions_exist"
+  echo " Running test_nginx_functions_exist"
   
   local functions=(
     "show_nginx_settings_menu"
@@ -41,9 +41,9 @@ test_nginx_functions_exist() {
   
   for func in "${functions[@]}"; do
     if declare -f "$func" >/dev/null 2>&1; then
-      echo "✅ Function exists: $func"
+      echo " Function exists: $func"
     else
-      echo "❌ Function missing: $func"
+      echo " Function missing: $func"
       return 1
     fi
   done
@@ -51,7 +51,7 @@ test_nginx_functions_exist() {
 
 test_get_nginx_config_value() {
   echo ""
-  echo "🔧 Running test_get_nginx_config_value"
+  echo " Running test_get_nginx_config_value"
   
   # Create a temporary test nginx config
   local test_config="/tmp/test-nginx-config-$$.conf"
@@ -89,9 +89,9 @@ EOF
   ssl_protocols=$(grep -oP "ssl_protocols\s+\K[^;]+" "$test_config" | head -n1)
   
   if [[ "$ssl_protocols" == "TLSv1.2 TLSv1.3" ]]; then
-    echo "✅ Config parsing works for ssl_protocols: $ssl_protocols"
+    echo " Config parsing works for ssl_protocols: $ssl_protocols"
   else
-    echo "❌ Failed to parse ssl_protocols, got: '$ssl_protocols'"
+    echo " Failed to parse ssl_protocols, got: '$ssl_protocols'"
     rm -f "$test_config" "/tmp/nginx-test-sites-available/$test_fqdn"
     rmdir /tmp/nginx-test-sites-available 2>/dev/null || true
     return 1
@@ -101,9 +101,9 @@ EOF
   hsts_max_age=$(grep -oP "max-age=\K[0-9]+" "$test_config" | head -n1)
   
   if [[ "$hsts_max_age" == "63072000" ]]; then
-    echo "✅ Config parsing works for hsts_max_age: $hsts_max_age"
+    echo " Config parsing works for hsts_max_age: $hsts_max_age"
   else
-    echo "❌ Failed to parse hsts_max_age, got: '$hsts_max_age'"
+    echo " Failed to parse hsts_max_age, got: '$hsts_max_age'"
     rm -f "$test_config" "/tmp/nginx-test-sites-available/$test_fqdn"
     rmdir /tmp/nginx-test-sites-available 2>/dev/null || true
     return 1
@@ -113,9 +113,9 @@ EOF
   x_frame=$(grep -oP "X-Frame-Options\s+\K[^;]+" "$test_config" | head -n1)
   
   if [[ "$x_frame" == "DENY" ]]; then
-    echo "✅ Config parsing works for x_frame_options: $x_frame"
+    echo " Config parsing works for x_frame_options: $x_frame"
   else
-    echo "❌ Failed to parse x_frame_options, got: '$x_frame'"
+    echo " Failed to parse x_frame_options, got: '$x_frame'"
     rm -f "$test_config" "/tmp/nginx-test-sites-available/$test_fqdn"
     rmdir /tmp/nginx-test-sites-available 2>/dev/null || true
     return 1
@@ -132,5 +132,5 @@ test_get_nginx_config_value
 
 echo ""
 echo "═══════════════════════════════════════════════════════"
-echo "✅ All nginx tests passed!"
+echo " All nginx tests passed!"
 echo "═══════════════════════════════════════════════════════"

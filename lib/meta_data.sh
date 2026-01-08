@@ -21,7 +21,7 @@ get_repo_name_from_meta() {
         repo_name="${repo_name:0:cutoff}..."
       fi
     else
-      echo "❌ Invalid max length parameter (must be ≥ 4)." >&2
+      echo " Invalid max length parameter (must be ≥ 4)." >&2
       return 1
     fi
   fi
@@ -83,14 +83,14 @@ backup_app_metadata() {
   mkdir -p "$backup_dir"
 
   if [[ ! -f "$meta_file" ]]; then
-    echo -e "❌ \e[31m$META_FILE_NAME not found – cannot back up.\e[0m"
+    echo -e " \e[31m$META_FILE_NAME not found – cannot back up.\e[0m"
     return 1
   fi
 
   local commit
   commit=$(jq -r '.commit // empty' "$meta_file")
   if [[ -z "$commit" ]]; then
-    echo -e "❌ \e[31mCommit hash not found in $META_FILE_NAME – aborting.\e[0m"
+    echo -e " \e[31mCommit hash not found in $META_FILE_NAME – aborting.\e[0m"
     return 1
   fi
 
@@ -99,9 +99,9 @@ backup_app_metadata() {
   local new_backup="$backup_dir/meta-${timestamp}.json"
 
   if cp "$meta_file" "$new_backup"; then
-    echo "✅ Backup saved to $new_backup"
+    echo " Backup saved to $new_backup"
   else
-    echo -e "❌ \e[31mFailed to copy $META_FILE_NAME\e[0m"
+    echo -e " \e[31mFailed to copy $META_FILE_NAME\e[0m"
     return 1
   fi
 
@@ -114,12 +114,12 @@ backup_app_metadata() {
   if (( ${#matching_files[@]} > 1 )); then
     mapfile -t sorted < <(printf "%s\n" "${matching_files[@]}" | sort -r)
     local keep="${sorted[0]}"
-    echo -e "\n🧹 Found multiple backups for commit \e[36m$commit\e[0m"
-    echo -e "   ➕ Keeping latest: \e[2m$keep\e[0m"
+    echo -e "\n Found multiple backups for commit \e[36m$commit\e[0m"
+    echo -e "    Keeping latest: \e[2m$keep\e[0m"
 
     for f in "${sorted[@]:1}"; do
       rm -f "$f"
-      echo -e "   ❌ Removed old duplicate: \e[2m$f\e[0m"
+      echo -e "    Removed old duplicate: \e[2m$f\e[0m"
     done
   fi
 
@@ -144,15 +144,15 @@ restore_app_meta_data() {
   backup_dir=$(resolve_backup_folder_from_service_name "$service_name")
   mkdir -p "$backup_dir"
   if [[ ! -d "$backup_dir" ]]; then
-    echo -e "\n❌ \e[31mBackup folder not found at:\e[2m $backup_dir\e[0m"
+    echo -e "\n \e[31mBackup folder not found at:\e[2m $backup_dir\e[0m"
     return 1
   fi
 
   mapfile -t meta_files < <(find "$backup_dir" -maxdepth 1 -type f -name "meta-*.json" | sort -r)
   if (( ${#meta_files[@]} == 0 )); then
-    echo -e "\n🗃️ \e[33mNo backup metadata found yet.\e[0m"
+    echo -e "\n \e[33mNo backup metadata found yet.\e[0m"
     echo -e "   A backup will be created automatically on the first app update."
-    echo -e "📂 Target folder: \e[2m$backup_dir\e[0m"
+    echo -e " Target folder: \e[2m$backup_dir\e[0m"
     print_press_any_key
     return 1
   fi
@@ -185,11 +185,11 @@ restore_app_meta_data() {
     [[ ${#msg} -gt 40 ]] && msg="...${msg: -37}"
 
     if [[ "$ref_type" == "branch" ]]; then
-      icon="🌿"
+      icon="BRANCH"
     elif [[ "$ref_type" == "tag" ]]; then
-      icon="🏷️"
+      icon="TAG"
     else
-      icon="❓"
+      icon="REF"
     fi
 
     if [[ ${#ref} -gt 17 ]]; then
@@ -198,19 +198,19 @@ restore_app_meta_data() {
       ref_display="$ref"
     fi
 
-    options+=("$(printf " %2d) 🕒 %s  |  %s %-17s \e[2m(%s)\e[0m | %-43s" "$i" "$datetime" "$icon" "$ref_display" "${commit:0:7}" "$msg")")
+    options+=("$(printf " %2d)  %s  |  %s %-17s \e[2m(%s)\e[0m | %-43s" "$i" "$datetime" "$icon" "$ref_display" "${commit:0:7}" "$msg")")
     map_idx["$i"]="$file"
     ((i++))
   done
 
   if (( ${#options[@]} == 0 )); then
-    echo -e "\n🛑 \e[33mNo other backups available (only same commit as current).\e[0m"
+    echo -e "\n \e[33mNo other backups available (only same commit as current).\e[0m"
     return 1
   fi
 
   while true; do
     clear
-    echo -e "\n♻️   Restore App from Backup | 🌐 \e[36m$domain\e[0m"
+    echo -e "\n   Restore App from Backup |  \e[36m$domain\e[0m"
     echo -e "────────────────────────────────────────────────────────────────────────────────────────────"
     printf "%s\n" "${options[@]}"
     echo -e "\n  $(print_back_to_menu)"
@@ -221,7 +221,7 @@ restore_app_meta_data() {
     if [[ "$REPLY" =~ ^[0-9]+$ && -n "${map_idx[$REPLY]}" ]]; then
       local meta_file_restore="${map_idx[$REPLY]}"
 
-      echo -e "\n✅ Selected Backup: \e[36m$meta_file_restore\e[0m"
+      echo -e "\n Selected Backup: \e[36m$meta_file_restore\e[0m"
 
       export SELECTED_REPO_OWNER
       export SELECTED_REPO_NAME
@@ -236,7 +236,7 @@ restore_app_meta_data() {
       SELECTED_COMMIT=$(get_commit_from_meta "$meta_file_restore")
 
       if [[ "$SELECTED_REPO_OWNER" == "–" || "$SELECTED_REPO_NAME" == "–" || "$SELECTED_REF_TYPE" == "–" || "$SELECTED_REF_NAME" == "–" || "$SELECTED_COMMIT" == "–" ]]; then
-        echo -e "❌ \e[31mInvalid or incomplete metadata in: $meta_file_restore\e[0m"
+        echo -e " \e[31mInvalid or incomplete metadata in: $meta_file_restore\e[0m"
         return 1
       fi
 

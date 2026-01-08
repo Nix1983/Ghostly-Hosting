@@ -2,7 +2,7 @@
 
 Provision and configure an Ubuntu server to host a Blazor app automatically.
 
-## 🚀 Installation
+## Installation
 
 ### Quick Install (Recommended)
 
@@ -37,7 +37,7 @@ cd GhostlyHosting
 sudo ./start.sh
 ```
 
-## 🔄 Updating
+## Updating
 
 Simply run the new installer - your configuration will be preserved:
 
@@ -52,7 +52,7 @@ chmod +x ghostly-hosting-installer-v1.1.0.sh
 sudo ./ghostly-hosting-installer-v1.1.0.sh
 ```
 
-## 🗑️ Uninstallation
+## Uninstallation
 
 To completely remove GhostlyHosting:
 
@@ -67,6 +67,6 @@ sudo rm /usr/local/bin/ghostly-hosting
 rm -rf ~/.config/ghostly-hosting
 ```
 
-## 📦 Building the Installer
+## Building the Installer
 
 For developers who want to build the installer from source, see [docs/BUILD.md](docs/BUILD.md)

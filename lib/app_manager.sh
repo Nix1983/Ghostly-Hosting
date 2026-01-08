@@ -74,9 +74,9 @@ load_cloudflare_dns_info() {
         dns_map["$name,$type"]=1
         if [[ "$type" == "A" || "$type" == "AAAA" ]]; then
           if [[ "$proxied" == "true" ]]; then
-            cf_proxy_map["${name,,}"]="✅"
+            cf_proxy_map["${name,,}"]=""
           elif [[ ! ${cf_proxy_map[${name,,}]+_} ]]; then
-            cf_proxy_map["${name,,}"]="❌"
+            cf_proxy_map["${name,,}"]=""
           fi
         fi
       done < <(echo "$dns_json" | jq -r '.result[] | [.name, .type, (.proxied // "")] | @tsv')
@@ -104,8 +104,8 @@ show_apps() {
 
   if (( has_app == 0 )); then
     clear
-    echo -e "\n🧩  \e[1;33mNo .NET apps have been deployed yet.\e[0m"
-    echo -e "\nℹ️  Use the \e[1mDeploy New App\e[0m option in the main menu"
+    echo -e "\n  \e[1;33mNo .NET apps have been deployed yet.\e[0m"
+    echo -e "\n  Use the \e[1mDeploy New App\e[0m option in the main menu"
     echo -e "    to select a Git repository and deploy your application."
     echo -e "    This will automatically set up a systemd service,"
     echo -e "    an SSL certificate, and an Nginx reverse proxy."
@@ -121,12 +121,12 @@ show_apps() {
     has_aaaa_map=()
 
     clear
-    echo -e "\n🔍 \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
+    echo -e "\n \e[1mLoading deployed apps...\e[0m \e[2mplease wait\e[0m"
 
     load_cloudflare_dns_info
 
     clear
-    echo -e "\n🧩 \e[1mDeployed .NET Apps\e[0m"
+    echo -e "\n \e[1mDeployed .NET Apps\e[0m"
     print_double_line
 
     for service_file in "${service_files[@]}"; do
@@ -151,14 +151,14 @@ show_apps() {
 
       has_a="${dns_map[$fqdn,A]:-0}"
       has_aaaa="${dns_map[$fqdn,AAAA]:-0}"
-      cf_proxy="${cf_proxy_map[$fqdn]:-❌}"
+      cf_proxy="${cf_proxy_map[$fqdn]:-}"
 
       if [[ "$has_a" -eq 0 && "$has_aaaa" -eq 0 ]]; then
-        dns_warning="⚠️ App is not reachable (no DNS entries found)"
+        dns_warning=" App is not reachable (no DNS entries found)"
       elif [[ "$has_a" -eq 0 ]]; then
-        dns_warning="⚠️ App is not reachable via IPv4"
+        dns_warning=" App is not reachable via IPv4"
       elif [[ "$has_aaaa" -eq 0 ]]; then
-        dns_warning="⚠️ App is not reachable via IPv6"
+        dns_warning=" App is not reachable via IPv6"
       else
         dns_warning=""
       fi
@@ -170,10 +170,10 @@ show_apps() {
       status=$(get_service_status_icon "$service_name")
 
       local status_icon_display
-      status_icon_display="${dns_warning:+⚠️}"
+      status_icon_display="${dns_warning:+WARN}"
       status_icon_display="${status_icon_display:-$status}"
 
-      printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │ ⏱️ \e[2mUptime:\e[0m %-15s │ 🌩️ \e[2mCF-Proxy:\e[0m %-3s │ 🧠 \e[2mRAM:\e[0m \e[36m%8s\e[0m │ 💾 \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
+      printf "\n %2d) %s \e]8;;https://%s\e\\%-20s\e]8;;\e\\ │  \e[2mUptime:\e[0m %-15s │  \e[2mCF-Proxy:\e[0m %-3s │  \e[2mRAM:\e[0m \e[36m%8s\e[0m │  \e[2mDisk:\e[0m \e[36m%6s\e[0m\n" \
         "$index" "$status_icon_display" "$fqdn" "$repo_name" "$uptime" "$cf_proxy" "$ram_size" "$disk_size"
 
       app_map["$index"]="$service_name"
@@ -206,14 +206,14 @@ show_app_manager_menu() {
   while true; do
     clear
     if [[ -n "${SERVER_IPv4:-}" ]]; then
-      echo -e "\n🧩 \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4 | $(format_version_display)"
+      echo -e "\n \e[1;34mApp Control Panel\e[0m | $SERVER_IPv4 | $(format_version_display)"
     else
-      echo -e "\n🧩 \e[1;34mApp Control Panel\e[0m | $(format_version_display)"
+      echo -e "\n \e[1;34mApp Control Panel\e[0m | $(format_version_display)"
     fi
     print_double_line
 
-    echo -e "\n 1) 🧩 Show Apps    2) ➕ Add new App    3) 🖥️ Server Control Panel"
-    echo -e "\n q) 🏃💨 \e[1;31mExit App Control\e[0m"
+    echo -e "\n 1)  Show Apps    2)  Add new App    3)  Server Control Panel"
+    echo -e "\n q)  \e[1;31mExit App Control\e[0m"
     
     read_menu_choice 3
 
@@ -226,14 +226,14 @@ show_app_manager_menu() {
         local exit_code=$?
 
         if [[ "$exit_code" -ne 0 ]]; then
-          echo -e "\n❌ App deployment aborted."
+          echo -e "\n App deployment aborted."
           [[ "$exit_code" -eq 1 ]] && rollback_app_deployment
           print_press_any_key
         fi
         ;;
       3)
         return ;;
-      q|Q) echo -e "\n🏃‍♂️💨 \e[1;31mExiting App Control Panel. Goodbye!\e[0m"; exit 0 ;;
+      q|Q) echo -e "\n \e[1;31mExiting App Control Panel. Goodbye!\e[0m"; exit 0 ;;
     esac
   done
 }

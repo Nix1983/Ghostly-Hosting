@@ -2,14 +2,14 @@
 # shellcheck disable=SC2034
 
 # ==============================================================================
-# ⚠️ WARNING: Do not source this file multiple times!
+#  WARNING: Do not source this file multiple times!
 # ------------------------------------------------------------------------------
 # This file defines global readonly variables (declare -gr / -agr).
 # Bash does NOT allow re-declaring readonly variables during a session.
 #
-# ➤ Always ensure this file is sourced only ONCE per session.
-# ➤ Never set these variables elsewhere (e.g. via `.env`, export, etc.)
-# ➤ Use guard check: [[ -z "${__CONSTANTS_SH_LOADED:-}" ]] && source ./lib/constants.sh
+#  Always ensure this file is sourced only ONCE per session.
+#  Never set these variables elsewhere (e.g. via `.env`, export, etc.)
+#  Use guard check: [[ -z "${__CONSTANTS_SH_LOADED:-}" ]] && source ./lib/constants.sh
 # ==============================================================================
 
 # Guard: prevent re-sourcing
@@ -17,7 +17,7 @@
 __CONSTANTS_SH_LOADED=1
 
 # ======================
-# ⚙️ Global Constants
+#  Global Constants
 # ======================
 
 # API Base URLs
@@ -47,7 +47,7 @@ __CONSTANTS_SH_LOADED=1
 [[ -z "${META_FILE_NAME+x}" ]]  && declare -gr META_FILE_NAME="meta.json"
 
 # ======================
-# 🔓 Optional Environment Variables
+#  Optional Environment Variables
 # ======================
 
 [[ -z "${CLOUDFLARE_API_TOKEN+x}" ]] && declare -g CLOUDFLARE_API_TOKEN

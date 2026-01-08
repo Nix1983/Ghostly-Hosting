@@ -5,16 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 if ! source "$ROOT_DIR/lib/common.sh"; then
-  echo "❌ Failed to source common.sh"
+  echo " Failed to source common.sh"
   exit 1
 fi
 
 if ! source "$ROOT_DIR/lib/const.sh"; then
-  echo "❌ Failed to source const.sh"
+  echo " Failed to source const.sh"
   exit 1
 fi
 
-echo "✅ SOURCES LOADED"
+echo " SOURCES LOADED"
 
 
 test_resolve_domain_from_app_dir() {
@@ -25,9 +25,9 @@ test_resolve_domain_from_app_dir() {
     expected="$2"
     result=$(resolve_domain_from_app_dir "$input")
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ $input => $result"
+      echo " $input => $result"
     else
-      echo "❌ $input => got '$result', expected '$expected'"
+      echo " $input => got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -50,9 +50,9 @@ test_resolve_domain_from_service_name() {
     expected="$2"
     result=$(resolve_domain_from_service_name "$input")
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ $input => $result"
+      echo " $input => $result"
     else
-      echo "❌ $input => got '$result', expected '$expected'"
+      echo " $input => got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -72,16 +72,16 @@ test_resolve_port_from_service_name() {
     expected="$2"
     if result=$(resolve_port_from_service_name "$input" 2>/dev/null); then
       if [[ "$result" == "$expected" ]]; then
-        echo "✅ $input => $result"
+        echo " $input => $result"
       else
-        echo "❌ $input => got '$result', expected '$expected'"
+        echo " $input => got '$result', expected '$expected'"
         return 1
       fi
     else
       if [[ -z "$expected" ]]; then
-        echo "✅ $input => failed as expected"
+        echo " $input => failed as expected"
       else
-        echo "❌ $input => unexpected failure"
+        echo " $input => unexpected failure"
         return 1
       fi
     fi
@@ -103,16 +103,16 @@ test_resolve_exec_dir_from_service_name() {
     expected="$2"
     if result=$(resolve_exec_dir_from_service_name "$input" 2>/dev/null); then
       if [[ "$result" == "$expected" ]]; then
-        echo "✅ $input => $result"
+        echo " $input => $result"
       else
-        echo "❌ $input => got '$result', expected '$expected'"
+        echo " $input => got '$result', expected '$expected'"
         return 1
       fi
     else
       if [[ -z "$expected" ]]; then
-        echo "✅ $input => failed as expected"
+        echo " $input => failed as expected"
       else
-        echo "❌ $input => unexpected failure"
+        echo " $input => unexpected failure"
         return 1
       fi
     fi
@@ -134,16 +134,16 @@ test_resolve_url_from_service_name() {
     expected="$2"
     if result=$(resolve_url_from_service_name "$input" 2>/dev/null); then
       if [[ "$result" == "$expected" ]]; then
-        echo "✅ $input => $result"
+        echo " $input => $result"
       else
-        echo "❌ $input => got '$result', expected '$expected'"
+        echo " $input => got '$result', expected '$expected'"
         return 1
       fi
     else
       if [[ -z "$expected" ]]; then
-        echo "✅ $input => failed as expected"
+        echo " $input => failed as expected"
       else
-        echo "❌ $input => unexpected failure"
+        echo " $input => unexpected failure"
         return 1
       fi
     fi
@@ -165,16 +165,16 @@ test_resolve_log_folder_from_service_name() {
     expected="$2"
     if result=$(resolve_log_folder_from_service_name "$input" 2>/dev/null); then
       if [[ "$result" == "$expected" ]]; then
-        echo "✅ $input => $result"
+        echo " $input => $result"
       else
-        echo "❌ $input => got '$result', expected '$expected'"
+        echo " $input => got '$result', expected '$expected'"
         return 1
       fi
     else
       if [[ -z "$expected" ]]; then
-        echo "✅ $input => failed as expected"
+        echo " $input => failed as expected"
       else
-        echo "❌ $input => unexpected failure"
+        echo " $input => unexpected failure"
         return 1
       fi
     fi
@@ -196,16 +196,16 @@ test_resolve_backup_folder_from_service_name() {
     expected="$2"
     if result=$(resolve_backup_folder_from_service_name "$input" 2>/dev/null); then
       if [[ "$result" == "$expected" ]]; then
-        echo "✅ $input => $result"
+        echo " $input => $result"
       else
-        echo "❌ $input => got '$result', expected '$expected'"
+        echo " $input => got '$result', expected '$expected'"
         return 1
       fi
     else
       if [[ -z "$expected" ]]; then
-        echo "✅ $input => failed as expected"
+        echo " $input => failed as expected"
       else
-        echo "❌ $input => unexpected failure"
+        echo " $input => unexpected failure"
         return 1
       fi
     fi
@@ -233,9 +233,9 @@ test_is_valid_kestrel_service_name() {
     fi
 
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ $input => $result"
+      echo " $input => $result"
     else
-      echo "❌ $input => got '$result', expected '$expected'"
+      echo " $input => got '$result', expected '$expected'"
       return 1
     fi
   }
@@ -265,9 +265,9 @@ test_is_valid_ipv4() {
     fi
 
     if [[ "$result" == "$expected" ]]; then
-      echo "✅ $ip => $result"
+      echo " $ip => $result"
     else
-      echo "❌ $ip => got $result, expected $expected"
+      echo " $ip => got $result, expected $expected"
       return 1
     fi
   }
@@ -299,16 +299,16 @@ test_get_dir_size() {
 
     if [[ "$unit" == "Invalid" || "$size" == "Invalid" ]]; then
       if [[ "$min" == "invalid" ]]; then
-        echo "✅ $dir => Invalid directory"
+        echo " $dir => Invalid directory"
         return 0
       else
-        echo "❌ $dir => got 'Invalid directory', expected size"
+        echo " $dir => got 'Invalid directory', expected size"
         return 1
       fi
     fi
 
     if [[ -z "$unit" || -z "$size" ]]; then
-      echo "❌ Malformed result: '$result'"
+      echo " Malformed result: '$result'"
       return 1
     fi
 
@@ -316,13 +316,13 @@ test_get_dir_size() {
       KB) size_kb=$(awk "BEGIN {print $size}") ;;
       MB) size_kb=$(awk "BEGIN {print $size * 1024}") ;;
       GB) size_kb=$(awk "BEGIN {print $size * 1048576}") ;;
-      *) echo "❌ Unknown unit: $unit"; return 1 ;;
+      *) echo " Unknown unit: $unit"; return 1 ;;
     esac
 
     if awk "BEGIN {exit !($size_kb >= $min && $size_kb <= $max)}"; then
-      echo "✅ $dir => $result (OK: $min–$max KB)"
+      echo " $dir => $result (OK: $min–$max KB)"
     else
-      echo "❌ $dir => got '$result', expected between $min–$max KB"
+      echo " $dir => got '$result', expected between $min–$max KB"
       return 1
     fi
   }
@@ -346,9 +346,9 @@ test_get_dir_size() {
 
 
 run_test() {
-  echo -e "\n🔧 Running $1"
+  echo -e "\n Running $1"
   if ! "$1"; then
-    echo "❌ Test '$1' failed"
+    echo " Test '$1' failed"
   fi
 }
 
@@ -363,5 +363,5 @@ run_test test_resolve_domain_from_app_dir
 run_test test_resolve_log_folder_from_service_name
 run_test test_resolve_backup_folder_from_service_name
 
-echo -e "\n✅ All tests finished (some may have failed)"
+echo -e "\n All tests finished (some may have failed)"
 
