@@ -390,13 +390,226 @@ update_app_interactively() {
   [[ "$exit_code" -ne 9 ]] && print_press_any_key
 }
 
+renew_app_ssl_certificate_interactively() {
+  local service="$1"
+  local fqdn base_domain
+
+  fqdn=$(resolve_domain_from_service_name "$service")
+  base_domain=$(echo "$fqdn" | awk -F. '{print $(NF-1)"."$NF}')
+
+  if [[ -z "$fqdn" || -z "$base_domain" ]]; then
+    echo -e "❌ \e[31mUnable to resolve SSL certificate target for this app.\e[0m"
+    print_press_any_key
+    return 1
+  fi
+
+  clear
+  echo -e "\n🔐 \e[1mRenew SSL Certificate\e[0m"
+  print_line
+
+  export HOSTNAME_FQDN="$fqdn"
+  export DOMAIN="$base_domain"
+
+  if renew_certbot_certificate "$fqdn" "$base_domain"; then
+    echo -e "\n✅ \e[1;32mSSL certificate renewed successfully.\e[0m"
+  else
+    echo -e "\n❌ \e[31mSSL certificate renewal failed.\e[0m"
+  fi
+
+  print_press_any_key
+}
+
+get_nginx_ssl_certificate_path_from_conf() {
+  local conf_path="$1"
+
+  [[ -f "$conf_path" ]] || return 1
+
+  awk '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*ssl_certificate[[:space:]]+/ {
+      value = $2
+      sub(/;$/, "", value)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      print value
+      exit
+    }
+  ' "$conf_path"
+}
+
+get_nginx_ssl_certificate_path() {
+  local fqdn="$1"
+  local conf_path="/etc/nginx/sites-available/$fqdn"
+
+  get_nginx_ssl_certificate_path_from_conf "$conf_path"
+}
+
+resolve_app_certificate_path() {
+  local fqdn="$1"
+  local cert_path
+
+  cert_path=$(get_nginx_ssl_certificate_path "$fqdn" 2>/dev/null)
+  if [[ -n "$cert_path" && -f "$cert_path" ]]; then
+    echo "$cert_path"
+    return 0
+  fi
+
+  cert_path=$(_resolve_certbot_fullchain_path "$fqdn" 2>/dev/null || true)
+  if [[ -n "$cert_path" && -f "$cert_path" ]]; then
+    echo "$cert_path"
+    return 0
+  fi
+
+  return 1
+}
+
+get_certificate_expiry_timestamp() {
+  local cert_path="$1"
+  local expiry_raw
+
+  [[ -f "$cert_path" ]] || return 1
+
+  expiry_raw=$(openssl x509 -enddate -noout -in "$cert_path" 2>/dev/null | cut -d= -f2)
+  [[ -n "$expiry_raw" ]] || return 1
+
+  LC_ALL=C date -d "$expiry_raw" +%s 2>/dev/null
+}
+
+get_local_served_certificate_expiry_timestamp() {
+  local fqdn="$1"
+  local timeout_cmd=()
+  local cert_pem expiry_raw endpoint
+  local endpoints=("127.0.0.1:443" "localhost:443")
+
+  [[ -n "$fqdn" ]] || return 1
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout_cmd=(timeout 10)
+  fi
+
+  for endpoint in "${endpoints[@]}"; do
+    cert_pem=$(
+      "${timeout_cmd[@]}" openssl s_client -connect "$endpoint" -servername "$fqdn" -showcerts </dev/null 2>/dev/null |
+        awk '
+          /-----BEGIN CERTIFICATE-----/ { capture=1 }
+          capture { print }
+          /-----END CERTIFICATE-----/ { exit }
+        '
+    )
+
+    [[ -n "$cert_pem" ]] || continue
+
+    expiry_raw=$(printf "%s\n" "$cert_pem" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+    [[ -n "$expiry_raw" ]] || continue
+
+    LC_ALL=C date -d "$expiry_raw" +%s 2>/dev/null && return 0
+  done
+
+  return 1
+}
+
+get_public_edge_certificate_expiry_timestamp() {
+  local fqdn="$1"
+  local timeout_cmd=()
+  local cert_pem expiry_raw
+
+  [[ -n "$fqdn" ]] || return 1
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout_cmd=(timeout 10)
+  fi
+
+  cert_pem=$(
+    "${timeout_cmd[@]}" openssl s_client -connect "$fqdn:443" -servername "$fqdn" -showcerts </dev/null 2>/dev/null |
+      awk '
+        /-----BEGIN CERTIFICATE-----/ { capture=1 }
+        capture { print }
+        /-----END CERTIFICATE-----/ { exit }
+      '
+  )
+
+  [[ -n "$cert_pem" ]] || return 1
+
+  expiry_raw=$(printf "%s\n" "$cert_pem" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+  [[ -n "$expiry_raw" ]] || return 1
+
+  LC_ALL=C date -d "$expiry_raw" +%s 2>/dev/null
+}
+
+format_ssl_certificate_status_from_timestamp() {
+  local expiry_ts="$1"
+  local now_ts="${2:-$(date +%s)}"
+  local expiry_date seconds_left days_left days_expired
+
+  if [[ ! "$expiry_ts" =~ ^[0-9]+$ || ! "$now_ts" =~ ^[0-9]+$ ]]; then
+    echo "Unknown"
+    return 1
+  fi
+
+  expiry_date=$(date -u -d "@$expiry_ts" '+%Y-%m-%d' 2>/dev/null) || {
+    echo "Unknown"
+    return 1
+  }
+
+  seconds_left=$((expiry_ts - now_ts))
+  if (( seconds_left >= 0 )); then
+    days_left=$((seconds_left / 86400))
+    echo "$expiry_date (${days_left}d) valid"
+  else
+    days_expired=$(((now_ts - expiry_ts + 86399) / 86400))
+    echo "$expiry_date (expired ${days_expired}d ago)"
+  fi
+}
+
+get_ssl_certificate_status() {
+  local fqdn="$1"
+  local cert_path expiry_ts
+
+  expiry_ts=$(get_local_served_certificate_expiry_timestamp "$fqdn" 2>/dev/null) || true
+  if [[ "$expiry_ts" =~ ^[0-9]+$ ]]; then
+    format_ssl_certificate_status_from_timestamp "$expiry_ts"
+    return 0
+  fi
+
+  cert_path=$(resolve_app_certificate_path "$fqdn") || {
+    echo "Not found"
+    return 0
+  }
+
+  expiry_ts=$(get_certificate_expiry_timestamp "$cert_path") || {
+    echo "Unknown"
+    return 0
+  }
+
+  format_ssl_certificate_status_from_timestamp "$expiry_ts"
+}
+
+get_origin_ssl_certificate_status() {
+  get_ssl_certificate_status "$1"
+}
+
+get_edge_ssl_certificate_status() {
+  local fqdn="$1"
+  local expiry_ts
+
+  expiry_ts=$(get_public_edge_certificate_expiry_timestamp "$fqdn" 2>/dev/null) || {
+    echo "Unknown"
+    return 0
+  }
+
+  format_ssl_certificate_status_from_timestamp "$expiry_ts"
+}
+
 show_app_details_menu() {
   local service="$1"
   local cf_proxy="$2"
   local has_a="$3"
   local has_aaaa="$4"
 
-  local exec_dir port disk_size main_dll ssl_status auto_renew dns_summary dns_warning fqdn
+  local exec_dir port disk_size main_dll origin_ssl_status edge_ssl_status auto_renew dns_summary dns_warning fqdn
+  local left_value_width=22
+  local right_label_width=17
+  local right_column_gap="         "
   
   fqdn=$(resolve_domain_from_service_name "$service")
   exec_dir=$(resolve_exec_dir_from_service_name "$service")
@@ -404,45 +617,39 @@ show_app_details_menu() {
   disk_size=$(get_dir_size "$exec_dir")
   main_dll=$(resolve_main_dll_from_service "$service")
 
-  local cert_path="/etc/letsencrypt/live/$fqdn/fullchain.pem"
-  if [[ -f "$cert_path" ]]; then
-    local expiry_raw expiry_date expiry_ts now_ts days_left
-    expiry_raw=$(openssl x509 -enddate -noout -in "$cert_path" 2>/dev/null | cut -d= -f2)
-    if [[ -n "$expiry_raw" ]]; then
-      expiry_date=$(date -d "$expiry_raw" '+%Y-%m-%d')
-      expiry_ts=$(date -d "$expiry_raw" +%s)
-      now_ts=$(date +%s)
-      days_left=$(( (expiry_ts - now_ts) / 86400 ))
-      ssl_status=$([[ "$days_left" -ge 0 ]] && echo "$expiry_date (${days_left}d) ✅" || echo "expired ❌")
-    else
-      ssl_status="Unknown ⚠️"
-    fi
-  else
-    ssl_status="Not found ❌"
-  fi
-
-  if systemctl list-timers --all | grep -q certbot.timer; then
-    auto_renew="systemd ✅"
-  elif crontab -l 2>/dev/null | grep -q certbot; then
-    auto_renew="via cron ⚠️"
-  else
-    auto_renew="none ❌"
-  fi
-
-  dns_summary="A: $( [[ "$has_a" -eq 1 ]] && echo ✅ || echo ❌ )  AAAA: $( [[ "$has_aaaa" -eq 1 ]] && echo ✅ || echo ❌ )"
-
-  if (( has_a == 0 && has_aaaa == 0 )); then
-    dns_warning="⚠️ App is not reachable (no DNS entries found)"
-  elif (( has_a == 0 )); then
-    dns_warning="⚠️ App is not reachable via IPv4"
-  elif (( has_aaaa == 0 )); then
-    dns_warning="⚠️ App is not reachable via IPv6"
-  else
-    dns_warning=""
-  fi
-
   while true; do
     _load_dynamic_app_info "$service"
+
+    origin_ssl_status=$(get_origin_ssl_certificate_status "$fqdn")
+    edge_ssl_status=$(get_edge_ssl_certificate_status "$fqdn")
+
+    if command -v certbot >/dev/null 2>&1 && ! has_certbot_nginx_renewal_hooks; then
+      ensure_certbot_nginx_renewal_hooks >/dev/null 2>&1 || true
+    fi
+
+    if systemctl list-timers --all | grep -q certbot.timer; then
+      if has_certbot_nginx_renewal_hooks; then
+        auto_renew="systemd+hooks ✅"
+      else
+        auto_renew="systemd partial ⚠️"
+      fi
+    elif crontab -l 2>/dev/null | grep -q certbot; then
+      auto_renew="via cron ⚠️"
+    else
+      auto_renew="none ❌"
+    fi
+
+    dns_summary="A: $( [[ "$has_a" -eq 1 ]] && echo ✅ || echo ❌ )  AAAA: $( [[ "$has_aaaa" -eq 1 ]] && echo ✅ || echo ❌ )"
+
+    if (( has_a == 0 && has_aaaa == 0 )); then
+      dns_warning="⚠️ App is not reachable (no DNS entries found)"
+    elif (( has_a == 0 )); then
+      dns_warning="⚠️ App is not reachable via IPv4"
+    elif (( has_aaaa == 0 )); then
+      dns_warning="⚠️ App is not reachable via IPv6"
+    else
+      dns_warning=""
+    fi
 
    meta_file="$exec_dir/$META_FILE_NAME"
    repo_name=$(get_repo_name_from_meta "$meta_file" 22)
@@ -473,21 +680,22 @@ show_app_details_menu() {
     fi
     print_double_line
 
-    printf "🔖 %-18s \e[36m%-22s\e[0m   %s %-17s \e[36m%-25s\e[0m \e[2m(%s)\e[0m\n" "Repository:" "$repo_name" "$icon" "$ref_type_display" "$ref_display" "${commit:0:7}"
-    printf "🔌 %-18s \e[36m%-22s\e[0m   📦 %-17s \e[36m%-30s\e[0m\n" "Port:" "$port" "DLL:" "$main_dll"
-    printf "💾 %-18s \e[36m%-22s\e[0m   📁 %-17s \e[2m%-30s\e[0m\n" "Disk Usage:" "$disk_size" "App Directory:" "$exec_dir"
-    printf "🧠 %-18s \e[36m%-22s\e[0m   ⏱️ %-17s \e[36m%-10s\e[0m\n" "Memory Usage:" "$ram_size" "Uptime:" "$uptime"
-    printf "🔒 %-18s \e[36m%-23s\e[0m   ♻️ %-17s \e[36m%-20s\e[0m\n" "SSL Certificate:" "$ssl_status" "SSL Auto Renew:" "$auto_renew"
-    printf "🌩️ %-18s \e[36m%-23s\e[0m   📡 %-17s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$cf_proxy" "DNS Records:" "$dns_summary"
-    printf "🌐 %-18s \e[36m%-22s\e[0m   🔗 %-17s \e[1;34mhttps://%s\e[0m\n" "HTTP Version:" "HTTP/2" "Access URL:" "$fqdn"
-    printf "🛡️ %-18s \e[2m%-30s\e[0m\n" "Security Headers:" "[TODO Headers]"
+    printf "🔖 %-18s \e[36m%-*s\e[0m%s%s %-*s \e[36m%-25s\e[0m \e[2m(%s)\e[0m\n" "Repository:" "$left_value_width" "$repo_name" "$right_column_gap" "$icon" "$right_label_width" "${ref_type_display}:" "$ref_display" "${commit:0:7}"
+    printf "🔌 %-18s \e[36m%-*s\e[0m%s📦 %-*s \e[36m%-30s\e[0m\n" "Port:" "$left_value_width" "$port" "$right_column_gap" "$right_label_width" "DLL:" "$main_dll"
+    printf "💾 %-18s \e[36m%-*s\e[0m%s📁 %-*s \e[2m%-30s\e[0m\n" "Disk Usage:" "$left_value_width" "$disk_size" "$right_column_gap" "$right_label_width" "App Directory:" "$exec_dir"
+    printf "🧠 %-18s \e[36m%-*s\e[0m%s⏱️ %-*s \e[36m%-10s\e[0m\n" "Memory Usage:" "$left_value_width" "$ram_size" "$right_column_gap" "$right_label_width" "Uptime:" "$uptime"
+    printf "🔒 %-18s \e[36m%-*s\e[0m%s🌍 %-*s \e[36m%-20s\e[0m\n" "Origin SSL:" "$left_value_width" "$origin_ssl_status" "$right_column_gap" "$right_label_width" "Edge SSL:" "$edge_ssl_status"
+    printf "🌩️ %-18s \e[36m%-*s\e[0m%s📡 %-*s \e[36m%-20s\e[0m\n" "CF Proxy Active:" "$left_value_width" "$cf_proxy" "$right_column_gap" "$right_label_width" "DNS Records:" "$dns_summary"
+    printf "🌐 %-18s \e[36m%-*s\e[0m%s♻️ %-*s \e[36m%-20s\e[0m\n" "HTTP Version:" "$left_value_width" "HTTP/2" "$right_column_gap" "$right_label_width" "SSL Auto Renew:" "$auto_renew"
+    printf "🔗 %-18s \e[1;34mhttps://%s\e[0m\n" "Access URL:" "$fqdn"
     print_line
 
     printf "\n 1) 📜 Show Logs         2) 🔼 Update App          3) 🔄 Restart App"
     printf "\n 4) 🛑 Stop App          5) 🧨 Delete App          6) 💾 Restore Backup"
-    printf "\n 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings      %s$(print_back_to_menu)\n"
+    printf "\n 7) 🔀 Toggle CF Proxy   8) ⚙️ Nginx Settings      9) 🔐 Renew SSL"
+    printf "\n %s$(print_back_to_menu)\n"
 
-    read_menu_choice 8
+    read_menu_choice 9
 
     case "$REPLY" in
       1) show_log_menu "$service" ;;
@@ -514,8 +722,10 @@ show_app_details_menu() {
       8)
         show_nginx_settings_menu "$fqdn"
         ;;
+      9)
+        renew_app_ssl_certificate_interactively "$service"
+        ;;
       q|Q) return 0 ;;
     esac
   done
 }
-

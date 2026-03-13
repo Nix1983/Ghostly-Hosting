@@ -28,6 +28,14 @@ fi
 echo "✅ SOURCES LOADED"
 echo ""
 
+pushd "$ROOT_DIR" >/dev/null || exit 1
+if ! source "./lib/app.sh"; then
+  echo "âŒ Failed to source app.sh"
+  popd >/dev/null || true
+  exit 1
+fi
+popd >/dev/null || exit 1
+
 # Test 1: Check if app.sh exists and is readable
 test_app_script_exists() {
   echo "🔧 Running test_app_script_exists"
@@ -156,6 +164,119 @@ test_deployment_dependencies() {
   return 0
 }
 
+# Test 8: Parse the active SSL certificate path from nginx config
+test_get_nginx_ssl_certificate_path_from_conf() {
+  echo "ðŸ”§ Running test_get_nginx_ssl_certificate_path_from_conf"
+
+  local test_config result
+  test_config=$(mktemp)
+
+  cat > "$test_config" <<'EOF'
+server {
+    listen 443 ssl http2;
+    server_name ghostlyinc.com;
+    ssl_certificate /etc/letsencrypt/live/ghostlyinc.com-0001/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ghostlyinc.com-0001/privkey.pem;
+}
+EOF
+
+  result=$(get_nginx_ssl_certificate_path_from_conf "$test_config")
+  rm -f "$test_config"
+
+  if [[ "$result" == "/etc/letsencrypt/live/ghostlyinc.com-0001/fullchain.pem" ]]; then
+    echo "âœ… Active nginx certificate path parsed correctly"
+    return 0
+  fi
+
+  echo "âŒ Expected nginx certificate path was not parsed, got: '$result'"
+  return 1
+}
+
+# Test 9: Certbot renewal hooks should handle nginx stop/start/reload
+test_write_certbot_nginx_renewal_hooks() {
+  echo "🔧 Running test_write_certbot_nginx_renewal_hooks"
+
+  local tmpdir pre_hook post_hook deploy_hook pre_content post_content deploy_content
+  tmpdir=$(mktemp -d)
+  pre_hook="$tmpdir/pre.sh"
+  post_hook="$tmpdir/post.sh"
+  deploy_hook="$tmpdir/deploy.sh"
+
+  write_certbot_nginx_pre_hook "$pre_hook"
+  write_certbot_nginx_post_hook "$post_hook"
+  write_certbot_nginx_reload_hook "$deploy_hook"
+
+  pre_content=$(cat "$pre_hook")
+  post_content=$(cat "$post_hook")
+  deploy_content=$(cat "$deploy_hook")
+
+  if [[ ! -x "$pre_hook" || ! -x "$post_hook" || ! -x "$deploy_hook" ]]; then
+    echo "❌ One or more hook files are not executable"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  if [[ "$pre_content" != *"systemctl stop nginx"* ]]; then
+    echo "❌ Pre-hook does not stop nginx"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  if [[ "$post_content" != *"systemctl start nginx"* ]]; then
+    echo "❌ Post-hook does not start nginx"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  if [[ "$deploy_content" != *"systemctl reload nginx"* ]]; then
+    echo "❌ Deploy-hook does not reload nginx"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  rm -rf "$tmpdir"
+  echo "✅ Certbot renewal hooks manage nginx stop/start/reload"
+  return 0
+}
+
+# Test 10: Format SSL status from timestamps without relying on local cert files
+test_format_ssl_certificate_status_from_timestamp() {
+  echo "ðŸ”§ Running test_format_ssl_certificate_status_from_timestamp"
+
+  local valid_result expired_result
+  valid_result=$(format_ssl_certificate_status_from_timestamp 1738368000 1735689600)
+  expired_result=$(format_ssl_certificate_status_from_timestamp 1735603200 1735689600)
+
+  if [[ "$valid_result" != "2025-02-01 (31d) valid" ]]; then
+    echo "âŒ Unexpected valid SSL status: '$valid_result'"
+    return 1
+  fi
+
+  if [[ "$expired_result" != "2024-12-31 (expired 1d ago)" ]]; then
+    echo "âŒ Unexpected expired SSL status: '$expired_result'"
+    return 1
+  fi
+
+  echo "âœ… SSL status formatting handles valid and expired certificates"
+  return 0
+}
+
+# Test 11: Public edge SSL status should format independently from origin SSL
+test_get_edge_ssl_certificate_status_format() {
+  echo "🔧 Running test_get_edge_ssl_certificate_status_format"
+
+  local result
+  result=$(format_ssl_certificate_status_from_timestamp 1777377251 1774742400)
+
+  if [[ "$result" != "2026-04-28 (30d) valid" ]]; then
+    echo "❌ Unexpected edge SSL status: '$result'"
+    return 1
+  fi
+
+  echo "✅ Edge SSL status formatting is stable"
+  return 0
+}
+
 # Run all tests
 TESTS=(
   "test_app_script_exists"
@@ -165,6 +286,10 @@ TESTS=(
   "test_git_module_exists"
   "test_is_valid_kestrel_service_name"
   "test_deployment_dependencies"
+  "test_get_nginx_ssl_certificate_path_from_conf"
+  "test_write_certbot_nginx_renewal_hooks"
+  "test_format_ssl_certificate_status_from_timestamp"
+  "test_get_edge_ssl_certificate_status_format"
 )
 
 FAILED=0

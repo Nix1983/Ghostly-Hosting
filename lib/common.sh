@@ -561,6 +561,41 @@ get_service_ram_usage() {
   echo "$ram_human"
 }
 
+format_duration_dd_hh_mm_ss() {
+  local total_seconds="$1"
+
+  if [[ ! "$total_seconds" =~ ^[0-9]+$ ]]; then
+    echo "000d 00h 00m 00s"
+    return 1
+  fi
+
+  printf "%03dd %02dh %02dm %02ds" \
+    $((total_seconds / 86400)) \
+    $((total_seconds % 86400 / 3600)) \
+    $((total_seconds % 3600 / 60)) \
+    $((total_seconds % 60))
+}
+
+calculate_elapsed_seconds_from_monotonic_us() {
+  local now_us="$1"
+  local active_enter_us="$2"
+
+  if [[ ! "$now_us" =~ ^[0-9]+$ || ! "$active_enter_us" =~ ^[0-9]+$ ]]; then
+    return 1
+  fi
+
+  if (( now_us <= active_enter_us )); then
+    echo "0"
+    return 0
+  fi
+
+  echo $(((now_us - active_enter_us) / 1000000))
+}
+
+get_monotonic_uptime_microseconds() {
+  awk '{printf "%.0f", $1 * 1000000}' /proc/uptime
+}
+
 get_service_uptime() {
   local service="$1"
   local uptime_readable="000d 00h 00m 00s"
@@ -571,13 +606,13 @@ get_service_uptime() {
   fi
 
   if systemctl is-active --quiet "$service"; then
-    local up_raw now elapsed_us sec
+    local up_raw now sec
     up_raw=$(systemctl show -p ActiveEnterTimestampMonotonic "$service" 2>/dev/null | cut -d= -f2)
     if [[ "$up_raw" =~ ^[0-9]+$ ]]; then
-      now=$(awk '{printf "%.0f", $1 * 1000000}' /proc/uptime)
-      elapsed_us=$((now - up_raw))
-      sec=$((elapsed_us / 1000000))
-      uptime_readable=$(printf "%03dd %02dh %02dm %02ds" $((sec/86400)) $((sec%86400/3600)) $((sec%3600/60)) $((sec%60)))
+      now=$(get_monotonic_uptime_microseconds)
+      if sec=$(calculate_elapsed_seconds_from_monotonic_us "$now" "$up_raw"); then
+        uptime_readable=$(format_duration_dd_hh_mm_ss "$sec")
+      fi
     fi
   fi
 

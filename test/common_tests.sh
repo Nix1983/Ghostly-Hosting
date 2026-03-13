@@ -345,6 +345,60 @@ test_get_dir_size() {
 }
 
 
+test_format_duration_dd_hh_mm_ss() {
+  local input expected result
+
+  run_case() {
+    input="$1"
+    expected="$2"
+    if result=$(format_duration_dd_hh_mm_ss "$input" 2>/dev/null); then
+      if [[ "$result" == "$expected" ]]; then
+        echo "âœ… $input => $result"
+      else
+        echo "âŒ $input => got '$result', expected '$expected'"
+        return 1
+      fi
+    else
+      echo "âŒ $input => unexpected failure"
+      return 1
+    fi
+  }
+
+  run_case "0" "000d 00h 00m 00s"
+  run_case "59" "000d 00h 00m 59s"
+  run_case "60" "000d 00h 01m 00s"
+  run_case "3661" "000d 01h 01m 01s"
+  run_case "2678400" "031d 00h 00m 00s"
+  run_case "31536061" "365d 00h 01m 01s"
+}
+
+test_calculate_elapsed_seconds_from_monotonic_us() {
+  local now_us active_enter_us expected result
+
+  run_case() {
+    now_us="$1"
+    active_enter_us="$2"
+    expected="$3"
+
+    if result=$(calculate_elapsed_seconds_from_monotonic_us "$now_us" "$active_enter_us" 2>/dev/null); then
+      if [[ "$result" == "$expected" ]]; then
+        echo "âœ… $now_us - $active_enter_us => $result"
+      else
+        echo "âŒ $now_us - $active_enter_us => got '$result', expected '$expected'"
+        return 1
+      fi
+    else
+      echo "âŒ $now_us - $active_enter_us => unexpected failure"
+      return 1
+    fi
+  }
+
+  run_case "120000000" "60000000" "60"
+  run_case "86461000000" "1000000" "86460"
+  run_case "5000000" "5000000" "0"
+  run_case "4000000" "5000000" "0"
+}
+
 run_test() {
   echo -e "\n🔧 Running $1"
   if ! "$1"; then
@@ -354,6 +408,8 @@ run_test() {
 
 run_test test_is_valid_ipv4
 run_test test_get_dir_size
+run_test test_format_duration_dd_hh_mm_ss
+run_test test_calculate_elapsed_seconds_from_monotonic_us
 run_test test_is_valid_kestrel_service_name
 run_test test_resolve_url_from_service_name
 run_test test_resolve_exec_dir_from_service_name
@@ -364,4 +420,3 @@ run_test test_resolve_log_folder_from_service_name
 run_test test_resolve_backup_folder_from_service_name
 
 echo -e "\n✅ All tests finished (some may have failed)"
-
