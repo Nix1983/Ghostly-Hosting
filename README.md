@@ -10,7 +10,7 @@ Download and run the installer:
 
 ```bash
 # Download latest installer
-wget https://github.com/Nix1983/Blazor-Hosting/releases/latest/download/ghostly-hosting-installer-v1.0.3.sh
+wget https://github.com/Nix1983/GhostlyHosting/releases/latest/download/ghostly-hosting-installer-v1.0.3.sh
 
 # Make executable
 chmod +x ghostly-hosting-installer-v1.0.3.sh
@@ -32,8 +32,8 @@ ghostly-hosting
 If you prefer to install manually or for development:
 
 ```bash
-git clone https://github.com/Nix1983/Blazor-Hosting.git
-cd Blazor-Hosting
+git clone https://github.com/Nix1983/GhostlyHosting.git
+cd GhostlyHosting
 sudo ./start.sh
 ```
 
@@ -43,7 +43,7 @@ Simply run the new installer - your configuration will be preserved:
 
 ```bash
 # Download new version
-wget https://github.com/Nix1983/Blazor-Hosting/releases/latest/download/ghostly-hosting-installer-v1.1.0.sh
+wget https://github.com/Nix1983/GhostlyHosting/releases/latest/download/ghostly-hosting-installer-v1.1.0.sh
 
 # Make executable
 chmod +x ghostly-hosting-installer-v1.1.0.sh

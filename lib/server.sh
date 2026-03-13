@@ -74,7 +74,7 @@ show_server_health() {
   local swap_usage_pct=0
   [[ "$swap_total" -gt 0 ]] && swap_usage_pct=$((100 * swap_used / swap_total))
 
-  # Disk (in GB mit 2 Nachkommastellen)
+  # Disk (in GB with 2 decimal places)
   read -r d_total_kb d_used_kb d_free_kb d_perc <<< "$(df -k / | awk 'NR==2 {print $2, $3, $4, $5}')"
   d_total=$(awk "BEGIN {printf \"%.2f\", $d_total_kb / 1024 / 1024}")
   d_used=$(awk "BEGIN {printf \"%.2f\", $d_used_kb / 1024 / 1024}")

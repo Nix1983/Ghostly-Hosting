@@ -14,15 +14,15 @@ install_git() {
     echo "✅ Git is already installed."
   fi
 
-  # 🔍 Git-Installation validieren
+  # 🔍 Validate Git installation
   if ! command -v git >/dev/null 2>&1; then
-    # 🧪 Fallback: manuell verlinken falls git existiert aber nicht im PATH ist
+    # 🧪 Fallback: manually link if git exists but is not in PATH
     if [[ -x /usr/lib/git-core/git && ! -x /usr/bin/git ]]; then
       ln -sf /usr/lib/git-core/git /usr/bin/git
     fi
   fi
 
-  # 🛑 Noch immer kein Git – harter Abbruch
+  # 🛑 Still no Git – hard abort
   if ! command -v git >/dev/null 2>&1; then
     echo -e "❌ \e[31mGit binary not found after installation – aborting.\e[0m"
     exit 1

@@ -2,8 +2,8 @@
 # Documentation: build.sh Analysis and Testing (Script has been DELETED)
 # 
 # This file documents the comprehensive analysis performed on build.sh before deletion.
-# The task was: "Analysiere das script und mach es robuster. Schau nach bugs nach..
-# fixe diese wenn nötig. Mach zu allem unittests und lösche build.sh file."
+# The task was: "Analyze the script and make it more robust. Look for bugs...
+# fix them if necessary. Make unit tests for everything and delete build.sh file."
 #
 # Summary of Analysis Results:
 # =============================
