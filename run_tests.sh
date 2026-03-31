@@ -18,6 +18,7 @@ TESTS=(
   "cloudflare_tests.sh"
   "print_tests.sh"
   "log_tests.sh"
+  "log_cleanup_tests.sh"
   "meta_data_tests.sh"
   "dotnet_version_tests.sh"
   "version_tests.sh"

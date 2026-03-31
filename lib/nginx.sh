@@ -92,6 +92,18 @@ setup_nginx_log_timer() {
     echo "  ln -sf \"\$error_path/\$today.txt\" \"\$error_path/error.log\""
     echo "done"
     echo "systemctl kill --signal=SIGUSR1 nginx 2>/dev/null || nginx -s reopen"
+    echo ""
+    echo "# Delete logs older than 30 days"
+    echo "find \"$APP_BASE_DIR\" -type d -path \"*/$LOGS_DIR/$WEB_LOGS_ACCESS_DIR\" | while read -r access_path; do"
+    echo "  find \"\$access_path\" -name \"*.txt\" -mtime +30 -delete"
+    echo "  error_path=\"\${access_path%/$WEB_LOGS_ACCESS_DIR}/$WEB_LOGS_ERROR_DIR\""
+    echo "  find \"\$error_path\" -name \"*.txt\" -mtime +30 -delete"
+    echo "done"
+    echo ""
+    echo "# Delete app logs older than 30 days"
+    echo "find \"$APP_BASE_DIR\" -type d -path \"*/$LOGS_DIR\" | while read -r log_base; do"
+    echo "  find \"\$log_base\" -maxdepth 1 -name \"*.log\" -mtime +30 -delete"
+    echo "done"
   } > "$script_path"
 
 
