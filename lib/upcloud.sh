@@ -31,28 +31,14 @@ _get_upcloud_server_uuid_by_ip() {
   printf "🔍 Searching for server UUID using IP: \033[36m%s\033[0m ...\n" "$SERVER_IPv4"
   declare -f _safe_log >/dev/null 2>&1 && _safe_log info "_get_upcloud_server_uuid_by_ip" "Looking up server UUID for IP: $SERVER_IPv4"
 
-  # Get list of all servers
-  local response servers_json uuid
-  if ! response=$(_upcloud_api_get "server" 2>&1); then
-    printf "❌ Failed to query UpCloud API (server list). Response: %s\n" "$response"
-    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "API query failed: $response"
+  local response uuid
+  if ! response=$(_upcloud_api_get "ip_address/$SERVER_IPv4" 2>&1); then
+    printf "❌ Failed to query UpCloud API\n"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "API query failed for IP: $SERVER_IPv4"
     return 1
   fi
 
-  servers_json=$(echo "$response" | jq -r '.servers.server // []' 2>/dev/null)
-
-  if [[ -z "$servers_json" || "$servers_json" == "[]" ]]; then
-    printf "❌ No servers found in account. Raw API response: %s\n" "$response"
-    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "No servers returned from API. Response: $response"
-    return 1
-  fi
-
-  # Search through all servers for matching IP
-  uuid=$(echo "$servers_json" | jq -r --arg ip "$SERVER_IPv4" '
-    .[] |
-    select((.ip_addresses.ip_address // [])[] | .address == $ip) |
-    .uuid // empty
-  ' | head -n1)
+  uuid=$(echo "$response" | jq -r '.ip_address.server // empty' 2>/dev/null)
 
   if [[ -n "$uuid" && "$uuid" != "null" ]]; then
     SERVER_UUID="$uuid"
@@ -60,8 +46,8 @@ _get_upcloud_server_uuid_by_ip() {
     declare -f _safe_log >/dev/null 2>&1 && _safe_log info "_get_upcloud_server_uuid_by_ip" "Successfully resolved SERVER_UUID: $SERVER_UUID"
     return 0
   else
-    printf "❌ No server found with IP address: %s\n" "$SERVER_IPv4"
-    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "Could not find server with IP $SERVER_IPv4. Available UUIDs: $(echo "$servers_json" | jq -r '.[].uuid' | tr '\n' ' ')"
+    printf "❌ IP not directly associated with a server (possibly floating IP or error)\n"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "Could not resolve server UUID from IP $SERVER_IPv4. Response: $response"
     return 1
   fi
 }
@@ -95,7 +81,7 @@ _upcloud_api_get() {
   local endpoint="$1"
   local raw http_code body
   raw=$(curl -s -w "\n%{http_code}" \
-    --user "$UPCLOUD_API_TOKEN" \
+    -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
     -H "Accept: application/json" \
     "$UPCLOUD_API_BASE/$endpoint")
   http_code=$(printf '%s' "$raw" | tail -n1)
@@ -114,7 +100,7 @@ _upcloud_api_put() {
   local data="$2"
   local raw http_code body
   raw=$(curl -s -w "\n%{http_code}" \
-    --user "$UPCLOUD_API_TOKEN" \
+    -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
     -H "Content-Type: application/json" \
     -d "$data" \
     -X PUT "$UPCLOUD_API_BASE/$endpoint")
@@ -309,7 +295,7 @@ delete_all_upcloud_firewall_rules() {
 
     local del_response
     del_response=$(curl -s \
-      --user "$UPCLOUD_API_TOKEN" \
+      -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
       -X DELETE "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule/$position")
 
     if [[ -z "$del_response" ]]; then
@@ -494,7 +480,7 @@ apply_upcloud_firewall_rules() {
     # Send rule using API helper
     local add_response status body
     add_response=$(curl -s -w "\n%{http_code}" \
-      --user "$UPCLOUD_API_TOKEN" \
+      -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
       -H "Content-Type: application/json" \
       -d "{\"firewall_rule\": $rule}" \
       "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule")
@@ -536,7 +522,7 @@ validate_upcloud_token() {
   
   local response status body
   response=$(curl -s -w "\n%{http_code}" \
-    --user "$token" \
+    -H "Authorization: Bearer $token" \
     -H "Accept: application/json" \
     "$UPCLOUD_API_BASE/account" 2>&1)
   status=$(echo "$response" | tail -n1)

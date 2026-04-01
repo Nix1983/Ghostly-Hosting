@@ -113,24 +113,24 @@ test_get_server_uuid_missing_creds() {
   fi
 }
 
-# Shared mock server list response used by UUID-lookup tests
+# Shared mock ip_address response used by UUID-lookup tests
 _mock_server_list_response() {
-  echo '{"servers":{"server":[{"uuid":"test-uuid-1234","ip_addresses":{"ip_address":[{"address":"10.0.0.1","family":"IPv4"}]}}]}}'
+  echo '{"ip_address":{"address":"10.0.0.1","family":"IPv4","server":"test-uuid-1234"}}'
 }
 
-# Test _get_upcloud_server_uuid_by_ip resolves UUID from server list
+# Test _get_upcloud_server_uuid_by_ip resolves UUID from ip_address endpoint
 test_get_server_uuid_from_server_list() {
   unset SERVER_UUID
   SERVER_IPv4="10.0.0.1"
   local saved_token="${UPCLOUD_API_TOKEN:-}"
   UPCLOUD_API_TOKEN="mock_token"
 
-  # Mock _upcloud_api_get to return a server list containing the target IP
+  # Mock _upcloud_api_get to return an ip_address response containing the server UUID
   _upcloud_api_get() { _mock_server_list_response; }
 
   if _get_upcloud_server_uuid_by_ip 2>/dev/null; then
     if [[ "$SERVER_UUID" == "test-uuid-1234" ]]; then
-      echo "✅ _get_upcloud_server_uuid_by_ip: UUID resolved from server list correctly"
+      echo "✅ _get_upcloud_server_uuid_by_ip: UUID resolved from ip_address endpoint correctly"
       UPCLOUD_API_TOKEN="$saved_token"
       unset -f _upcloud_api_get
       unset SERVER_UUID
@@ -143,7 +143,7 @@ test_get_server_uuid_from_server_list() {
       return 1
     fi
   else
-    echo "❌ _get_upcloud_server_uuid_by_ip: Failed to resolve UUID from server list"
+    echo "❌ _get_upcloud_server_uuid_by_ip: Failed to resolve UUID from ip_address endpoint"
     UPCLOUD_API_TOKEN="$saved_token"
     unset -f _upcloud_api_get
     unset SERVER_UUID
@@ -151,23 +151,23 @@ test_get_server_uuid_from_server_list() {
   fi
 }
 
-# Test _get_upcloud_server_uuid_by_ip fails gracefully when IP not in server list
+# Test _get_upcloud_server_uuid_by_ip fails gracefully when IP not found (API error)
 test_get_server_uuid_ip_not_found() {
   unset SERVER_UUID
   SERVER_IPv4="99.99.99.99"
   local saved_token="${UPCLOUD_API_TOKEN:-}"
   UPCLOUD_API_TOKEN="mock_token"
 
-  # Mock _upcloud_api_get to return a server list that does NOT contain the target IP
-  _upcloud_api_get() { _mock_server_list_response; }
+  # Mock _upcloud_api_get to simulate a 404 (IP not found) by returning failure
+  _upcloud_api_get() { return 1; }
 
   if ! _get_upcloud_server_uuid_by_ip 2>/dev/null; then
-    echo "✅ _get_upcloud_server_uuid_by_ip: IP not found in server list handled correctly"
+    echo "✅ _get_upcloud_server_uuid_by_ip: IP not found handled correctly"
     UPCLOUD_API_TOKEN="$saved_token"
     unset -f _upcloud_api_get
     return 0
   else
-    echo "❌ _get_upcloud_server_uuid_by_ip: Should have failed when IP not in server list"
+    echo "❌ _get_upcloud_server_uuid_by_ip: Should have failed when IP not found"
     UPCLOUD_API_TOKEN="$saved_token"
     unset -f _upcloud_api_get
     unset SERVER_UUID
