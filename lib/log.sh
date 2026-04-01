@@ -200,24 +200,41 @@ show_webserver_error_logs() {
 
 show_log_menu() {
   local service="$1"
-  local url
+  local url log_dir
   url=$(resolve_url_from_service_name "$service")
+  log_dir=$(resolve_log_folder_from_service_name "$service")
 
   while true; do
     clear
-    echo -e "\n📊 \033[1mLog Viewer:🔗 \e[94m($url)\e[0m"
+
+    # Compute per-category stats for inline display
+    local access_count access_size error_count error_size app_count app_size total_size total_count
+    access_count=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" \( -name "*.txt" -o -name "*.gz" \) 2>/dev/null | wc -l)
+    access_size=$(du -sh "${log_dir}${WEB_LOGS_ACCESS_DIR}" 2>/dev/null | awk '{print $1}')
+    access_size="${access_size:-0}"
+    error_count=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" \( -name "*.txt" -o -name "*.gz" \) 2>/dev/null | wc -l)
+    error_size=$(du -sh "${log_dir}${WEB_LOGS_ERROR_DIR}" 2>/dev/null | awk '{print $1}')
+    error_size="${error_size:-0}"
+    app_count=$(find "$log_dir" -maxdepth 1 \( -name "*.log" -o -name "*.log.gz" \) 2>/dev/null | wc -l)
+    app_size=$(find "$log_dir" -maxdepth 1 \( -name "*.log" -o -name "*.log.gz" \) -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+    app_size="${app_size:-0}"
+    total_size=$(du -sh "$log_dir" 2>/dev/null | awk '{print $1}')
+    total_size="${total_size:-0}"
+    total_count=$(( access_count + error_count + app_count ))
+
+    echo -e "\n📊 \033[1mLog Viewer:\033[0m 🔗 \e[94m($url)\e[0m"
+    echo -e "💾 \e[2m${total_count} files · ${total_size} total  \e[0m\e[2m(🌐 ${access_count} · ⚠️  ${error_count} · 🧩 ${app_count})\e[0m"
     print_double_line
-    echo -e "\n 1) 🌐 Access Logs    \e[2m(Nginx access.log)\e[0m       2) ⚠️ Error Logs  \e[2m(Nginx error.log)\e[0m"
-    echo -e "\n 3) 🧩 App Logs       \e[2m(Serilog, runtime etc.)\e[0m  4) 🗑️ Clear Old Logs  \e[2m(>30 days)\e[0m"
-    echo -e "\n 5) 📊 Log Statistics                                 $(print_back_to_menu)\n"
-    read_menu_choice 5
+    echo -e "\n 1) 🌐 Access Logs    \e[2m(${access_count} files, ${access_size})\e[0m       2) ⚠️ Error Logs  \e[2m(${error_count} files, ${error_size})\e[0m"
+    echo -e "\n 3) 🧩 App Logs       \e[2m(${app_count} files, ${app_size})\e[0m         4) 🗑️ Clear Old Logs  \e[2m(>30 days)\e[0m"
+    echo -e "\n $(print_back_to_menu)\n"
+    read_menu_choice 4
 
     case "$REPLY" in
       1) show_webserver_access_logs "$service" ;;
       2) show_webserver_error_logs "$service" ;;
       3) show_app_log_files "$service" ;;
       4) clear_old_logs_interactive "$service" ;;
-      5) show_log_statistics "$service" ;;
       q|Q) return ;;
     esac
   done
@@ -234,8 +251,8 @@ clear_old_logs_interactive() {
 
   # Find old logs
   local access_logs error_logs app_logs
-  access_logs=$(find "$log_dir/webserver/access" -name "*.txt" -mtime +30 2>/dev/null | wc -l)
-  error_logs=$(find "$log_dir/webserver/error" -name "*.txt" -mtime +30 2>/dev/null | wc -l)
+  access_logs=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -name "*.txt" -mtime +30 2>/dev/null | wc -l)
+  error_logs=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -name "*.txt" -mtime +30 2>/dev/null | wc -l)
   app_logs=$(find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 2>/dev/null | wc -l)
 
   echo -e "\n📊 Found logs older than 30 days:"
@@ -261,21 +278,21 @@ clear_old_logs_interactive() {
 
   case "$REPLY" in
     1)
-      find "$log_dir/webserver/access" -name "*.txt" -mtime +30 -delete 2>/dev/null
+      find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
       echo -e "\n✅ Deleted $access_logs access log file(s)."
       ;;
     2)
-      find "$log_dir/webserver/error" -name "*.txt" -mtime +30 -delete 2>/dev/null
+      find "${log_dir}${WEB_LOGS_ERROR_DIR}" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
       echo -e "\n✅ Deleted $error_logs error log file(s)."
       ;;
     3)
-      find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null
+      find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null || true
       echo -e "\n✅ Deleted $app_logs app log file(s)."
       ;;
     4)
-      find "$log_dir/webserver/access" -name "*.txt" -mtime +30 -delete 2>/dev/null
-      find "$log_dir/webserver/error" -name "*.txt" -mtime +30 -delete 2>/dev/null
-      find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null
+      find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+      find "${log_dir}${WEB_LOGS_ERROR_DIR}" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+      find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null || true
       echo -e "\n✅ Deleted $((access_logs + error_logs + app_logs)) log file(s) total."
       ;;
     q|Q) return ;;
@@ -284,66 +301,4 @@ clear_old_logs_interactive() {
   print_press_any_key
 }
 
-show_log_statistics() {
-  local service="$1"
-  local log_dir domain
-  log_dir=$(resolve_log_folder_from_service_name "$service")
-  domain=$(resolve_domain_from_service_name "$service")
 
-  clear
-  echo -e "\n📊 \033[1mLog Statistics\033[0m 🔗 \e[94m(https://$domain)\e[0m"
-  print_double_line
-
-  # Calculate sizes
-  local access_size error_size app_size total_size
-  access_size=$(du -sh "$log_dir/webserver/access" 2>/dev/null | awk '{print $1}' || echo "0")
-  error_size=$(du -sh "$log_dir/webserver/error" 2>/dev/null | awk '{print $1}' || echo "0")
-  app_size=$(find "$log_dir" -maxdepth 1 -name "*.log" -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
-  app_size="${app_size:-0}"
-  total_size=$(du -sh "$log_dir" 2>/dev/null | awk '{print $1}' || echo "0")
-
-  # Count files
-  local access_count error_count app_count
-  access_count=$(find "$log_dir/webserver/access" \( -name "*.txt" -o -name "*.gz" \) 2>/dev/null | wc -l)
-  error_count=$(find "$log_dir/webserver/error" \( -name "*.txt" -o -name "*.gz" \) 2>/dev/null | wc -l)
-  app_count=$(find "$log_dir" -maxdepth 1 -name "*.log" 2>/dev/null | wc -l)
-
-  # Count compressed
-  local compressed_count
-  compressed_count=$(find "$log_dir" -name "*.gz" 2>/dev/null | wc -l)
-
-  echo -e "\n📂 \033[1mStorage Usage:\033[0m"
-  printf "   🌐 Access Logs:  %-8s (\e[36m%d\e[0m files)\n" "$access_size" "$access_count"
-  printf "   ⚠️  Error Logs:   %-8s (\e[36m%d\e[0m files)\n" "$error_size" "$error_count"
-  printf "   🧩 App Logs:     %-8s (\e[36m%d\e[0m files)\n" "$app_size" "$app_count"
-  printf "   \e[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\e[0m\n"
-  printf "   💾 Total:        \e[1;33m%-8s\e[0m (\e[36m%d\e[0m files)\n\n" "$total_size" "$((access_count + error_count + app_count))"
-
-  echo -e "🗜️  Compressed files: \e[36m$compressed_count\e[0m (.gz)\n"
-
-  # Compression option
-  local uncompressed_old
-  uncompressed_old=$(find "$log_dir" \( -name "*.txt" -o -name "*.log" \) -mtime +7 2>/dev/null | wc -l)
-
-  if (( uncompressed_old > 0 )); then
-    echo -e "💡 \e[33m$uncompressed_old\e[0m uncompressed log file(s) older than 7 days found."
-    echo -e "   Compressing them could save significant disk space.\n"
-    echo -e " 1) 🗜️  Compress logs >7 days old"
-    echo -e " $(print_back_to_menu)\n"
-
-    read_menu_choice 1
-
-    case "$REPLY" in
-      1)
-        echo -e "\n🗜️  Compressing old logs..."
-        find "$log_dir" \( -name "*.txt" -o -name "*.log" \) -mtime +7 -exec gzip {} \; 2>/dev/null
-        echo -e "✅ Compressed $uncompressed_old file(s)."
-        print_press_any_key
-        ;;
-      q|Q) return ;;
-    esac
-  else
-    echo -e "✅ All old logs are already compressed.\n"
-    print_press_any_key
-  fi
-}

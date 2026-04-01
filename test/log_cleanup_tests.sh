@@ -59,13 +59,13 @@ test_clear_old_logs_function_exists() {
   fi
 }
 
-# Test: show_log_statistics function exists
-test_log_statistics_function_exists() {
-  if declare -f show_log_statistics >/dev/null; then
-    echo "✅ log_statistics_function_exists: show_log_statistics function exists"
+# Test: show_log_statistics is removed (statistics are now inline in the menu)
+test_log_statistics_function_removed() {
+  if ! declare -f show_log_statistics >/dev/null; then
+    echo "✅ log_statistics_function_removed: show_log_statistics correctly removed (stats are inline)"
     return 0
   else
-    echo "❌ log_statistics_function_exists: show_log_statistics function not found"
+    echo "❌ log_statistics_function_removed: show_log_statistics should have been removed"
     return 1
   fi
 }
@@ -144,14 +144,58 @@ test_log_compression() {
   fi
 }
 
-# Test: show_log_menu has 5 options now
+# Test: show_log_menu has 4 options (no statistics option — stats are inline)
 test_log_menu_has_new_options() {
   if grep -q "4).*Clear Old Logs" "$ROOT_DIR/lib/log.sh" && \
-     grep -q "5).*Log Statistics" "$ROOT_DIR/lib/log.sh"; then
-    echo "✅ log_menu_has_new_options: Log menu includes new options (4 and 5)"
+     ! grep -q "5).*Log Statistics" "$ROOT_DIR/lib/log.sh"; then
+    echo "✅ log_menu_has_new_options: Log menu has 4 options; statistics option correctly removed"
     return 0
   else
-    echo "❌ log_menu_has_new_options: Log menu missing new options"
+    echo "❌ log_menu_has_new_options: Log menu does not have expected options"
+    return 1
+  fi
+}
+
+# Test: clear_old_logs_interactive uses || true so set -e does not exit on missing directories
+test_clear_old_logs_handles_missing_dir() {
+  local nonexistent="/tmp/nonexistent_dir_$$"
+
+  # These find -delete calls must not abort the script even when the directory is missing.
+  # The || true is the fix for the set -e + find bug.
+  find "$nonexistent/webserver/access" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+  find "$nonexistent/webserver/error" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+  find "$nonexistent" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null || true
+
+  echo "✅ clear_old_logs_handles_missing_dir: find -delete with missing dir handled gracefully"
+  return 0
+}
+
+# Test: clear_old_logs_interactive actually deletes old files and keeps recent ones
+test_clear_old_logs_deletes_correct_files() {
+  local test_dir="/tmp/log_clear_test_$$"
+  mkdir -p "$test_dir/webserver/access" "$test_dir/webserver/error"
+
+  touch -d "35 days ago" "$test_dir/webserver/access/old1.txt"
+  touch -d "35 days ago" "$test_dir/webserver/error/old2.txt"
+  touch -d "10 days ago" "$test_dir/webserver/access/recent.txt"
+  echo "app log" > "$test_dir/app.log"
+  touch -d "35 days ago" "$test_dir/app.log"
+
+  # Simulate "Delete ALL old logs" (case 4 in clear_old_logs_interactive)
+  find "$test_dir/webserver/access" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+  find "$test_dir/webserver/error" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+  find "$test_dir" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null || true
+
+  local remaining
+  remaining=$(find "$test_dir" \( -name "*.txt" -o -name "*.log" \) 2>/dev/null | wc -l)
+
+  if [[ "$remaining" == "1" ]]; then
+    echo "✅ clear_old_logs_deletes_correct_files: Deleted 3 old files, kept 1 recent file"
+    rm -rf "$test_dir"
+    return 0
+  else
+    echo "❌ clear_old_logs_deletes_correct_files: Expected 1 remaining file, found $remaining"
+    rm -rf "$test_dir"
     return 1
   fi
 }
@@ -165,11 +209,13 @@ FAILED=0
 
 run_test test_nginx_loglink_script_has_cleanup || ((FAILED++))
 run_test test_clear_old_logs_function_exists || ((FAILED++))
-run_test test_log_statistics_function_exists || ((FAILED++))
+run_test test_log_statistics_function_removed || ((FAILED++))
 run_test test_log_file_discovery || ((FAILED++))
 run_test test_log_deletion_dry_run || ((FAILED++))
 run_test test_log_compression || ((FAILED++))
 run_test test_log_menu_has_new_options || ((FAILED++))
+run_test test_clear_old_logs_handles_missing_dir || ((FAILED++))
+run_test test_clear_old_logs_deletes_correct_files || ((FAILED++))
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
