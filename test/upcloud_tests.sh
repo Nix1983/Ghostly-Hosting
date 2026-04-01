@@ -175,6 +175,30 @@ test_get_server_uuid_ip_not_found() {
   fi
 }
 
+# Test _get_upcloud_server_uuid_by_ip fails when API returns an HTTP error
+test_get_server_uuid_api_http_error() {
+  unset SERVER_UUID
+  SERVER_IPv4="10.0.0.1"
+  local saved_token="${UPCLOUD_API_TOKEN:-}"
+  UPCLOUD_API_TOKEN="mock_token"
+
+  # Mock _upcloud_api_get to simulate an HTTP error (e.g. 401 Unauthorized)
+  _upcloud_api_get() { printf '{"type":"https://developers.upcloud.com/1.3/errors#ERROR_ACCESS_DENIED","errors":{}}'; return 1; }
+
+  if ! _get_upcloud_server_uuid_by_ip 2>/dev/null; then
+    echo "✅ _get_upcloud_server_uuid_by_ip: HTTP error from API handled correctly"
+    UPCLOUD_API_TOKEN="$saved_token"
+    unset -f _upcloud_api_get
+    return 0
+  else
+    echo "❌ _get_upcloud_server_uuid_by_ip: Should have failed on HTTP error"
+    UPCLOUD_API_TOKEN="$saved_token"
+    unset -f _upcloud_api_get
+    unset SERVER_UUID
+    return 1
+  fi
+}
+
 run_test() {
   echo -e "\n🔧 Running $1"
   if ! "$1"; then
@@ -194,6 +218,7 @@ run_test test_get_server_uuid_cached || ((FAILED++))
 run_test test_get_server_uuid_missing_creds || ((FAILED++))
 run_test test_get_server_uuid_from_server_list || ((FAILED++))
 run_test test_get_server_uuid_ip_not_found || ((FAILED++))
+run_test test_get_server_uuid_api_http_error || ((FAILED++))
 
 if [[ $FAILED -eq 0 ]]; then
   echo -e "\n✅ All upcloud tests passed successfully"

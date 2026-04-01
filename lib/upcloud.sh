@@ -34,7 +34,7 @@ _get_upcloud_server_uuid_by_ip() {
   # Get list of all servers
   local response servers_json uuid
   if ! response=$(_upcloud_api_get "server" 2>&1); then
-    printf "❌ Failed to query UpCloud API (server list)\n"
+    printf "❌ Failed to query UpCloud API (server list). Response: %s\n" "$response"
     declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "API query failed: $response"
     return 1
   fi
@@ -42,7 +42,7 @@ _get_upcloud_server_uuid_by_ip() {
   servers_json=$(echo "$response" | jq -r '.servers.server // []' 2>/dev/null)
 
   if [[ -z "$servers_json" || "$servers_json" == "[]" ]]; then
-    printf "❌ No servers found in account\n"
+    printf "❌ No servers found in account. Raw API response: %s\n" "$response"
     declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "No servers returned from API. Response: $response"
     return 1
   fi
@@ -93,20 +93,40 @@ _verify_upcloud_context() {
 
 _upcloud_api_get() {
   local endpoint="$1"
-  curl -s \
+  local raw http_code body
+  raw=$(curl -s -w "\n%{http_code}" \
     -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
     -H "Accept: application/json" \
-    "$UPCLOUD_API_BASE/$endpoint"
+    "$UPCLOUD_API_BASE/$endpoint")
+  http_code=$(printf '%s' "$raw" | tail -n1)
+  body=$(printf '%s' "$raw" | head -n -1)
+  printf '%s' "$body"
+  if [[ "$http_code" =~ ^2[0-9]{2}$ ]]; then
+    return 0
+  else
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_upcloud_api_get" "HTTP $http_code from $endpoint: $body"
+    return 1
+  fi
 }
 
 _upcloud_api_put() {
   local endpoint="$1"
   local data="$2"
-  curl -s \
+  local raw http_code body
+  raw=$(curl -s -w "\n%{http_code}" \
     -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
     -H "Content-Type: application/json" \
     -d "$data" \
-    -X PUT "$UPCLOUD_API_BASE/$endpoint"
+    -X PUT "$UPCLOUD_API_BASE/$endpoint")
+  http_code=$(printf '%s' "$raw" | tail -n1)
+  body=$(printf '%s' "$raw" | head -n -1)
+  printf '%s' "$body"
+  if [[ "$http_code" =~ ^2[0-9]{2}$ ]]; then
+    return 0
+  else
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_upcloud_api_put" "HTTP $http_code from $endpoint: $body"
+    return 1
+  fi
 }
 
 _upcloud_firewall_rules_match_desired() {
