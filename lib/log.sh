@@ -209,13 +209,13 @@ show_log_menu() {
 
     # Compute per-category stats for inline display
     local access_count access_size error_count error_size app_count app_size total_size total_count
-    access_count=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
+    access_count=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f -size +0c \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
     access_size=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f 2>/dev/null | xargs -r du -ch 2>/dev/null | tail -1 | awk '{print $1}')
     access_size="${access_size:-0}"
-    error_count=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
+    error_count=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f -size +0c \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
     error_size=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f 2>/dev/null | xargs -r du -ch 2>/dev/null | tail -1 | awk '{print $1}')
     error_size="${error_size:-0}"
-    app_count=$(find "$log_dir" -maxdepth 1 \( -name "*.log" -o -name "*.log.gz" \) 2>/dev/null | wc -l)
+    app_count=$(find "$log_dir" -maxdepth 1 -size +0c \( -name "*.log" -o -name "*.log.gz" \) 2>/dev/null | wc -l)
     app_size=$(find "$log_dir" -maxdepth 1 \( -name "*.log" -o -name "*.log.gz" \) -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
     app_size="${app_size:-0}"
     total_size=$(
