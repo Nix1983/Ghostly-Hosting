@@ -218,7 +218,13 @@ show_log_menu() {
     app_count=$(find "$log_dir" -maxdepth 1 \( -name "*.log" -o -name "*.log.gz" \) 2>/dev/null | wc -l)
     app_size=$(find "$log_dir" -maxdepth 1 \( -name "*.log" -o -name "*.log.gz" \) -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
     app_size="${app_size:-0}"
-    total_size=$(du -sh "$log_dir" 2>/dev/null | awk '{print $1}')
+    total_size=$(
+      {
+        find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f 2>/dev/null
+        find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f 2>/dev/null
+        find "$log_dir" -maxdepth 1 -type f \( -name "*.log" -o -name "*.log.gz" \) 2>/dev/null
+      } | xargs -r du -ch 2>/dev/null | tail -1 | awk '{print $1}'
+    )
     total_size="${total_size:-0}"
     total_count=$(( access_count + error_count + app_count ))
 
