@@ -200,22 +200,111 @@ show_webserver_error_logs() {
 
 show_log_menu() {
   local service="$1"
-  local url
+  local url log_dir
   url=$(resolve_url_from_service_name "$service")
+  log_dir=$(resolve_log_folder_from_service_name "$service")
 
   while true; do
     clear
-    echo -e "\n📊 \033[1mLog Viewer:🔗 \e[94m($url)\e[0m"
+
+    # Compute per-category stats for inline display
+    local access_count access_size error_count error_size app_count app_size total_size total_count
+    access_count=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f -size +0c \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
+    access_size=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f 2>/dev/null | xargs -r du -ch 2>/dev/null | tail -1 | awk '{print $1}')
+    access_size="${access_size:-0}"
+    error_count=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f -size +0c \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
+    error_size=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f 2>/dev/null | xargs -r du -ch 2>/dev/null | tail -1 | awk '{print $1}')
+    error_size="${error_size:-0}"
+    app_count=$(find "$log_dir" -maxdepth 1 -size +0c \( -name "*.log" -o -name "*.log.gz" \) 2>/dev/null | wc -l)
+    app_size=$(find "$log_dir" -maxdepth 1 \( -name "*.log" -o -name "*.log.gz" \) -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+    app_size="${app_size:-0}"
+    total_size=$(
+      {
+        find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f 2>/dev/null
+        find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f 2>/dev/null
+        find "$log_dir" -maxdepth 1 -type f \( -name "*.log" -o -name "*.log.gz" \) 2>/dev/null
+      } | xargs -r du -ch 2>/dev/null | tail -1 | awk '{print $1}'
+    )
+    total_size="${total_size:-0}"
+    total_count=$(( access_count + error_count + app_count ))
+
+    echo -e "\n📊 \033[1mLog Viewer:\033[0m 🔗 \e[94m($url)\e[0m"
+    echo -e "💾 \e[2m${total_count} files · ${total_size} total  \e[0m\e[2m(🌐 ${access_count} · ⚠️  ${error_count} · 🧩 ${app_count})\e[0m"
     print_double_line
-    echo -e "\n 1) 🌐 Access Logs    \e[2m(Nginx access.log)\e[0m       2) ⚠️ Error Logs  \e[2m(Nginx error.log)\e[0m"
-    echo -e "\n 3) 🧩 App Logs       \e[2m(Serilog, runtime etc.)\e[0m  $(print_back_to_menu)\n"
-    read_menu_choice 3
+    echo -e "\n 1) 🌐 Access Logs    \e[2m(${access_count} files, ${access_size})\e[0m       2) ⚠️ Error Logs  \e[2m(${error_count} files, ${error_size})\e[0m"
+    echo -e "\n 3) 🧩 App Logs       \e[2m(${app_count} files, ${app_size})\e[0m         4) 🗑️ Clear Old Logs  \e[2m(>30 days)\e[0m"
+    echo -e "\n $(print_back_to_menu)\n"
+    read_menu_choice 4
 
     case "$REPLY" in
       1) show_webserver_access_logs "$service" ;;
       2) show_webserver_error_logs "$service" ;;
       3) show_app_log_files "$service" ;;
+      4) clear_old_logs_interactive "$service" ;;
       q|Q) return ;;
     esac
   done
 }
+
+clear_old_logs_interactive() {
+  local service="$1"
+  local log_dir
+  log_dir=$(resolve_log_folder_from_service_name "$service")
+
+  clear
+  echo -e "\n🗑️ \033[1mClear Old Logs (>30 days)\033[0m"
+  print_double_line
+
+  # Find old logs
+  local access_logs error_logs app_logs
+  access_logs=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 2>/dev/null | wc -l)
+  error_logs=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 2>/dev/null | wc -l)
+  app_logs=$(find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 2>/dev/null | wc -l)
+
+  echo -e "\n📊 Found logs older than 30 days:"
+  echo -e "   🌐  Access Logs:  \e[36m${access_logs}\e[0m files"
+  echo -e "   ⚠️  Error Logs:   \e[36m${error_logs}\e[0m files"
+  echo -e "   🧩  App Logs:     \e[36m${app_logs}\e[0m files"
+  echo -e "       \e[1mTotal:        \e[33m$((access_logs + error_logs + app_logs))\e[0m files\n"
+
+  if (( access_logs + error_logs + app_logs == 0 )); then
+    echo -e "✅ No old logs to delete.\n"
+    print_press_any_key
+    return
+  fi
+
+  echo -e "⚠️  \e[1;33mThis action cannot be undone!\e[0m"
+  echo -e "\n 1) Delete Access Logs only"
+  echo -e " 2) Delete Error Logs only"
+  echo -e " 3) Delete App Logs only"
+  echo -e " 4) Delete ALL old logs"
+  echo -e " $(print_back_to_menu)\n"
+
+  read_menu_choice 4
+
+  case "$REPLY" in
+    1)
+      find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 -delete 2>/dev/null || true
+      echo -e "\n✅ Deleted $access_logs access log file(s)."
+      ;;
+    2)
+      find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 -delete 2>/dev/null || true
+      echo -e "\n✅ Deleted $error_logs error log file(s)."
+      ;;
+    3)
+      find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null || true
+      echo -e "\n✅ Deleted $app_logs app log file(s)."
+      ;;
+    4)
+      find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 -delete 2>/dev/null || true
+      find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 -delete 2>/dev/null || true
+      find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null || true
+      echo -e "\n✅ Deleted $((access_logs + error_logs + app_logs)) log file(s) total."
+      ;;
+    q|Q) return ;;
+  esac
+
+  print_press_any_key
+}
+
+
