@@ -106,9 +106,9 @@ test_log_deletion_dry_run() {
     touch -d "35 days ago" "$test_dir/webserver/access/old_$i.txt"
   done
 
-  # Count files to be deleted
+  # Count files to be deleted (new pattern: type f + txt/log)
   local files_to_delete
-  files_to_delete=$(find "$test_dir/webserver/access" -name "*.txt" -mtime +30 2>/dev/null | wc -l)
+  files_to_delete=$(find "$test_dir/webserver/access" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 2>/dev/null | wc -l)
 
   if [[ "$files_to_delete" == "5" ]]; then
     echo "✅ log_deletion_dry_run: Correctly identified 5 files for deletion"
@@ -116,6 +116,57 @@ test_log_deletion_dry_run() {
     return 0
   else
     echo "❌ log_deletion_dry_run: Expected 5 files to delete, found $files_to_delete"
+    rm -rf "$test_dir"
+    return 1
+  fi
+}
+
+# Test: Plain .log files in access/error dirs are counted (not just .txt)
+test_log_count_includes_plain_log_files() {
+  local test_dir="/tmp/log_count_log_test_$$"
+  mkdir -p "$test_dir/webserver/access" "$test_dir/webserver/error"
+
+  # Simulate nginx writing access.log as a plain file (no symlink rotation)
+  echo "access log line" > "$test_dir/webserver/access/access.log"
+  echo "error log line"  > "$test_dir/webserver/error/error.log"
+
+  local access_count error_count
+  access_count=$(find "$test_dir/webserver/access" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
+  error_count=$(find "$test_dir/webserver/error"  -maxdepth 1 -type f \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
+
+  access_count="${access_count// /}"
+  error_count="${error_count// /}"
+
+  if [[ "$access_count" == "1" && "$error_count" == "1" ]]; then
+    echo "✅ log_count_includes_plain_log_files: Plain .log files counted correctly (access=$access_count, error=$error_count)"
+    rm -rf "$test_dir"
+    return 0
+  else
+    echo "❌ log_count_includes_plain_log_files: Expected 1+1, got access=$access_count error=$error_count"
+    rm -rf "$test_dir"
+    return 1
+  fi
+}
+
+# Test: Symlink .log files in access/error dirs are NOT counted as real files
+test_log_count_excludes_symlinks() {
+  local test_dir="/tmp/log_count_symlink_test_$$"
+  mkdir -p "$test_dir/webserver/access"
+
+  # Simulate the daily rotation: create real .txt and a symlink .log
+  touch "$test_dir/webserver/access/01-04-2026.txt"
+  ln -sf "$test_dir/webserver/access/01-04-2026.txt" "$test_dir/webserver/access/access.log"
+
+  local count
+  count=$(find "$test_dir/webserver/access" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
+  count="${count// /}"
+
+  if [[ "$count" == "1" ]]; then
+    echo "✅ log_count_excludes_symlinks: Symlink .log not double-counted; only 1 real file found"
+    rm -rf "$test_dir"
+    return 0
+  else
+    echo "❌ log_count_excludes_symlinks: Expected 1 real file, got $count"
     rm -rf "$test_dir"
     return 1
   fi
@@ -216,6 +267,8 @@ run_test test_log_compression || ((FAILED++))
 run_test test_log_menu_has_new_options || ((FAILED++))
 run_test test_clear_old_logs_handles_missing_dir || ((FAILED++))
 run_test test_clear_old_logs_deletes_correct_files || ((FAILED++))
+run_test test_log_count_includes_plain_log_files || ((FAILED++))
+run_test test_log_count_excludes_symlinks || ((FAILED++))
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"

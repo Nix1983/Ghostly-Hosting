@@ -209,10 +209,10 @@ show_log_menu() {
 
     # Compute per-category stats for inline display
     local access_count access_size error_count error_size app_count app_size total_size total_count
-    access_count=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" \( -name "*.txt" -o -name "*.gz" \) 2>/dev/null | wc -l)
+    access_count=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
     access_size=$(du -sh "${log_dir}${WEB_LOGS_ACCESS_DIR}" 2>/dev/null | awk '{print $1}')
     access_size="${access_size:-0}"
-    error_count=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" \( -name "*.txt" -o -name "*.gz" \) 2>/dev/null | wc -l)
+    error_count=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.gz" -o -name "*.log" \) 2>/dev/null | wc -l)
     error_size=$(du -sh "${log_dir}${WEB_LOGS_ERROR_DIR}" 2>/dev/null | awk '{print $1}')
     error_size="${error_size:-0}"
     app_count=$(find "$log_dir" -maxdepth 1 \( -name "*.log" -o -name "*.log.gz" \) 2>/dev/null | wc -l)
@@ -251,15 +251,15 @@ clear_old_logs_interactive() {
 
   # Find old logs
   local access_logs error_logs app_logs
-  access_logs=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -name "*.txt" -mtime +30 2>/dev/null | wc -l)
-  error_logs=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -name "*.txt" -mtime +30 2>/dev/null | wc -l)
+  access_logs=$(find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 2>/dev/null | wc -l)
+  error_logs=$(find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 2>/dev/null | wc -l)
   app_logs=$(find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 2>/dev/null | wc -l)
 
   echo -e "\n📊 Found logs older than 30 days:"
-  echo -e "   🌐 Access Logs: \e[36m$access_logs\e[0m files"
-  echo -e "   ⚠️  Error Logs:  \e[36m$error_logs\e[0m files"
-  echo -e "   🧩 App Logs:    \e[36m$app_logs\e[0m files"
-  echo -e "   \e[1mTotal:        \e[33m$((access_logs + error_logs + app_logs))\e[0m files\n"
+  echo -e "   🌐  Access Logs:  \e[36m${access_logs}\e[0m files"
+  echo -e "   ⚠️  Error Logs:   \e[36m${error_logs}\e[0m files"
+  echo -e "   🧩  App Logs:     \e[36m${app_logs}\e[0m files"
+  echo -e "       \e[1mTotal:        \e[33m$((access_logs + error_logs + app_logs))\e[0m files\n"
 
   if (( access_logs + error_logs + app_logs == 0 )); then
     echo -e "✅ No old logs to delete.\n"
@@ -278,11 +278,11 @@ clear_old_logs_interactive() {
 
   case "$REPLY" in
     1)
-      find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+      find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 -delete 2>/dev/null || true
       echo -e "\n✅ Deleted $access_logs access log file(s)."
       ;;
     2)
-      find "${log_dir}${WEB_LOGS_ERROR_DIR}" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+      find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 -delete 2>/dev/null || true
       echo -e "\n✅ Deleted $error_logs error log file(s)."
       ;;
     3)
@@ -290,8 +290,8 @@ clear_old_logs_interactive() {
       echo -e "\n✅ Deleted $app_logs app log file(s)."
       ;;
     4)
-      find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
-      find "${log_dir}${WEB_LOGS_ERROR_DIR}" -name "*.txt" -mtime +30 -delete 2>/dev/null || true
+      find "${log_dir}${WEB_LOGS_ACCESS_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 -delete 2>/dev/null || true
+      find "${log_dir}${WEB_LOGS_ERROR_DIR}" -maxdepth 1 -type f \( -name "*.txt" -o -name "*.log" \) -mtime +30 -delete 2>/dev/null || true
       find "$log_dir" -maxdepth 1 -name "*.log" -mtime +30 -delete 2>/dev/null || true
       echo -e "\n✅ Deleted $((access_logs + error_logs + app_logs)) log file(s) total."
       ;;
