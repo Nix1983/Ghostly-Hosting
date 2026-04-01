@@ -30,15 +30,29 @@ _get_upcloud_server_uuid_by_ip() {
 
   printf "🔍 Searching for server UUID using IP: \033[36m%s\033[0m ...\n" "$SERVER_IPv4"
   declare -f _safe_log >/dev/null 2>&1 && _safe_log info "_get_upcloud_server_uuid_by_ip" "Looking up server UUID for IP: $SERVER_IPv4"
-  
-  local response uuid
-  if ! response=$(_upcloud_api_get "ip_address/$SERVER_IPv4" 2>&1); then
-    printf "❌ Failed to query UpCloud API\n"
-    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "API query failed for IP: $SERVER_IPv4"
+
+  # Get list of all servers
+  local response servers_json uuid
+  if ! response=$(_upcloud_api_get "server" 2>&1); then
+    printf "❌ Failed to query UpCloud API (server list)\n"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "API query failed: $response"
     return 1
   fi
-  
-  uuid=$(echo "$response" | jq -r '.ip_address.server // empty' 2>/dev/null)
+
+  servers_json=$(echo "$response" | jq -r '.servers.server // []' 2>/dev/null)
+
+  if [[ -z "$servers_json" || "$servers_json" == "[]" ]]; then
+    printf "❌ No servers found in account\n"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "No servers returned from API. Response: $response"
+    return 1
+  fi
+
+  # Search through all servers for matching IP
+  uuid=$(echo "$servers_json" | jq -r --arg ip "$SERVER_IPv4" '
+    .[] |
+    select((.ip_addresses.ip_address // [])[] | .address == $ip) |
+    .uuid // empty
+  ' | head -n1)
 
   if [[ -n "$uuid" && "$uuid" != "null" ]]; then
     SERVER_UUID="$uuid"
@@ -46,8 +60,8 @@ _get_upcloud_server_uuid_by_ip() {
     declare -f _safe_log >/dev/null 2>&1 && _safe_log info "_get_upcloud_server_uuid_by_ip" "Successfully resolved SERVER_UUID: $SERVER_UUID"
     return 0
   else
-    printf "❌ IP not directly associated with a server (possibly floating IP or error)\n"
-    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "Could not resolve server UUID from IP $SERVER_IPv4. Response: $response"
+    printf "❌ No server found with IP address: %s\n" "$SERVER_IPv4"
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log error "_get_upcloud_server_uuid_by_ip" "Could not find server with IP $SERVER_IPv4. Available UUIDs: $(echo "$servers_json" | jq -r '.[].uuid' | tr '\n' ' ')"
     return 1
   fi
 }
