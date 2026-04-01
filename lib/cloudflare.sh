@@ -58,11 +58,18 @@ _upsert_dns_record() {
 
 validate_cloudflare_token() {
   local token="$1"
+
+  if [[ -z "$token" ]]; then
+    return 1
+  fi
+
   local response status body
 
+  # Use /zones endpoint instead of /user/tokens/verify
+  # This works with Zone-scoped tokens without requiring User permissions
   response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $token" \
     -H "Content-Type: application/json" \
-    "https://api.cloudflare.com/client/v4/user/tokens/verify")
+    "https://api.cloudflare.com/client/v4/zones")
 
   status=$(echo "$response" | tail -n1)
   body=$(echo "$response" | head -n -1)
@@ -71,7 +78,8 @@ validate_cloudflare_token() {
     return 1
   fi
 
-  if echo "$body" | jq -e '.success == true' >/dev/null 2>&1; then
+  # Token is valid if it can list zones (even if the list is empty)
+  if echo "$body" | jq -e '.success == true and (.result | type == "array")' >/dev/null 2>&1; then
     return 0
   fi
 
