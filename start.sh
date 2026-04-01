@@ -109,12 +109,13 @@ init_and_load_env() {
       echo -e "   • Configure \e[1mPTR (reverse DNS)\e[0m records"
       echo -e "   • Identify your account for deployments"
       echo
-      echo -e "💡 Recommended: Create an \e[1mAPI token\e[0m in your UpCloud dashboard"
+      echo -e "💡 UpCloud uses \e[1musername:password\e[0m Basic authentication"
+      echo -e "   Enter your UpCloud account email and password below"
       echo -en "🔗 Sign up at: "
       echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
       print_line
 
-      read -rsp "🔑 Enter UpCloud API Token: " UPCLOUD_API_TOKEN && echo
+      read -rsp "🔑 Enter UpCloud credentials (email:password): " UPCLOUD_API_TOKEN && echo
 
       if validate_upcloud_token "$UPCLOUD_API_TOKEN"; then
         upcloud_ok=true
@@ -122,8 +123,9 @@ init_and_load_env() {
         break
       fi
 
-      echo -e "\n❌ \e[31mAuthentication failed – invalid UpCloud API token.\e[0m"
-      echo -e "🔐 \e[2mWithout a valid token, hosting features cannot be used.\e[0m"
+      echo -e "\n❌ \e[31mAuthentication failed – invalid UpCloud credentials.\e[0m"
+      echo -e "📝 \e[2mFormat must be: email:password (e.g. user@example.com:mypassword)\e[0m"
+      echo -e "🔐 \e[2mWithout valid credentials, hosting features cannot be used.\e[0m"
       sleep 1
     done
   else

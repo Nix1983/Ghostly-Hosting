@@ -95,7 +95,7 @@ _upcloud_api_get() {
   local endpoint="$1"
   local raw http_code body
   raw=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
+    --user "$UPCLOUD_API_TOKEN" \
     -H "Accept: application/json" \
     "$UPCLOUD_API_BASE/$endpoint")
   http_code=$(printf '%s' "$raw" | tail -n1)
@@ -114,7 +114,7 @@ _upcloud_api_put() {
   local data="$2"
   local raw http_code body
   raw=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
+    --user "$UPCLOUD_API_TOKEN" \
     -H "Content-Type: application/json" \
     -d "$data" \
     -X PUT "$UPCLOUD_API_BASE/$endpoint")
@@ -309,7 +309,7 @@ delete_all_upcloud_firewall_rules() {
 
     local del_response
     del_response=$(curl -s \
-      -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
+      --user "$UPCLOUD_API_TOKEN" \
       -X DELETE "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule/$position")
 
     if [[ -z "$del_response" ]]; then
@@ -494,7 +494,7 @@ apply_upcloud_firewall_rules() {
     # Send rule using API helper
     local add_response status body
     add_response=$(curl -s -w "\n%{http_code}" \
-      -H "Authorization: Bearer $UPCLOUD_API_TOKEN" \
+      --user "$UPCLOUD_API_TOKEN" \
       -H "Content-Type: application/json" \
       -d "{\"firewall_rule\": $rule}" \
       "$UPCLOUD_API_BASE/server/$SERVER_UUID/firewall_rule")
@@ -536,7 +536,7 @@ validate_upcloud_token() {
   
   local response status body
   response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer $token" \
+    --user "$token" \
     -H "Accept: application/json" \
     "$UPCLOUD_API_BASE/account" 2>&1)
   status=$(echo "$response" | tail -n1)
