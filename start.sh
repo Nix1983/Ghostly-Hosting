@@ -7,14 +7,29 @@ source ./lib/app_manager.sh
 source ./lib/upcloud.sh
 source ./lib/github.sh
 
+get_required_system_package_for_tool() {
+  local tool="$1"
+
+  case "$tool" in
+    xz)
+      printf 'xz-utils\n'
+      ;;
+    *)
+      printf '%s\n' "$tool"
+      ;;
+  esac
+}
+
 ensure_required_tools_installed() {
-  local -a required_tools=(jq curl grep cut xargs)
+  local -a required_tools=(jq curl grep cut xargs xz)
   local -a missing_tools=()
+  local -a install_packages=()
   local tool
 
   for tool in "${required_tools[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       missing_tools+=("$tool")
+      install_packages+=("$(get_required_system_package_for_tool "$tool")")
     fi
   done
 
@@ -32,7 +47,7 @@ ensure_required_tools_installed() {
   local pid spinner i
   (
     apt-get update -qq >/dev/null 2>&1
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing_tools[@]}" >/dev/null 2>&1
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${install_packages[@]}" >/dev/null 2>&1
   ) &
   pid=$!
   spinner=("/" "-" "\\" "|")
@@ -110,21 +125,37 @@ init_and_load_env() {
       echo -e "   • Identify your account for deployments"
       echo
       echo -e "💡 Recommended: Create an \e[1mAPI token\e[0m in your UpCloud dashboard"
+      echo -e "⚠️ A token can validate successfully and still fail later if it belongs to another UpCloud account/subaccount than the one that owns this server."
       echo -en "🔗 Sign up at: "
       echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
       print_line
 
-      read -rsp "🔑 Enter UpCloud API Token: " UPCLOUD_API_TOKEN && echo
+      _read_secret_with_asterisks "🔑 Enter UpCloud API Token: " UPCLOUD_API_TOKEN
 
-      if validate_upcloud_token "$UPCLOUD_API_TOKEN"; then
-        upcloud_ok=true
-        updated=true
-        break
+      if ! validate_upcloud_token "$UPCLOUD_API_TOKEN"; then
+        echo -e "\n❌ \e[31mAuthentication failed – invalid UpCloud API token.\e[0m"
+        echo -e "🔐 \e[2mWithout a valid token, hosting features cannot be used.\e[0m"
+        sleep 1
+        continue
       fi
 
-      echo -e "\n❌ \e[31mAuthentication failed – invalid UpCloud API token.\e[0m"
-      echo -e "🔐 \e[2mWithout a valid token, hosting features cannot be used.\e[0m"
-      sleep 1
+      local upcloud_scope_status="unknown"
+      upcloud_scope_status=$(_get_upcloud_token_server_access_status "$UPCLOUD_API_TOKEN")
+
+      if [[ "$upcloud_scope_status" == "forbidden" ]]; then
+        echo -e "\n❌ \e[31mThis token is valid, but it cannot access this server.\e[0m"
+        _print_upcloud_wrong_account_hint
+        sleep 3
+        continue
+      fi
+
+      if [[ "$upcloud_scope_status" == "unknown" ]]; then
+        echo -e "\nℹ️ \e[33mToken validated, but server ownership could not be verified from this environment.\e[0m"
+      fi
+
+      upcloud_ok=true
+      updated=true
+      break
     done
   else
     upcloud_ok=true
@@ -148,7 +179,7 @@ init_and_load_env() {
       echo -e "\e]8;;https://github.com/settings/tokens\e\\GitHub Page\e]8;;\e\\ 🡕"
       print_line
 
-      read -rp "🔑 Enter GitHub API Token: " GITHUB_API_TOKEN
+      _read_secret_with_asterisks "🔑 Enter GitHub API Token: " GITHUB_API_TOKEN
 
       if validate_github_token "$GITHUB_API_TOKEN" "$GITHUB_API_BASE"; then
         github_ok=true
@@ -186,7 +217,7 @@ init_and_load_env() {
       echo -e "\e]8;;https://dash.cloudflare.com/profile/api-tokens\e\\Cloudflare Page\e]8;;\e\\ 🡕"
       print_line
 
-      read -rp "🔑 Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
+      _read_secret_with_asterisks "🔑 Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
 
       if validate_cloudflare_token "$CLOUDFLARE_API_TOKEN"; then
         cloudflare_ok=true
@@ -236,10 +267,9 @@ main_menu() {
   done
 }
 
-ensure_required_tools_installed
-
-init_and_load_env
-
-load_server_ip_once
-
-main_menu
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  ensure_required_tools_installed
+  init_and_load_env
+  load_server_ip_once
+  main_menu
+fi

@@ -1097,6 +1097,65 @@ validate_upcloud_token() {
   fi
 }
 
+_get_upcloud_current_server_uuid_for_token_check() {
+  if _is_valid_upcloud_uuid "${SERVER_UUID:-}"; then
+    printf '%s\n' "$SERVER_UUID"
+    return 0
+  fi
+
+  local metadata_uuid=""
+  metadata_uuid=$(curl -fsS --max-time 2 http://169.254.169.254/metadata/v1/instance_id 2>/dev/null | tr -d '[:space:]') || true
+
+  if _is_valid_upcloud_uuid "$metadata_uuid"; then
+    printf '%s\n' "$metadata_uuid"
+    return 0
+  fi
+
+  return 1
+}
+
+_get_upcloud_token_server_access_status() {
+  local token="$1"
+  local server_uuid="" response="" status="" body="" error_code=""
+  local scope_status="unknown"
+
+  if [[ -z "$token" || -z "$UPCLOUD_API_BASE" ]]; then
+    printf '%s\n' "$scope_status"
+    return 0
+  fi
+
+  if ! server_uuid=$(_get_upcloud_current_server_uuid_for_token_check); then
+    printf '%s\n' "$scope_status"
+    return 0
+  fi
+
+  response=$(curl -sS -w "\n%{http_code}" \
+    -H "Authorization: Bearer $token" \
+    -H "Accept: application/json" \
+    "$UPCLOUD_API_BASE/server/$server_uuid" 2>&1) || true
+  status=$(printf '%s' "$response" | tail -n1)
+  body=$(printf '%s' "$response" | head -n -1)
+  error_code=$(printf '%s' "$body" | jq -r '.error.error_code // .errors.error_code // empty' 2>/dev/null || true)
+
+  if [[ "$status" == "200" ]]; then
+    scope_status="ok"
+  elif [[ "$status" == "403" || "$error_code" == "SERVER_FORBIDDEN" || "$error_code" == "ACTION_FORBIDDEN" ]]; then
+    scope_status="forbidden"
+  elif [[ "$status" == "404" && "$error_code" == "SERVER_NOT_FOUND" ]]; then
+    scope_status="forbidden"
+  fi
+
+  printf '%s\n' "$scope_status"
+  return 0
+}
+
+_print_upcloud_wrong_account_hint() {
+  printf "💡 Token is valid, but it cannot access this server.\n"
+  printf "💡 UpCloud API tokens inherit the permissions of the account or subaccount that created them.\n"
+  printf "💡 The server does not need to be created after the token. What matters is that the token comes from the owning account, or from a subaccount with explicit permission to this server.\n"
+  printf "💡 If a subaccount created this server, that same subaccount automatically has access to it. Otherwise the main account must grant server permission first.\n"
+}
+
 _get_ghostly_env_file() {
   if [[ -n "${ENV_FILE:-}" ]]; then
     printf '%s\n' "$ENV_FILE"
@@ -1129,10 +1188,16 @@ _configure_upcloud_api_token() {
   _clear
   printf "\n🔑 Update UpCloud API Token\n"
   printf "────────────────────────────────────────────────────────────\n"
-  printf "ℹ️ A token from the owning UpCloud account is required for firewall changes.\n\n"
+  printf "ℹ️ A token from the owning UpCloud account is required for firewall changes.\n"
+  printf "ℹ️ Enter q to cancel and keep the current token.\n\n"
 
-  local new_token
+  local new_token scope_status="unknown"
   _read_secret_with_asterisks "🔐 Enter new UpCloud API Token: " new_token
+
+  if [[ "$new_token" == "q" || "$new_token" == "Q" ]]; then
+    printf "↩️ Token update cancelled.\n"
+    return 0
+  fi
 
   if [[ -z "$new_token" ]]; then
     printf "❌ No token entered.\n"
@@ -1144,6 +1209,14 @@ _configure_upcloud_api_token() {
     return 1
   fi
 
+  scope_status=$(_get_upcloud_token_server_access_status "$new_token")
+  if [[ "$scope_status" == "forbidden" ]]; then
+    printf "❌ Token is valid, but it does not have access to this server.\n"
+    _print_upcloud_wrong_account_hint
+    printf "❌ Token was not saved.\n"
+    return 1
+  fi
+
   UPCLOUD_API_TOKEN="$new_token"
   SERVER_UUID=""
   _persist_secure_tokens
@@ -1151,6 +1224,9 @@ _configure_upcloud_api_token() {
   printf "✅ UpCloud API token saved successfully.\n"
   printf "📁 Stored at: %s\n" "$(_get_ghostly_env_file)"
   printf "ℹ️ SERVER_UUID cache cleared. The next request will resolve it again.\n"
+  if [[ "$scope_status" == "unknown" ]]; then
+    printf "ℹ️ The token was validated, but server ownership could not be verified from this environment.\n"
+  fi
   return 0
 }
 

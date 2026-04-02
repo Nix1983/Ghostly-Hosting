@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1091
+# shellcheck disable=SC1091,SC2154
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,6 +81,28 @@ test_get_repo_name_from_meta() {
   run_case "$META_DIR2/meta.json" "" "VeryLongRepositoryNameThatWillBeShortened"
   run_case "$META_DIR3/meta.json" 20 "–"
   run_case "$META_DIR3/meta.json" "" "–"
+}
+
+test_get_repo_name_from_meta_without_optional_arg_under_nounset() {
+  local result
+
+  if ! result=$(
+    (
+      set -u
+      get_repo_name_from_meta "$META_DIR1/meta.json"
+    ) 2>/dev/null
+  ); then
+    echo "❌ get_repo_name_from_meta without maxlen fails under nounset"
+    return 1
+  fi
+
+  if [[ "$result" == "ShortNameApp" ]]; then
+    echo "✅ get_repo_name_from_meta works without maxlen under nounset"
+    return 0
+  fi
+
+  echo "❌ get_repo_name_from_meta without maxlen returned '$result', expected 'ShortNameApp'"
+  return 1
 }
 
 test_get_ref_type_from_meta() {
@@ -183,8 +205,8 @@ test_backup_app_metadata() {
 EOF
   
   # Temporarily override APP_BASE_DIR and exec_dir for testing
-  local old_app_base_dir="${APP_BASE_DIR}"
   local old_exec_dir="${exec_dir:-}"
+  local backup_count
   
   # Unset readonly variable and set new value for testing
   # We can't actually change readonly vars in bash, so we need to mock resolve_backup_folder_from_service_name
@@ -209,7 +231,7 @@ WRAPPER_EOF
   
   # Test 1: backup_app_metadata creates a backup file
   if backup_app_metadata "$test_service" 2>/dev/null; then
-    local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
+    backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
     if [[ "$backup_count" -eq 1 ]]; then
       echo "✅ backup_app_metadata: Successfully created backup file"
     else
@@ -228,7 +250,7 @@ WRAPPER_EOF
   # Test 2: Duplicate backups with same commit are deduplicated
   sleep 1  # Ensure different timestamp
   if backup_app_metadata "$test_service" 2>/dev/null; then
-    local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
+    backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
     if [[ "$backup_count" -eq 1 ]]; then
       echo "✅ backup_app_metadata: Correctly deduplicated backup with same commit"
     else
@@ -259,7 +281,7 @@ EOF
   
   sleep 1  # Ensure different timestamp
   if backup_app_metadata "$test_service" 2>/dev/null; then
-    local backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
+    backup_count=$(find "$backup_dir" -name "meta-*.json" 2>/dev/null | wc -l)
     if [[ "$backup_count" -eq 2 ]]; then
       echo "✅ backup_app_metadata: Correctly created backup for different commit"
     else
@@ -300,6 +322,7 @@ prepare_meta_test_data
 
 test_get_repo_owner_from_meta
 test_get_repo_name_from_meta
+test_get_repo_name_from_meta_without_optional_arg_under_nounset
 test_get_ref_type_from_meta
 test_get_ref_name_from_meta
 test_get_commit_from_meta

@@ -526,6 +526,103 @@ test_delete_all_upcloud_firewall_rules_uses_bulk_reset() {
   return 1
 }
 
+test_get_upcloud_token_server_access_status_forbidden() {
+  local scope_status=""
+  local server_url="$UPCLOUD_API_BASE/server/004e6ed4-8d40-4e4b-bf9b-72bc3d8cc127"
+
+  _get_upcloud_current_server_uuid_for_token_check() {
+    printf '004e6ed4-8d40-4e4b-bf9b-72bc3d8cc127\n'
+  }
+  curl() {
+    local last_arg="${!#}"
+    if [[ "$last_arg" == "$server_url" ]]; then
+      printf '{"error":{"error_code":"SERVER_FORBIDDEN"}}\n403'
+      return 0
+    fi
+
+    return 1
+  }
+
+  scope_status=$(_get_upcloud_token_server_access_status "mock_token")
+
+  if [[ "$scope_status" == "forbidden" ]]; then
+    echo "✅ _get_upcloud_token_server_access_status: Forbidden server access detected correctly"
+    unset -f _get_upcloud_current_server_uuid_for_token_check curl
+    return 0
+  fi
+
+  echo "❌ _get_upcloud_token_server_access_status: Expected forbidden, got: $scope_status"
+  unset -f _get_upcloud_current_server_uuid_for_token_check curl
+  return 1
+}
+
+test_get_upcloud_token_server_access_status_ok() {
+  local scope_status=""
+  local server_url="$UPCLOUD_API_BASE/server/004e6ed4-8d40-4e4b-bf9b-72bc3d8cc127"
+
+  _get_upcloud_current_server_uuid_for_token_check() {
+    printf '004e6ed4-8d40-4e4b-bf9b-72bc3d8cc127\n'
+  }
+  curl() {
+    local last_arg="${!#}"
+    if [[ "$last_arg" == "$server_url" ]]; then
+      printf '{"server":{"uuid":"004e6ed4-8d40-4e4b-bf9b-72bc3d8cc127"}}\n200'
+      return 0
+    fi
+
+    return 1
+  }
+
+  scope_status=$(_get_upcloud_token_server_access_status "mock_token")
+
+  if [[ "$scope_status" == "ok" ]]; then
+    echo "✅ _get_upcloud_token_server_access_status: Accessible server detected correctly"
+    unset -f _get_upcloud_current_server_uuid_for_token_check curl
+    return 0
+  fi
+
+  echo "❌ _get_upcloud_token_server_access_status: Expected ok, got: $scope_status"
+  unset -f _get_upcloud_current_server_uuid_for_token_check curl
+  return 1
+}
+
+test_configure_upcloud_api_token_cancel_with_q() {
+  local saved_token="${UPCLOUD_API_TOKEN:-existing-token}"
+  local persist_called="false"
+  local output_file
+
+  UPCLOUD_API_TOKEN="$saved_token"
+  DISABLE_CLEAR=true
+  output_file=$(mktemp)
+
+  _read_secret_with_asterisks() {
+    printf -v "$2" '%s' 'q'
+  }
+  validate_upcloud_token() {
+    echo "validate should not be called"
+    return 99
+  }
+  _persist_secure_tokens() {
+    persist_called="true"
+  }
+
+  if _configure_upcloud_api_token >"$output_file" 2>/dev/null; then
+    if [[ "$UPCLOUD_API_TOKEN" == "$saved_token" ]] && [[ "$persist_called" == "false" ]] && grep -q "cancelled" "$output_file"; then
+      echo "✅ _configure_upcloud_api_token: q cancels token update cleanly"
+      unset -f _read_secret_with_asterisks validate_upcloud_token _persist_secure_tokens
+      unset DISABLE_CLEAR
+      rm -f "$output_file"
+      return 0
+    fi
+  fi
+
+  echo "❌ _configure_upcloud_api_token: q did not cancel as expected"
+  unset -f _read_secret_with_asterisks validate_upcloud_token _persist_secure_tokens
+  unset DISABLE_CLEAR
+  rm -f "$output_file"
+  return 1
+}
+
 run_test() {
   echo -e "\n🔧 Running $1"
   if ! "$1"; then
@@ -548,6 +645,9 @@ run_test test_normalize_recursive_firewall_rules_response || ((FAILED++))
 run_test test_get_firewall_rule_lines_from_exact_response || ((FAILED++))
 run_test test_get_upcloud_firewall_rules_response_populates_caller_variable || ((FAILED++))
 run_test test_delete_all_upcloud_firewall_rules_uses_bulk_reset || ((FAILED++))
+run_test test_get_upcloud_token_server_access_status_forbidden || ((FAILED++))
+run_test test_get_upcloud_token_server_access_status_ok || ((FAILED++))
+run_test test_configure_upcloud_api_token_cancel_with_q || ((FAILED++))
 run_test test_get_server_uuid_from_metadata_service || ((FAILED++))
 run_test test_get_server_uuid_from_server_search || ((FAILED++))
 run_test test_get_server_uuid_from_server_inventory || ((FAILED++))

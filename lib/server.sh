@@ -39,6 +39,135 @@ remove_ufw() {
   echo -e "🗑️ Removed UFW and all firewall configurations."
 }
 
+resolve_status_binary_path() {
+  local binary_name="$1"
+  shift || true
+
+  if command -v "$binary_name" >/dev/null 2>&1; then
+    command -v "$binary_name"
+    return 0
+  fi
+
+  local candidate
+  for candidate in "$@"; do
+    if [[ -x "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+find_installed_package_name_from_status_lines() {
+  local requested_package="$1"
+  local status_lines="$2"
+  local package_name package_status
+
+  while IFS=$'\t' read -r package_name package_status; do
+    [[ -z "$package_name" ]] && continue
+    [[ "$package_status" != "install ok installed" ]] && continue
+
+    case "$requested_package" in
+      nginx)
+        case "$package_name" in
+          nginx|nginx-common|nginx-core|nginx-full|nginx-light|nginx-extras)
+            echo "$package_name"
+            return 0
+            ;;
+        esac
+        ;;
+      *)
+        if [[ "$package_name" == "$requested_package" ]]; then
+          echo "$package_name"
+          return 0
+        fi
+        ;;
+    esac
+  done <<< "$status_lines"
+
+  return 1
+}
+
+get_installed_status_package_name() {
+  local requested_package="$1"
+  local query_output
+
+  case "$requested_package" in
+    nginx)
+      query_output=$(dpkg-query -W -f=$'${Package}\t${Status}\n' \
+        nginx nginx-common nginx-core nginx-full nginx-light nginx-extras 2>/dev/null || true)
+      ;;
+    *)
+      query_output=$(dpkg-query -W -f=$'${Package}\t${Status}\n' "$requested_package" 2>/dev/null || true)
+      ;;
+  esac
+
+  find_installed_package_name_from_status_lines "$requested_package" "$query_output"
+}
+
+pending_updates_include_package() {
+  local pending_updates="$1"
+  shift || true
+
+  local package_name
+  for package_name in "$@"; do
+    [[ -z "$package_name" ]] && continue
+    if grep -q "^${package_name}/" <<< "$pending_updates"; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+systemd_unit_exists() {
+  local unit_name="$1"
+  local unit_type="${2:-service}"
+
+  if ! command -v systemctl >/dev/null 2>&1; then
+    return 1
+  fi
+
+  systemctl list-unit-files --type="$unit_type" 2>/dev/null | grep -q "^${unit_name}\.${unit_type}"
+}
+
+is_server_component_available() {
+  local component="$1"
+  local installed_pkg=""
+
+  case "$component" in
+    nginx)
+      installed_pkg=$(get_installed_status_package_name nginx || true)
+      [[ -n "$installed_pkg" ]] && return 0
+      resolve_status_binary_path nginx /usr/sbin/nginx /usr/bin/nginx >/dev/null 2>&1 && return 0
+      systemd_unit_exists nginx service && return 0
+      ;;
+    fail2ban)
+      installed_pkg=$(get_installed_status_package_name fail2ban || true)
+      [[ -n "$installed_pkg" ]] && return 0
+      resolve_status_binary_path fail2ban-client /usr/bin/fail2ban-client >/dev/null 2>&1 && return 0
+      systemd_unit_exists fail2ban service && return 0
+      ;;
+    certbot)
+      installed_pkg=$(get_installed_status_package_name certbot || true)
+      [[ -n "$installed_pkg" ]] && return 0
+      resolve_status_binary_path certbot /usr/bin/certbot /snap/bin/certbot >/dev/null 2>&1 && return 0
+      systemd_unit_exists certbot.timer timer && return 0
+      ;;
+    git)
+      installed_pkg=$(get_installed_status_package_name git || true)
+      [[ -n "$installed_pkg" ]] && return 0
+      resolve_status_binary_path git /usr/bin/git /usr/lib/git-core/git >/dev/null 2>&1 && return 0
+      ;;
+    swapfile)
+      [[ -f /swapfile ]] && return 0
+      ;;
+  esac
+
+  return 1
+}
+
 show_server_health() {
   clear
 
@@ -219,22 +348,39 @@ update_server_and_show_status() {
     local label="$2"
     local emoji="$3"
     local check_bin="${4:-}"
+    local service_name="${5:-}"
     local status
+    local binary_path=""
+    local installed_pkg=""
+    local service_detected=false
 
     if [[ -n "$check_bin" ]]; then
-      if ! command -v "$check_bin" >/dev/null 2>&1; then
-        status="\e[2mNot installed\e[0m"
-        printf "%s %-17s %b\n" "$emoji" "$label:" "$status"
-        return
+      case "$check_bin" in
+        nginx)
+          binary_path=$(resolve_status_binary_path nginx /usr/sbin/nginx /usr/bin/nginx || true)
+          ;;
+        *)
+          binary_path=$(command -v "$check_bin" 2>/dev/null || true)
+          ;;
+      esac
+    fi
+
+    if [[ -n "$service_name" ]] && command -v systemctl >/dev/null 2>&1; then
+      if systemctl list-unit-files --type=service 2>/dev/null | grep -q "^${service_name}\.service"; then
+        service_detected=true
       fi
     fi
 
-    if dpkg -s "$pkg_name" >/dev/null 2>&1; then
-      if echo "$pending_updates" | grep -q "^$pkg_name/"; then
+    installed_pkg=$(get_installed_status_package_name "$pkg_name" || true)
+
+    if [[ -n "$installed_pkg" ]]; then
+      if pending_updates_include_package "$pending_updates" "$installed_pkg" "$pkg_name"; then
         status="\e[33mUpdate available\e[0m"
       else
         status="\e[32mUp to date\e[0m"
       fi
+    elif [[ -n "$binary_path" || "$service_detected" == true ]]; then
+      status="\e[32mInstalled\e[0m"
     else
       status="\e[2mNot installed\e[0m"
     fi
@@ -243,8 +389,8 @@ update_server_and_show_status() {
   }
 
   echo ""
-  check_package_status nginx    "Nginx"     "🌐" nginx
-  check_package_status fail2ban "Fail2Ban"  "🛡️"
+  check_package_status nginx    "Nginx"     "🌐" nginx nginx
+  check_package_status fail2ban "Fail2Ban"  "🛡️" "" fail2ban
   check_package_status git      "Git"       "🔧" git
 
   echo -e "\n✅ \e[1mSystem update completed.\e[0m"
@@ -396,11 +542,11 @@ ensure_server_initialized() {
   local missing=()
 
   # 🔍 Check for required system components
-  command -v nginx >/dev/null 2>&1            || missing+=("🌐 Nginx (Reverse Proxy)")
-  command -v fail2ban-client >/dev/null 2>&1  || missing+=("🛡️ Fail2Ban (SSH protection)")
-  command -v certbot >/dev/null 2>&1          || missing+=("🔒 Certbot (HTTPS / Let's Encrypt)")
-  command -v git >/dev/null 2>&1              || missing+=("🔧 Git (for deployments)")
-  [[ -f /swapfile ]]                          || missing+=("📦 Swap file")
+  is_server_component_available nginx         || missing+=("🌐 Nginx (Reverse Proxy)")
+  is_server_component_available fail2ban      || missing+=("🛡️ Fail2Ban (SSH protection)")
+  is_server_component_available certbot       || missing+=("🔒 Certbot (HTTPS / Let's Encrypt)")
+  is_server_component_available git           || missing+=("🔧 Git (for deployments)")
+  is_server_component_available swapfile      || missing+=("📦 Swap file")
 
   if (( ${#missing[@]} == 0 )); then
     return 0

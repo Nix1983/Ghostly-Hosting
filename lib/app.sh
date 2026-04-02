@@ -206,7 +206,8 @@ check_for_app_update() {
     current_message="...${current_message: -37}"
   fi
 
-  if [[ -z "$repo_owner" || -z "$repo_name" || -z "$ref_type" || -z "$ref_name" || -z "$current_commit" ]]; then
+  if [[ -z "$repo_owner" || -z "$repo_name" || -z "$ref_type" || -z "$ref_name" || -z "$current_commit" ||
+        "$repo_owner" == "–" || "$repo_name" == "–" || "$ref_type" == "–" || "$ref_name" == "–" || "$current_commit" == "–" ]]; then
     echo -e "❌ \e[31mMetadata file is incomplete or malformed.\e[0m"
     return 1
   fi
