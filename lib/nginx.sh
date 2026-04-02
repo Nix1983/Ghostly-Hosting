@@ -4,6 +4,124 @@ set -e
 
 source ./lib/common.sh
 
+is_executable_file_path() {
+  local path="$1"
+  [[ -f "$path" && -x "$path" ]]
+}
+
+_extract_nginx_binary_from_systemd_unit_content() {
+  local unit_content="$1"
+  local line candidate
+
+  while IFS= read -r line; do
+    [[ "$line" == ExecStart=* ]] || continue
+
+    candidate="${line#ExecStart=}"
+    candidate="${candidate#-}"
+    candidate="${candidate#"${candidate%%[![:space:]]*}"}"
+
+    if [[ "$candidate" =~ ^\"([^\"]+)\" ]]; then
+      candidate="${BASH_REMATCH[1]}"
+    elif [[ "$candidate" =~ ^\'([^\']+)\' ]]; then
+      candidate="${BASH_REMATCH[1]}"
+    else
+      candidate="${candidate%%[[:space:]]*}"
+    fi
+
+    [[ -n "$candidate" ]] && {
+      echo "$candidate"
+      return 0
+    }
+  done <<< "$unit_content"
+
+  return 1
+}
+
+resolve_nginx_binary_path() {
+  if command -v nginx >/dev/null 2>&1; then
+    command -v nginx
+    return 0
+  fi
+
+  local candidate
+  for candidate in /usr/sbin/nginx /usr/bin/nginx /usr/local/sbin/nginx /usr/local/bin/nginx; do
+    if is_executable_file_path "$candidate"; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  local package_name package_file
+  for package_name in nginx nginx-core nginx-full nginx-light nginx-extras; do
+    while IFS= read -r package_file; do
+      if [[ "${package_file##*/}" == "nginx" ]] && is_executable_file_path "$package_file"; then
+        echo "$package_file"
+        return 0
+      fi
+    done < <(dpkg -L "$package_name" 2>/dev/null || true)
+  done
+
+  if command -v systemctl >/dev/null 2>&1; then
+    local unit_content
+    unit_content=$(systemctl cat nginx.service 2>/dev/null || true)
+    candidate=$(_extract_nginx_binary_from_systemd_unit_content "$unit_content" 2>/dev/null || true)
+    if [[ -n "$candidate" ]] && is_executable_file_path "$candidate"; then
+      echo "$candidate"
+      return 0
+    fi
+  fi
+
+  local discovered_path
+  discovered_path=$(find /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin -maxdepth 1 -type f -name nginx -perm -111 2>/dev/null | head -n1 || true)
+  if [[ -n "$discovered_path" ]]; then
+    echo "$discovered_path"
+    return 0
+  fi
+
+  return 1
+}
+
+get_nginx_bin() {
+  if [[ -n "${NGINX_BIN:-}" ]] && is_executable_file_path "$NGINX_BIN"; then
+    echo "$NGINX_BIN"
+    return 0
+  fi
+
+  local resolved_path
+  resolved_path=$(resolve_nginx_binary_path) || return 1
+  NGINX_BIN="$resolved_path"
+  export NGINX_BIN
+  echo "$resolved_path"
+}
+
+has_nginx_service_unit() {
+  command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files --type=service 2>/dev/null | grep -q '^nginx\.service'
+}
+
+has_nginx_runtime() {
+  get_nginx_bin >/dev/null 2>&1 && return 0
+  has_nginx_service_unit && return 0
+  [[ -f /etc/nginx/nginx.conf ]] && return 0
+  return 1
+}
+
+run_nginx_config_test() {
+  local nginx_bin
+  nginx_bin=$(get_nginx_bin 2>/dev/null || true)
+
+  if [[ -n "$nginx_bin" ]]; then
+    "$nginx_bin" -t
+    return $?
+  fi
+
+  if has_nginx_service_unit; then
+    systemctl reload nginx
+    return $?
+  fi
+
+  return 1
+}
+
 remove_nginx() {
   systemctl stop nginx 2>/dev/null || true
   systemctl disable nginx 2>/dev/null || true
@@ -23,9 +141,17 @@ remove_nginx() {
 install_nginx() {
   echo -e "\n🌐 \e[1mInstalling Nginx (Reverse Proxy)...\e[0m"
 
-  if ! command -v nginx >/dev/null 2>&1; then
+  local nginx_bin
+  nginx_bin=$(get_nginx_bin 2>/dev/null || true)
+
+  if ! has_nginx_runtime; then
     apt-get update -y >/dev/null 2>&1
     if apt-get install -y nginx >/dev/null 2>&1; then
+      nginx_bin=$(get_nginx_bin 2>/dev/null || true)
+      if [[ -z "$nginx_bin" && ! -f /etc/nginx/nginx.conf ]] && ! has_nginx_service_unit; then
+        echo -e "❌ \e[31mNginx package installed, but no usable nginx runtime could be detected.\e[0m"
+        exit 1
+      fi
       echo "✅ Nginx installed."
     else
       echo -e "❌ \e[31mFailed to install Nginx – aborting setup.\e[0m"
@@ -33,6 +159,12 @@ install_nginx() {
     fi
   else
     echo "✅ Nginx is already installed."
+  fi
+
+  if [[ -n "$nginx_bin" ]]; then
+    echo "✅ Nginx binary verified: $nginx_bin"
+  elif has_nginx_service_unit || [[ -f /etc/nginx/nginx.conf ]]; then
+    echo "✅ Nginx runtime verified via existing service/config."
   fi
 
   echo -e "\n🔌 \e[1mEnabling and starting Nginx...\e[0m"
@@ -44,9 +176,58 @@ install_nginx() {
   fi
 }
 
+_normalize_cloudflare_real_ip_ranges() {
+  local raw_ranges="$1"
+  local normalized=()
+  local line
+
+  while IFS= read -r line; do
+    line="${line//$'\r'/}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+
+    [[ -z "$line" ]] && continue
+    [[ "$line" == \#* ]] && continue
+
+    if [[ "$line" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$ ]] || [[ "$line" =~ ^[0-9A-Fa-f:]+(/[0-9]{1,3})?$ ]]; then
+      normalized+=("$line")
+    fi
+  done <<< "$raw_ranges"
+
+  printf '%s\n' "${normalized[@]}"
+}
+
+_write_cloudflare_real_ip_conf() {
+  local destination_file="$1"
+  local normalized_v4="$2"
+  local normalized_v6="$3"
+
+  {
+    echo "# Auto-generated: Trust Cloudflare to provide real client IP"
+    echo "# This file is managed by setup scripts."
+    echo "real_ip_header CF-Connecting-IP;"
+    echo "real_ip_recursive on;"
+    echo "set_real_ip_from 127.0.0.1/32;"
+    echo "set_real_ip_from ::1/128;"
+
+    if [[ -n "$normalized_v4" ]]; then
+      while IFS= read -r cidr_v4; do
+        [[ -n "$cidr_v4" ]] && echo "set_real_ip_from $cidr_v4;"
+      done <<< "$normalized_v4"
+    fi
+
+    if [[ -n "$normalized_v6" ]]; then
+      while IFS= read -r cidr_v6; do
+        [[ -n "$cidr_v6" ]] && echo "set_real_ip_from $cidr_v6;"
+      done <<< "$normalized_v6"
+    fi
+  } >"$destination_file"
+}
+
 force_nginx_log_symlink_rotation() {
   local log_dir="$1"
   local today
+  local nginx_bin
   today=$(date +"%d-%m-%Y")
 
   local access_path="$log_dir/access"
@@ -59,7 +240,10 @@ force_nginx_log_symlink_rotation() {
   ln -sf "$access_path/$today.txt" "$access_path/access.log"
   ln -sf "$error_path/$today.txt" "$error_path/error.log"
 
-  systemctl kill --signal=SIGUSR1 nginx 2>/dev/null || nginx -s reopen
+  nginx_bin=$(get_nginx_bin 2>/dev/null || true)
+  if [[ -n "$nginx_bin" ]]; then
+    systemctl kill --signal=SIGUSR1 nginx 2>/dev/null || "$nginx_bin" -s reopen
+  fi
 }
 
 setup_nginx_log_timer() {
@@ -76,6 +260,8 @@ setup_nginx_log_timer() {
   fi
 
   echo -e "\n🛠️ \033[1mSetting up daily Nginx log rotation timer...\033[0m"
+  local nginx_bin
+  nginx_bin=$(get_nginx_bin 2>/dev/null || echo "/usr/sbin/nginx")
 
   mkdir -p "$(dirname "$script_path")"
 
@@ -91,7 +277,7 @@ setup_nginx_log_timer() {
     echo "  ln -sf \"\$access_path/\$today.txt\" \"\$access_path/access.log\""
     echo "  ln -sf \"\$error_path/\$today.txt\" \"\$error_path/error.log\""
     echo "done"
-    echo "systemctl kill --signal=SIGUSR1 nginx 2>/dev/null || nginx -s reopen"
+    echo "systemctl kill --signal=SIGUSR1 nginx 2>/dev/null || \"$nginx_bin\" -s reopen"
     echo ""
     echo "# Delete logs older than 30 days"
     echo "find \"$APP_BASE_DIR\" -type d -path \"*/$LOGS_DIR/$WEB_LOGS_ACCESS_DIR\" | while read -r access_path; do"
@@ -142,20 +328,19 @@ setup_nginx_log_timer() {
 }
 
 create_cloudflare_real_ip_conf() {
-  # Create/update real IP config for Cloudflare in /etc/nginx/conf.d/realip-cloudflare.conf
-  # ShellCheck-friendly, idempotent, and robust.
-
   local conf_dir="/etc/nginx/conf.d"
   local conf_file="$conf_dir/realip-cloudflare.conf"
   local tmp_file
+  local backup_file=""
+  local nginx_test_output=""
   tmp_file="$(mktemp -t realip.XXXXXXXX)"
 
   echo -e "\n🛡️ Configuring Nginx to trust Cloudflare real client IP (IPv4 preferred)..."
 
   mkdir -p "$conf_dir"
 
-  # Fetch current Cloudflare IP ranges (IPv4 + IPv6)
   local ips_v4="" ips_v6=""
+  local normalized_v4="" normalized_v6=""
   if ips_v4="$(curl -fsS https://www.cloudflare.com/ips-v4)"; then
     :
   else
@@ -168,44 +353,50 @@ create_cloudflare_real_ip_conf() {
     echo "⚠️ Could not fetch Cloudflare IPv6 ranges. Using existing config if present."
   fi
 
-  {
-    echo "# Auto-generated: Trust Cloudflare to provide real client IP"
-    echo "# This file is managed by setup scripts."
-    echo "real_ip_header CF-Connecting-IP;"
-    echo "real_ip_recursive on;"
-    echo "set_real_ip_from 127.0.0.1;"
-    echo "set_real_ip_from ::1;"
+  normalized_v4=$(_normalize_cloudflare_real_ip_ranges "$ips_v4")
+  normalized_v6=$(_normalize_cloudflare_real_ip_ranges "$ips_v6")
 
-    if [ -n "$ips_v4" ]; then
-      echo "$ips_v4" | while IFS= read -r cidr_v4; do
-        [ -n "$cidr_v4" ] && echo "set_real_ip_from $cidr_v4;"
-      done
-    fi
+  if [[ -z "$normalized_v4" && -z "$normalized_v6" && -f "$conf_file" ]]; then
+    echo "ℹ️ Keeping existing Cloudflare real IP config because no fresh IP ranges could be fetched."
+    rm -f "$tmp_file"
+    return 0
+  fi
 
-    if [ -n "$ips_v6" ]; then
-      echo "$ips_v6" | while IFS= read -r cidr_v6; do
-        [ -n "$cidr_v6" ] && echo "set_real_ip_from $cidr_v6;"
-      done
-    fi
+  _write_cloudflare_real_ip_conf "$tmp_file" "$normalized_v4" "$normalized_v6"
 
-    # Map block for IPv4 preference
-    echo ""
-    echo "map \$remote_addr \$client_ip_preferring_v4 {"
-    echo "    ~^(?<ipv4>\\d+\\.\\d+\\.\\d+\\.\\d+)$  \$ipv4;"
-    echo "    default                               \$remote_addr;"
-    echo "}"
-  } >"$tmp_file"
+  if [[ -f "$conf_file" ]]; then
+    backup_file="$(mktemp -t realip-backup.XXXXXXXX)"
+    cp "$conf_file" "$backup_file"
+  fi
 
   mv -f "$tmp_file" "$conf_file"
   chmod 0644 "$conf_file"
 
-  if nginx -t >/dev/null 2>&1; then
+  if nginx_test_output=$(run_nginx_config_test 2>&1); then
     systemctl reload nginx
+    rm -f "$backup_file"
     echo -e "✅ Cloudflare real IP config applied."
-  else
-    echo -e "❌ Nginx test failed after writing $conf_file. Please verify."
-    return 1
+    return 0
   fi
+
+  echo -e "⚠️ Nginx rejected Cloudflare real IP config:"
+  echo "$nginx_test_output"
+
+  if [[ -n "$backup_file" && -f "$backup_file" ]]; then
+    mv -f "$backup_file" "$conf_file"
+  else
+    rm -f "$conf_file"
+  fi
+
+  if nginx_test_output=$(run_nginx_config_test 2>&1); then
+    systemctl reload nginx >/dev/null 2>&1 || true
+    echo "⚠️ Cloudflare real IP config was rolled back. Deployment will continue without it."
+    return 0
+  fi
+
+  echo -e "❌ Nginx is still invalid after Cloudflare real IP rollback:"
+  echo "$nginx_test_output"
+  return 1
 }
 
 create_nginx_config() {
@@ -224,9 +415,11 @@ create_nginx_config() {
   chown -R www-data:www-data "$log_dir"
   chmod -R 755 "$log_dir"
 
-  # Ensure log_format using IPv4-preferred variable
-  if ! grep -q "log_format timed_combined" /etc/nginx/nginx.conf; then
-    sed -i "/http {/a\    log_format timed_combined '\$client_ip_preferring_v4 - \$remote_user [\$time_local] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\"';" /etc/nginx/nginx.conf
+  # Ensure log_format uses nginx's resolved real client IP.
+  if grep -q "log_format timed_combined" /etc/nginx/nginx.conf; then
+    sed -i "s/\\\$client_ip_preferring_v4/\\\$remote_addr/g" /etc/nginx/nginx.conf
+  else
+    sed -i "/http {/a\    log_format timed_combined '\$remote_addr - \$remote_user [\$time_local] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\"';" /etc/nginx/nginx.conf
   fi
 
   echo -e "\n⚙️ \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN → localhost:$KESTREL_PORT\033[0m"
@@ -268,8 +461,8 @@ create_nginx_config() {
     echo "        proxy_set_header Host \$host;"
     echo "        proxy_set_header X-Forwarded-Proto \$scheme;"
     echo "        proxy_set_header X-Forwarded-Host \$host;"
-    echo "        proxy_set_header X-Forwarded-For \$client_ip_preferring_v4;"
-    echo "        proxy_set_header X-Real-IP \$client_ip_preferring_v4;"
+    echo "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
+    echo "        proxy_set_header X-Real-IP \$remote_addr;"
     echo "        proxy_cache_bypass \$http_upgrade;"
     echo "        proxy_set_header X-Forwarded-Server \$host;"
     echo "        add_header Cache-Control \"no-store\";"
@@ -279,7 +472,7 @@ create_nginx_config() {
 
   ln -sf "$conf_path" "$conf_link"
 
-  if nginx -t >/dev/null 2>&1; then
+  if run_nginx_config_test >/dev/null 2>&1; then
     systemctl reload nginx
     echo -e "✅ Nginx config applied and reloaded."
     force_nginx_log_symlink_rotation "$log_dir"
@@ -379,7 +572,7 @@ update_nginx_ssl_protocols() {
   
   sed -i "s|ssl_protocols .*|ssl_protocols $protocols;|g" "$conf_path"
   
-  if nginx -t >/dev/null 2>&1; then
+  if run_nginx_config_test >/dev/null 2>&1; then
     systemctl reload nginx
     echo -e "✅ SSL protocols updated to: \e[36m$protocols\e[0m"
     return 0
@@ -398,7 +591,7 @@ update_nginx_hsts_max_age() {
   
   sed -i "s|max-age=[0-9]*|max-age=$max_age|g" "$conf_path"
   
-  if nginx -t >/dev/null 2>&1; then
+  if run_nginx_config_test >/dev/null 2>&1; then
     systemctl reload nginx
     echo -e "✅ HSTS max-age updated to: \e[36m$max_age seconds\e[0m"
     return 0
@@ -417,7 +610,7 @@ update_nginx_x_frame_options() {
   
   sed -i "s|X-Frame-Options .*|X-Frame-Options $value;|g" "$conf_path"
   
-  if nginx -t >/dev/null 2>&1; then
+  if run_nginx_config_test >/dev/null 2>&1; then
     systemctl reload nginx
     echo -e "✅ X-Frame-Options updated to: \e[36m$value\e[0m"
     return 0
@@ -436,7 +629,7 @@ update_nginx_referrer_policy() {
   
   sed -i "s|Referrer-Policy .*|Referrer-Policy $value;|g" "$conf_path"
   
-  if nginx -t >/dev/null 2>&1; then
+  if run_nginx_config_test >/dev/null 2>&1; then
     systemctl reload nginx
     echo -e "✅ Referrer-Policy updated to: \e[36m$value\e[0m"
     return 0
@@ -679,7 +872,7 @@ show_nginx_settings_menu() {
       6)
         clear
         echo -e "\n♻️ \e[1mReloading Nginx...\e[0m"
-        if nginx -t >/dev/null 2>&1; then
+        if run_nginx_config_test >/dev/null 2>&1; then
           if systemctl reload nginx; then
             echo -e "✅ \e[32mNginx reloaded successfully\e[0m"
           else
@@ -688,7 +881,7 @@ show_nginx_settings_menu() {
         else
           echo -e "❌ \e[31mNginx config test failed\e[0m"
           echo -e "\nRunning detailed test:"
-          nginx -t
+          run_nginx_config_test
         fi
         print_press_any_key
         ;;
@@ -696,7 +889,7 @@ show_nginx_settings_menu() {
         clear
         echo -e "\n🧪 \e[1mTesting Nginx Config...\e[0m"
         echo ""
-        if nginx -t; then
+        if run_nginx_config_test; then
           echo -e "\n✅ \e[32mConfiguration test passed\e[0m"
         else
           echo -e "\n❌ \e[31mConfiguration test failed\e[0m"
@@ -707,4 +900,3 @@ show_nginx_settings_menu() {
     esac
   done
 }
-

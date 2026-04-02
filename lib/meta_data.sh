@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/common.sh"
 
 get_repo_name_from_meta() {
   local file="$1"
-  local maxlen="$2"
+  local maxlen="${2:-}"
   local repo_name
 
   [[ -f "$file" ]] || { echo "–"; return 1; }

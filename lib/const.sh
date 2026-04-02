@@ -23,7 +23,7 @@ __CONSTANTS_SH_LOADED=1
 # API Base URLs
 [[ -z "${CLOUDFLARE_API_BASE+x}" ]] && declare -gr CLOUDFLARE_API_BASE="https://api.cloudflare.com/client/v4"
 [[ -z "${GITHUB_API_BASE+x}" ]]     && declare -gr GITHUB_API_BASE="https://api.github.com"
-[[ -z "${UPCLOUD_API_BASE+x}" ]]    && declare -gr UPCLOUD_API_BASE="https://api.upcloud.com/1.2"
+[[ -z "${UPCLOUD_API_BASE+x}" ]]    && declare -gr UPCLOUD_API_BASE="https://api.upcloud.com/1.3"
 
 # .NET Support
 # Baseline versions for display in menus - dynamically extended by get_available_dotnet_versions()
