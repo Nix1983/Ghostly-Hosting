@@ -360,6 +360,24 @@ echo ""
 echo "══════════════════════════════════════════════════════════════"
 echo ""
 
+# Offer to remove the installer after a successful run
+SELF_PATH="$(readlink -f "$0" 2>/dev/null || true)"
+if [[ -z "$SELF_PATH" ]]; then
+  SELF_PATH="$0"
+fi
+
+if [[ -f "$SELF_PATH" ]]; then
+  read -rp "Delete this installer now? [y/N] " delete_installer_response
+  if [[ "$delete_installer_response" =~ ^[Yy]$ ]]; then
+    if rm -f -- "$SELF_PATH"; then
+      echo -e "${GREEN}Installer deleted.${NC}"
+    else
+      echo -e "${YELLOW}Warning: Failed to delete installer: $SELF_PATH${NC}"
+    fi
+    echo ""
+  fi
+fi
+
 exit 0
 
 __PAYLOAD_BEGINS__
