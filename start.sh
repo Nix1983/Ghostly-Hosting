@@ -245,7 +245,7 @@ init_and_load_env() {
         echo -e "💡 Recommended: Create a \e[1mPersonal Access Token\e[0m in your Digital Ocean dashboard"
         echo -e "   • Required scopes: read & write"
         echo -en "🔗 Create token at: "
-        echo -e "\e]8;;https://cloud.digitalocean.com/account/api/tokens\e\\Digital Ocean Page\e]8;;\e\\ 🡕"
+        echo -e "\e]8;;https://cloud.digitalocean.com/account/api/tokens\e\\Digital Ocean API Tokens\e]8;;\e\\ 🡕"
         print_line
 
         _read_secret_with_asterisks "🔑 Enter Digital Ocean API Token: " DIGITALOCEAN_API_TOKEN
