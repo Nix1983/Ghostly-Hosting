@@ -5,6 +5,8 @@ source ./lib/common.sh
 source ./lib/server_manager.sh
 source ./lib/app_manager.sh
 source ./lib/upcloud.sh
+source ./lib/digitalocean.sh
+source ./lib/firewall_provider.sh
 source ./lib/github.sh
 
 get_required_system_package_for_tool() {
@@ -88,13 +90,13 @@ init_and_load_env() {
   fi
 
   local updated=false
-  local upcloud_ok=false github_ok=false cloudflare_ok=false
+  local upcloud_ok=false digitalocean_ok=false github_ok=false cloudflare_ok=false
 
   if [[ ! -f "$ENV_FILE" ]]; then
     clear
     echo -e "\e[1;36m👻 Welcome to GhostlyHosting — Effortless .NET Self-Hosting\e[0m"
     print_double_line
-    echo -e "💡 Host unlimited .NET apps for just \e[1m\$3/month\e[0m on \e[35mUpCloud\e[0m"
+    echo -e "💡 Host unlimited .NET apps on your preferred cloud provider"
     echo -e "🔄 \e[1;33mGitHub-integrated deployments\e[0m — auto-update from your repo"
     echo -e "☁️ HTTPS, DNS & secure proxy via \e[38;5;117mCloudflare\e[0m (DDoS & caching included)"
     echo -e "🛡️ Built-in firewall, PTR setup & uptime monitoring"
@@ -113,52 +115,155 @@ init_and_load_env() {
   # shellcheck disable=SC1090
   set -a && source "$ENV_FILE" 2>/dev/null || true && set +a
 
-  # Check UpCloud
-  if ! validate_upcloud_token "${UPCLOUD_API_TOKEN:-}"; then
+  # Backwards compatibility: if CLOUD_PROVIDER is not set but UPCLOUD_API_TOKEN
+  # exists and is valid, default to upcloud silently.
+  if [[ -z "${CLOUD_PROVIDER:-}" ]]; then
+    if validate_upcloud_token "${UPCLOUD_API_TOKEN:-}" 2>/dev/null; then
+      CLOUD_PROVIDER="upcloud"
+      updated=true
+    fi
+  fi
+
+  # Provider selection (only when CLOUD_PROVIDER is not yet determined)
+  if [[ -z "${CLOUD_PROVIDER:-}" ]]; then
     while true; do
       clear
-      echo -e "\e[1;35m🟣 UpCloud API Setup\e[0m"
+      echo -e "\n🌥️  \e[1mCloud Provider Selection\e[0m"
       print_double_line
-      echo -e "🔧 Used to:"
-      echo -e "   • Create and manage \e[1mfirewall rules\e[0m"
-      echo -e "   • Configure \e[1mPTR (reverse DNS)\e[0m records"
-      echo -e "   • Identify your account for deployments"
-      echo
-      echo -e "💡 Recommended: Create an \e[1mAPI token\e[0m in your UpCloud dashboard"
-      echo -e "⚠️ A token can validate successfully and still fail later if it belongs to another UpCloud account/subaccount than the one that owns this server."
-      echo -en "🔗 Sign up at: "
-      echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
+      echo -e "Choose your cloud infrastructure provider:\n"
+      echo -e " 1) 🟣 \e[1mUpCloud\e[0m"
+      echo -e "    • Managed firewall via API"
+      echo -e "    • Automatic PTR (reverse DNS) configuration"
+      echo -e "    • \$3/month hosting\n"
+      echo -e " 2) 🔵 \e[1mDigital Ocean\e[0m"
+      echo -e "    • Managed firewall via API"
+      echo -e "    • Scalable droplets"
+      echo -e "    • Starting at \$4/month\n"
+      echo -e " 3) ⚙️  \e[1mOther / Manual\e[0m"
+      echo -e "    • You will manage firewall rules manually"
+      echo -e "    • No cloud provider API integration\n"
       print_line
-
-      _read_secret_with_asterisks "🔑 Enter UpCloud API Token: " UPCLOUD_API_TOKEN
-
-      if ! validate_upcloud_token "$UPCLOUD_API_TOKEN"; then
-        echo -e "\n❌ \e[31mAuthentication failed – invalid UpCloud API token.\e[0m"
-        echo -e "🔐 \e[2mWithout a valid token, hosting features cannot be used.\e[0m"
-        sleep 1
-        continue
-      fi
-
-      local upcloud_scope_status="unknown"
-      upcloud_scope_status=$(_get_upcloud_token_server_access_status "$UPCLOUD_API_TOKEN")
-
-      if [[ "$upcloud_scope_status" == "forbidden" ]]; then
-        echo -e "\n❌ \e[31mThis token is valid, but it cannot access this server.\e[0m"
-        _print_upcloud_wrong_account_hint
-        sleep 3
-        continue
-      fi
-
-      if [[ "$upcloud_scope_status" == "unknown" ]]; then
-        echo -e "\nℹ️ \e[33mToken validated, but server ownership could not be verified from this environment.\e[0m"
-      fi
-
-      upcloud_ok=true
-      updated=true
-      break
+      echo -en "Enter your choice [1-3]: "
+      IFS= read -r provider_choice
+      case "$provider_choice" in
+        1)
+          CLOUD_PROVIDER="upcloud"
+          updated=true
+          break
+          ;;
+        2)
+          CLOUD_PROVIDER="digitalocean"
+          updated=true
+          break
+          ;;
+        3)
+          CLOUD_PROVIDER="other"
+          updated=true
+          clear
+          echo -e "\n⚙️  \e[1;33mManual Firewall Configuration\e[0m"
+          print_line
+          echo -e "ℹ️  You have selected manual firewall management."
+          echo -e "⚠️  Please ensure the following ports are open on your server:"
+          echo -e "   • Port 22 (SSH)"
+          echo -e "   • Port 80 (HTTP)"
+          echo -e "   • Port 443 (HTTPS)"
+          echo -e "   • Port 53 outbound (DNS)"
+          print_line
+          echo -e "\n⏎ Press Enter to continue..."
+          read -r
+          break
+          ;;
+        *)
+          echo -e "\n❌ Invalid selection. Please enter 1, 2, or 3."
+          sleep 1
+          ;;
+      esac
     done
-  else
-    upcloud_ok=true
+  fi
+
+  # Check UpCloud token (only when provider is upcloud)
+  if [[ "${CLOUD_PROVIDER:-}" == "upcloud" ]]; then
+    if ! validate_upcloud_token "${UPCLOUD_API_TOKEN:-}"; then
+      while true; do
+        clear
+        echo -e "\e[1;35m🟣 UpCloud API Setup\e[0m"
+        print_double_line
+        echo -e "🔧 Used to:"
+        echo -e "   • Create and manage \e[1mfirewall rules\e[0m"
+        echo -e "   • Configure \e[1mPTR (reverse DNS)\e[0m records"
+        echo -e "   • Identify your account for deployments"
+        echo
+        echo -e "💡 Recommended: Create an \e[1mAPI token\e[0m in your UpCloud dashboard"
+        echo -e "⚠️ A token can validate successfully and still fail later if it belongs to another UpCloud account/subaccount than the one that owns this server."
+        echo -en "🔗 Sign up at: "
+        echo -e "\e]8;;https://signup.upcloud.com/?promo=AW9TF8\e\\UpCloud.com\e]8;;\e\\ 🡕"
+        print_line
+
+        _read_secret_with_asterisks "🔑 Enter UpCloud API Token: " UPCLOUD_API_TOKEN
+
+        if ! validate_upcloud_token "$UPCLOUD_API_TOKEN"; then
+          echo -e "\n❌ \e[31mAuthentication failed – invalid UpCloud API token.\e[0m"
+          echo -e "🔐 \e[2mWithout a valid token, hosting features cannot be used.\e[0m"
+          sleep 1
+          continue
+        fi
+
+        local upcloud_scope_status="unknown"
+        upcloud_scope_status=$(_get_upcloud_token_server_access_status "$UPCLOUD_API_TOKEN")
+
+        if [[ "$upcloud_scope_status" == "forbidden" ]]; then
+          echo -e "\n❌ \e[31mThis token is valid, but it cannot access this server.\e[0m"
+          _print_upcloud_wrong_account_hint
+          sleep 3
+          continue
+        fi
+
+        if [[ "$upcloud_scope_status" == "unknown" ]]; then
+          echo -e "\nℹ️ \e[33mToken validated, but server ownership could not be verified from this environment.\e[0m"
+        fi
+
+        upcloud_ok=true
+        updated=true
+        break
+      done
+    else
+      upcloud_ok=true
+    fi
+  fi
+
+  # Check Digital Ocean token (only when provider is digitalocean)
+  if [[ "${CLOUD_PROVIDER:-}" == "digitalocean" ]]; then
+    if ! validate_digitalocean_token "${DIGITALOCEAN_API_TOKEN:-}"; then
+      while true; do
+        clear
+        echo -e "\e[1;34m🔵 Digital Ocean API Setup\e[0m"
+        print_double_line
+        echo -e "🔧 Used to:"
+        echo -e "   • Create and manage \e[1mfirewall rules\e[0m"
+        echo -e "   • Identify your droplet for deployments"
+        echo
+        echo -e "💡 Recommended: Create a \e[1mPersonal Access Token\e[0m in your Digital Ocean dashboard"
+        echo -e "   • Required scopes: read & write"
+        echo -en "🔗 Create token at: "
+        echo -e "\e]8;;https://cloud.digitalocean.com/account/api/tokens\e\\Digital Ocean Page\e]8;;\e\\ 🡕"
+        print_line
+
+        _read_secret_with_asterisks "🔑 Enter Digital Ocean API Token: " DIGITALOCEAN_API_TOKEN
+
+        if ! validate_digitalocean_token "$DIGITALOCEAN_API_TOKEN"; then
+          echo -e "\n❌ \e[31mAuthentication failed – invalid Digital Ocean API token.\e[0m"
+          echo -e "🔐 \e[2mWithout a valid token, firewall features cannot be used.\e[0m"
+          sleep 1
+          continue
+        fi
+
+        digitalocean_ok=true
+        updated=true
+        break
+      done
+    else
+      digitalocean_ok=true
+    fi
   fi
 
   # Check GitHub
@@ -235,16 +340,28 @@ init_and_load_env() {
 
   if [[ "$updated" == true ]]; then
     {
-      echo "CLOUDFLARE_API_TOKEN=\"$CLOUDFLARE_API_TOKEN\""
-      echo "UPCLOUD_API_TOKEN=\"$UPCLOUD_API_TOKEN\""
-      echo "GITHUB_API_TOKEN=\"$GITHUB_API_TOKEN\""
+      echo "CLOUD_PROVIDER=\"${CLOUD_PROVIDER:-}\""
+      echo "CLOUDFLARE_API_TOKEN=\"${CLOUDFLARE_API_TOKEN:-}\""
+      echo "UPCLOUD_API_TOKEN=\"${UPCLOUD_API_TOKEN:-}\""
+      echo "DIGITALOCEAN_API_TOKEN=\"${DIGITALOCEAN_API_TOKEN:-}\""
+      echo "GITHUB_API_TOKEN=\"${GITHUB_API_TOKEN:-}\""
     } >"$ENV_FILE"
     chmod 600 "$ENV_FILE"
 
     echo -e "\n✅ \e[1;32mYour configuration has been saved securely.\e[0m"
     echo -e "📁 Stored at: \e[2m$ENV_FILE\e[0m"
     echo -en "\n"
-    [[ "$upcloud_ok" == true ]] && echo -en "🟢 UpCloud\t" || echo -en "🔴 UpCloud\t"
+    case "${CLOUD_PROVIDER:-}" in
+      upcloud)
+        [[ "$upcloud_ok" == true ]] && echo -en "🟢 UpCloud\t" || echo -en "🔴 UpCloud\t"
+        ;;
+      digitalocean)
+        [[ "$digitalocean_ok" == true ]] && echo -en "🟢 Digital Ocean\t" || echo -en "🔴 Digital Ocean\t"
+        ;;
+      other)
+        echo -en "⚙️  Other (manual)\t"
+        ;;
+    esac
     [[ "$github_ok" == true ]] && echo -en "🟢 GitHub\t" || echo -en "🔴 GitHub\t"
     [[ "$cloudflare_ok" == true ]] && echo -en "🟢 Cloudflare\n" || echo -en "🔴 Cloudflare\n"
     echo -e "\n⏎ Press Enter to continue..."
