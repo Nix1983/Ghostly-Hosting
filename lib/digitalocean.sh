@@ -124,37 +124,44 @@ _get_digitalocean_firewall_id_by_name() {
   echo "$response" | jq -r --arg name "$name" '.firewalls[] | select(.name == $name) | .id' 2>/dev/null | head -n1
 }
 
-# Build the firewall rules JSON payload from config/desired_firewall_rules.json
+# Build the firewall rules JSON payload from config/desired_firewall_rules.json.
+# The source file contains separate IPv4 and IPv6 entries for each port; Digital
+# Ocean uses a single rule with addresses ["0.0.0.0/0", "::/0"] to cover both,
+# so we deduplicate by (protocol, port) before building the payload.
 _build_digitalocean_firewall_payload() {
   local rules_file="$1"
 
-  # Parse desired_firewall_rules.json and convert UpCloud format to Digital Ocean format
-  # Inbound rules: direction=in → inbound_rules
-  # Outbound rules: direction=out → outbound_rules
+  # Parse desired_firewall_rules.json and convert UpCloud format to Digital Ocean format.
+  # Inbound rules:  direction=in  -> inbound_rules
+  # Outbound rules: direction=out -> outbound_rules
+  # unique_by(.protocol, .ports) removes the duplicate IPv4/IPv6 entries that
+  # would otherwise cause a "duplicate rules" rejection from the DO API.
   jq -c '
     .firewall_rules.firewall_rule as $rules |
     {
       "name": "ghostly-hosting-firewall",
-      "inbound_rules": [
-        $rules[] | select(.direction == "in") |
-        {
-          "protocol": .protocol,
-          "ports": .destination_port_start,
-          "sources": {
-            "addresses": ["0.0.0.0/0", "::/0"]
+      "inbound_rules": (
+        [ $rules[] | select(.direction == "in") |
+          {
+            "protocol": .protocol,
+            "ports": .destination_port_start,
+            "sources": {
+              "addresses": ["0.0.0.0/0", "::/0"]
+            }
           }
-        }
-      ],
-      "outbound_rules": [
-        $rules[] | select(.direction == "out") |
-        {
-          "protocol": .protocol,
-          "ports": .destination_port_start,
-          "destinations": {
-            "addresses": ["0.0.0.0/0", "::/0"]
+        ] | unique_by(.protocol + ":" + .ports)
+      ),
+      "outbound_rules": (
+        [ $rules[] | select(.direction == "out") |
+          {
+            "protocol": .protocol,
+            "ports": .destination_port_start,
+            "destinations": {
+              "addresses": ["0.0.0.0/0", "::/0"]
+            }
           }
-        }
-      ]
+        ] | unique_by(.protocol + ":" + .ports)
+      )
     }
   ' "$rules_file" 2>/dev/null
 }
@@ -365,43 +372,32 @@ show_digitalocean_menu() {
     echo ""
     echo -e "\n 🔵  \e[1mDigital Ocean Firewall Rules\e[0m${version_suffix}"
     echo -e "\e[1m──────────────────────────────────────────────────────\e[0m"
-    echo -e "\n 1) 🔐 Enable Firewall              2) 🔓 Disable Firewall"
-    echo -e "\n 3) 📊 Show Firewall Status         4) 💣 Delete All Rules"
-    echo -e "\n 5) 📦 Apply Server Rules           6) 🔑 Change API Token"
+    echo -e "\n 1) 📊 Show Firewall Status         2) 💣 Delete All Rules"
+    echo -e "\n 3) 📦 Apply Server Rules           4) 🔑 Change API Token"
     echo -e "\n $(print_back_to_menu)"
     echo -e "\n─────────────────────────────────────────────────────────────"
-    print_select_prompt 6
+    print_select_prompt 4
 
     IFS= read -rsn1 choice
     echo
 
     case "$choice" in
       1)
-        _enable_digitalocean_firewall
-        echo ""
-        print_press_any_key
-        ;;
-      2)
-        _disable_digitalocean_firewall
-        echo ""
-        print_press_any_key
-        ;;
-      3)
         _show_digitalocean_firewall_status
         echo ""
         print_press_any_key
         ;;
-      4)
+      2)
         delete_all_digitalocean_firewall_rules
         echo ""
         print_press_any_key
         ;;
-      5)
+      3)
         apply_digitalocean_firewall_rules
         echo ""
         print_press_any_key
         ;;
-      6)
+      4)
         _configure_digitalocean_api_token
         echo ""
         print_press_any_key
