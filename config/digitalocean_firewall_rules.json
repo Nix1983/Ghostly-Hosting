@@ -1,0 +1,54 @@
+{
+  "firewall_rules": {
+    "firewall_rule": [
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "22",
+        "destination_port_end": "22",
+        "action": "accept",
+        "comment": "SSH access"
+      },
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "80",
+        "destination_port_end": "80",
+        "action": "accept",
+        "comment": "HTTP (Let's Encrypt, redirect)"
+      },
+      {
+        "direction": "in",
+        "protocol": "tcp",
+        "destination_port_start": "443",
+        "destination_port_end": "443",
+        "action": "accept",
+        "comment": "HTTPS (Blazor App, SignalR)"
+      },
+      {
+        "direction": "out",
+        "protocol": "udp",
+        "destination_port_start": "53",
+        "destination_port_end": "53",
+        "action": "accept",
+        "comment": "DNS (resolve domains)"
+      },
+      {
+        "direction": "out",
+        "protocol": "tcp",
+        "destination_port_start": "80",
+        "destination_port_end": "80",
+        "action": "accept",
+        "comment": "HTTP (package updates)"
+      },
+      {
+        "direction": "out",
+        "protocol": "tcp",
+        "destination_port_start": "443",
+        "destination_port_end": "443",
+        "action": "accept",
+        "comment": "HTTPS (secure updates)"
+      }
+    ]
+  }
+}

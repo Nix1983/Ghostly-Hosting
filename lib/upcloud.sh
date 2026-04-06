@@ -672,7 +672,7 @@ _debug_upcloud_firewall_api() {
 _upcloud_firewall_rules_match_desired() {
   local project_root desired_file desired_json current_json
   project_root="$(get_project_root)"
-  desired_file="$project_root/config/desired_firewall_rules.json"
+  desired_file="$project_root/config/upcloud_firewall_rules.json"
 
   if [[ ! -f "$desired_file" ]]; then
     printf "❌ Desired firewall rules file not found: %s\n" "$desired_file"
@@ -1012,12 +1012,12 @@ apply_upcloud_firewall_rules() {
   _clear
   printf "\n"
 
-  printf "🧱 Applying firewall rules for GhostlyHosting on UpCloud (from config/desired_firewall_rules.json)\n"
+  printf "🧱 Applying firewall rules for GhostlyHosting on UpCloud (from config/upcloud_firewall_rules.json)\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   local project_root rules_file
   project_root="$(get_project_root)"
-  rules_file="$project_root/config/desired_firewall_rules.json"
+  rules_file="$project_root/config/upcloud_firewall_rules.json"
 
   if [[ ! -f "$rules_file" ]]; then
     printf "❌ Firewall rule file is missing: %s\n" "$rules_file"

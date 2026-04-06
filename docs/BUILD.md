@@ -48,7 +48,8 @@ The installer includes only the essential runtime files for GhostlyHosting:
   - `upcloud.sh`, `version.sh`
   - `VERSION` - Version file
 - `config/` - Configuration files
-  - `desired_firewall_rules.json`
+  - `upcloud_firewall_rules.json` (UpCloud: separate IPv4/IPv6 entries with `family` and `position`)
+  - `digitalocean_firewall_rules.json` (Digital Ocean: one entry per port, no family field)
 
 ## Security
 

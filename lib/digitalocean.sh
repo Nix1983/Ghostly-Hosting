@@ -124,18 +124,15 @@ _get_digitalocean_firewall_id_by_name() {
   echo "$response" | jq -r --arg name "$name" '.firewalls[] | select(.name == $name) | .id' 2>/dev/null | head -n1
 }
 
-# Build the firewall rules JSON payload from config/desired_firewall_rules.json.
-# The source file contains separate IPv4 and IPv6 entries for each port; Digital
-# Ocean uses a single rule with addresses ["0.0.0.0/0", "::/0"] to cover both,
-# so we deduplicate by (protocol, port) before building the payload.
+# Build the firewall rules JSON payload from config/digitalocean_firewall_rules.json.
+# The DO-specific rules file contains one entry per port (no IPv4/IPv6 split), so
+# unique_by is kept only as a safety net against accidental duplicates.
 _build_digitalocean_firewall_payload() {
   local rules_file="$1"
 
-  # Parse desired_firewall_rules.json and convert UpCloud format to Digital Ocean format.
+  # Parse digitalocean_firewall_rules.json and convert to Digital Ocean API format.
   # Inbound rules:  direction=in  -> inbound_rules
   # Outbound rules: direction=out -> outbound_rules
-  # unique_by(.protocol, .ports) removes the duplicate IPv4/IPv6 entries that
-  # would otherwise cause a "duplicate rules" rejection from the DO API.
   jq -c '
     .firewall_rules.firewall_rule as $rules |
     {
@@ -170,7 +167,7 @@ apply_digitalocean_firewall_rules() {
   set +e
   _clear
   printf "\n"
-  printf "🧱 Applying firewall rules for GhostlyHosting on Digital Ocean (from config/desired_firewall_rules.json)\n"
+  printf "🧱 Applying firewall rules for GhostlyHosting on Digital Ocean (from config/digitalocean_firewall_rules.json)\n"
   printf "────────────────────────────────────────────────────────────\n"
 
   if [[ -z "$DIGITALOCEAN_API_TOKEN" ]]; then
@@ -180,7 +177,7 @@ apply_digitalocean_firewall_rules() {
 
   local project_root rules_file
   project_root="$(get_project_root)"
-  rules_file="$project_root/config/desired_firewall_rules.json"
+  rules_file="$project_root/config/digitalocean_firewall_rules.json"
 
   if [[ ! -f "$rules_file" ]]; then
     printf "❌ Firewall rule file is missing: %s\n" "$rules_file"
