@@ -385,14 +385,14 @@ _configure_digitalocean_api_token() {
   printf "\n🔑 Update Digital Ocean API Token\n"
   printf "────────────────────────────────────────────────────────────\n"
   printf "ℹ️ A personal access token from Digital Ocean is required for firewall changes.\n"
-  printf "ℹ️ Enter q to cancel and keep the current token.\n\n"
+  printf "ℹ️ Press ESC to cancel and keep the current token.\n\n"
 
   local new_token
   _read_secret_with_asterisks "🔐 Enter new Digital Ocean API Token: " new_token
 
-  if [[ "$new_token" == "q" || "$new_token" == "Q" ]]; then
+  if [[ "$new_token" == $'\x1b' ]]; then
     printf "↩️ Token update cancelled.\n"
-    return 0
+    return 2
   fi
 
   if [[ -z "$new_token" ]]; then
@@ -464,8 +464,11 @@ show_digitalocean_menu() {
         ;;
       4)
         _configure_digitalocean_api_token
-        echo ""
-        print_press_any_key
+        local _do_token_rc=$?
+        if [[ $_do_token_rc -ne 2 ]]; then
+          echo ""
+          print_press_any_key
+        fi
         ;;
       q|Q)
         break
