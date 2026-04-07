@@ -164,7 +164,10 @@ _build_digitalocean_firewall_payload() {
 }
 
 apply_digitalocean_firewall_rules() {
+  local _prev_errexit=0
+  [[ "$-" == *e* ]] && _prev_errexit=1
   set +e
+
   _clear
   printf "\n"
   printf "🧱 Applying firewall rules for GhostlyHosting on Digital Ocean (from config/digitalocean_firewall_rules.json)\n"
@@ -172,6 +175,7 @@ apply_digitalocean_firewall_rules() {
 
   if [[ -z "$DIGITALOCEAN_API_TOKEN" ]]; then
     printf "❌ Missing Digital Ocean API token.\n"
+    [[ "$_prev_errexit" == "1" ]] && set -e
     return 1
   fi
 
@@ -181,6 +185,7 @@ apply_digitalocean_firewall_rules() {
 
   if [[ ! -f "$rules_file" ]]; then
     printf "❌ Firewall rule file is missing: %s\n" "$rules_file"
+    [[ "$_prev_errexit" == "1" ]] && set -e
     return 1
   fi
 
@@ -189,6 +194,7 @@ apply_digitalocean_firewall_rules() {
 
   if [[ -z "$payload" || "$payload" == "null" ]]; then
     printf "❌ Failed to build Digital Ocean firewall payload from rules file.\n"
+    [[ "$_prev_errexit" == "1" ]] && set -e
     return 1
   fi
 
@@ -203,6 +209,7 @@ apply_digitalocean_firewall_rules() {
     if ! _digitalocean_api_request "PUT" "firewalls/$existing_id" "$payload" response http_code; then
       printf "❌ Failed to update firewall (HTTP %s).\n" "$http_code"
       echo "$response" | jq . 2>/dev/null || echo "$response"
+      [[ "$_prev_errexit" == "1" ]] && set -e
       return 1
     fi
     printf "✅ Firewall rules updated successfully.\n"
@@ -211,6 +218,7 @@ apply_digitalocean_firewall_rules() {
     if ! _digitalocean_api_request "POST" "firewalls" "$payload" response http_code; then
       printf "❌ Failed to create firewall (HTTP %s).\n" "$http_code"
       echo "$response" | jq . 2>/dev/null || echo "$response"
+      [[ "$_prev_errexit" == "1" ]] && set -e
       return 1
     fi
     printf "✅ Firewall created successfully.\n"
@@ -222,6 +230,7 @@ apply_digitalocean_firewall_rules() {
   printf "\n📊 Summary:\n"
   printf "✅ Successfully applied: %s rules\n" "$rule_count"
   printf "────────────────────────────────────────────────────────────\n"
+  [[ "$_prev_errexit" == "1" ]] && set -e
   return 0
 }
 
@@ -266,6 +275,29 @@ delete_all_digitalocean_firewall_rules() {
   return 0
 }
 
+_print_digitalocean_firewall_rule() {
+  local direction="$1"
+  local rule="$2"
+
+  local protocol ports addresses
+
+  protocol=$(echo "$rule" | jq -r '.protocol // "–"')
+  ports=$(echo "$rule" | jq -r '.ports // "any"')
+
+  if [[ "$direction" == "in" ]]; then
+    addresses=$(echo "$rule" | jq -r '(.sources.addresses // []) | join(", ")' 2>/dev/null)
+    [[ -z "$addresses" || "$addresses" == "null" ]] && addresses="Any"
+    printf "🔸 \e[32maccept\e[0m │ \e[36m%-6s\e[0m │ Port: %-8s │ Src: %s\n" \
+      "$protocol" "$ports" "$addresses"
+  else
+    addresses=$(echo "$rule" | jq -r '(.destinations.addresses // []) | join(", ")' 2>/dev/null)
+    [[ -z "$addresses" || "$addresses" == "null" ]] && addresses="Any"
+    printf "🔸 \e[32maccept\e[0m │ \e[36m%-6s\e[0m │ Port: %-8s │ Dst: %s\n" \
+      "$protocol" "$ports" "$addresses"
+  fi
+  printf "\n"
+}
+
 _show_digitalocean_firewall_status() {
   _clear
   printf "\n📊 Digital Ocean Firewall Status\n"
@@ -290,9 +322,45 @@ _show_digitalocean_firewall_status() {
     return 0
   fi
 
-  printf "🔒 Active firewalls: %s\n\n" "$count"
+  printf "🔒 Active firewalls: %s\n" "$count"
 
-  echo "$response" | jq -r '.firewalls[] | "🌐 Name: \(.name)\n   ID:     \(.id)\n   Status: \(.status)\n   Inbound rules:  \(.inbound_rules | length)\n   Outbound rules: \(.outbound_rules | length)\n"' 2>/dev/null
+  while IFS= read -r firewall; do
+    [[ -z "$firewall" ]] && continue
+    local fw_name fw_id fw_status inbound_count outbound_count
+    fw_name=$(echo "$firewall" | jq -r '.name')
+    fw_id=$(echo "$firewall" | jq -r '.id')
+    fw_status=$(echo "$firewall" | jq -r '.status')
+    inbound_count=$(echo "$firewall" | jq '.inbound_rules | length' 2>/dev/null || echo "0")
+    outbound_count=$(echo "$firewall" | jq '.outbound_rules | length' 2>/dev/null || echo "0")
+
+    printf "\n🌐 Name:   %s\n" "$fw_name"
+    printf "   ID:     %s\n" "$fw_id"
+    printf "   Status: %s\n\n" "$fw_status"
+
+    printf "📥 Inbound Rules\n"
+    printf "────────────────────────────────────────────────────────────\n"
+    if [[ "$inbound_count" == "0" ]]; then
+      printf "   ℹ️ No inbound rules.\n\n"
+    else
+      while IFS= read -r rule; do
+        [[ -z "$rule" ]] && continue
+        _print_digitalocean_firewall_rule "in" "$rule"
+      done < <(echo "$firewall" | jq -c '.inbound_rules[]?' 2>/dev/null)
+    fi
+
+    printf "📤 Outbound Rules\n"
+    printf "────────────────────────────────────────────────────────────\n"
+    if [[ "$outbound_count" == "0" ]]; then
+      printf "   ℹ️ No outbound rules.\n\n"
+    else
+      while IFS= read -r rule; do
+        [[ -z "$rule" ]] && continue
+        _print_digitalocean_firewall_rule "out" "$rule"
+      done < <(echo "$firewall" | jq -c '.outbound_rules[]?' 2>/dev/null)
+    fi
+
+    printf "═════════════════════════════════════════════════════════════\n"
+  done < <(echo "$response" | jq -c '.firewalls[]?' 2>/dev/null)
   return 0
 }
 

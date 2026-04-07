@@ -736,6 +736,8 @@ create_kestrel_service() {
     echo "UMask=002"
     echo "Environment=ASPNETCORE_URLS=http://0.0.0.0:$KESTREL_PORT"
     echo "Environment=DOTNET_ENVIRONMENT=Production"
+    echo "StandardOutput=append:$log_dir/app.log"
+    echo "StandardError=append:$log_dir/app.log"
     echo
     echo "[Install]"
     echo "WantedBy=multi-user.target"
