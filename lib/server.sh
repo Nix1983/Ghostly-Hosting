@@ -6,6 +6,8 @@ set -e
 source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/upcloud.sh
+source ./lib/digitalocean.sh
+source ./lib/firewall_provider.sh
 source ./lib/fail2ban.sh
 source ./lib/github.sh
 source ./lib/timezone.sh
@@ -411,7 +413,7 @@ show_init_server_prompt() {
   echo -e " 🔧 Git (for deployment)"
   echo -e " 🕒 Timezone will be set to Europe/Vienna"
   echo -e " 📦 Swap file for memory management"
-  echo -e " ☁️ UpCloud firewall rules will be applied"
+  echo -e " ☁️ Cloud provider firewall rules will be applied (if applicable)"
   echo -e " 📈 System update and package upgrade"
   print_line
   echo -e "💡 \e[3mYou can add apps after this setup is completed.\e[0m"
@@ -441,7 +443,7 @@ init_server() {
 
   export DISABLE_CLEAR=true
   set_swap
-  apply_upcloud_firewall_rules
+  apply_firewall_rules
   configure_f2b
   update_server
 
@@ -502,7 +504,7 @@ reset_server() {
   echo -e "🔸 Remove all .NET apps in \e[36m$APP_BASE_DIR/\e[0m"
   echo -e "🔸 Remove all systemd services for hosted .NET apps"
   echo -e "🔸 Remove \e[36m/swapfile\e[0m"
-  echo -e "🔸 Remove all \e[36mUpCloud firewall rules\e[0m (via API)"
+  echo -e "🔸 Remove all \e[36mCloud Provider firewall rules\e[0m (via API, if applicable)"
   echo -e "🔸 Reset timezone to \e[36mUTC\e[0m"
   print_line
   echo -e "⚠️ \e[1mThis cannot be undone.\e[0m"
@@ -523,15 +525,15 @@ reset_server() {
   remove_ufw
   remove_swap
 
-  rm -rf "${APP_BASE_DIR:?}/"* "/var/${CLONE_BASE_DIR:?}"
+  rm -rf "${APP_BASE_DIR:?}/"* "/${CLONE_BASE_DIR:?}"
 
   echo -e "\n🌐 \e[1mResetting system timezone...\e[0m"
   timedatectl set-timezone UTC
   echo -e "🌐 Timezone reset to UTC."
 
-  echo -e "\n🧱 \e[1mDeleting UpCloud firewall rules...\e[0m"
+  echo -e "\n🌐 \e[1mDeleting cloud provider firewall rules...\e[0m"
   export DISABLE_CLEAR=true
-  delete_all_upcloud_firewall_rules
+  delete_all_firewall_rules
 
   echo -e "\n✅ \e[1;32mServer reset completed.\e[0m"
   print_double_line

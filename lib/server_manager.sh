@@ -7,6 +7,8 @@ source ./lib/common.sh
 source ./lib/print.sh
 source ./lib/fail2ban.sh
 source ./lib/upcloud.sh
+source ./lib/digitalocean.sh
+source ./lib/firewall_provider.sh
 source ./lib/dotnet.sh
 source ./lib/server.sh
 source ./lib/version.sh
@@ -26,8 +28,15 @@ show_server_manager_menu() {
     echo -e "\n🖥️ \e[1;34mServer Control Panel\e[0m | $SERVER_IPv4 | $(format_version_display)"
     print_double_line
 
+    local provider_menu_text=""
+    if [[ "${CLOUD_PROVIDER:-}" != "other" && -n "${CLOUD_PROVIDER:-}" ]]; then
+      local provider_name
+      provider_name=$(get_provider_display_name)
+      provider_menu_text="6) ☁️  ${provider_name} Admin"
+    fi
+
     echo -e "\n 1) 🩺  Show Server Health   2) 🛡️  Fail2Ban Admin     3) 🧩  App Control Panel"
-    echo -e "\n 4) 🧰  Show .NET Versions   5) 🪛  Init Server        6) ☁️  UpCloud Admin"
+    echo -e "\n 4) 🧰  Show .NET Versions   5) 🪛  Init Server        ${provider_menu_text}"
     echo -e "\n 7) 🌐  Reset Cloudlfare     8) 🔄  Update Server      9) 🧨  Reset Server "
     echo -e "\n q) 🏃💨 \e[1;31mExit Server Control\e[0m"
 
@@ -49,7 +58,11 @@ show_server_manager_menu() {
            fi
          fi
          ;;
-      6) show_upcloud_menu  ;;
+      6)
+         if [[ "${CLOUD_PROVIDER:-}" != "other" && -n "${CLOUD_PROVIDER:-}" ]]; then
+           show_provider_menu
+         fi
+         ;;
       7) delete_all_cloudflare_dns_records_for_server ;;
       8) update_server_and_show_status
          check_and_offer_reboot ;;

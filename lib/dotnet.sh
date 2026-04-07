@@ -85,9 +85,11 @@ install_dotnet_version() {
   chmod +x /tmp/dotnet-install.sh
 
   if ! /tmp/dotnet-install.sh --channel "$DOTNET_Version" --install-dir "$install_dir" --no-path; then
+    rm -f /tmp/dotnet-install.sh
     echo -e "❌ Failed to install .NET SDK version: $DOTNET_Version" >&2
     return 1
   fi
+  rm -f /tmp/dotnet-install.sh
 
   echo -e "\n✅ .NET SDK $DOTNET_Version installed to $install_dir"
   return 0
@@ -306,6 +308,13 @@ publish_dotnet_project() {
 
   if [[ -z "$DOTNET_Version" ]]; then
     echo -e "\n❌ \e[31mNo .NET SDK version specified.\e[0m"
+    return 1
+  fi
+
+  local free_kb
+  free_kb=$(df -k / | awk 'NR==2 {print $4}')
+  if (( free_kb < 1048576 )); then
+    echo -e "\n❌ Insufficient disk space. At least 1 GB required, $(( free_kb / 1024 )) MB available." >&2
     return 1
   fi
 
@@ -727,6 +736,8 @@ create_kestrel_service() {
     echo "UMask=002"
     echo "Environment=ASPNETCORE_URLS=http://0.0.0.0:$KESTREL_PORT"
     echo "Environment=DOTNET_ENVIRONMENT=Production"
+    echo "StandardOutput=append:$log_dir/app.log"
+    echo "StandardError=append:$log_dir/app.log"
     echo
     echo "[Install]"
     echo "WantedBy=multi-user.target"

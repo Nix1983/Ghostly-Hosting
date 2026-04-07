@@ -194,7 +194,14 @@ show_apps() {
         "${has_a_map[$REPLY]}" \
         "${has_aaaa_map[$REPLY]}"
 
-      if ! find /etc/systemd/system -name "*.service" -type f | grep -q .; then
+      local has_remaining_app=0
+      for _f in $(find /etc/systemd/system -name "*.service" -type f 2>/dev/null); do
+        if is_valid_kestrel_service_name "$(basename "$_f")"; then
+          has_remaining_app=1
+          break
+        fi
+      done
+      if [[ "$has_remaining_app" -eq 0 ]]; then
         return 0
       fi
     fi
@@ -225,9 +232,9 @@ show_app_manager_menu() {
         add_new_app
         local exit_code=$?
 
-        if [[ "$exit_code" -ne 0 ]]; then
+        if [[ "$exit_code" -eq 1 ]]; then
           echo -e "\n❌ App deployment aborted."
-          [[ "$exit_code" -eq 1 ]] && rollback_app_deployment
+          rollback_app_deployment
           print_press_any_key
         fi
         ;;

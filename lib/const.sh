@@ -21,9 +21,10 @@ __CONSTANTS_SH_LOADED=1
 # ======================
 
 # API Base URLs
-[[ -z "${CLOUDFLARE_API_BASE+x}" ]] && declare -gr CLOUDFLARE_API_BASE="https://api.cloudflare.com/client/v4"
-[[ -z "${GITHUB_API_BASE+x}" ]]     && declare -gr GITHUB_API_BASE="https://api.github.com"
-[[ -z "${UPCLOUD_API_BASE+x}" ]]    && declare -gr UPCLOUD_API_BASE="https://api.upcloud.com/1.3"
+[[ -z "${CLOUDFLARE_API_BASE+x}" ]]    && declare -gr CLOUDFLARE_API_BASE="https://api.cloudflare.com/client/v4"
+[[ -z "${GITHUB_API_BASE+x}" ]]        && declare -gr GITHUB_API_BASE="https://api.github.com"
+[[ -z "${UPCLOUD_API_BASE+x}" ]]       && declare -gr UPCLOUD_API_BASE="https://api.upcloud.com/1.3"
+[[ -z "${DIGITALOCEAN_API_BASE+x}" ]] && declare -gr DIGITALOCEAN_API_BASE="https://api.digitalocean.com/v2"
 
 # .NET Support
 # Baseline versions for display in menus - dynamically extended by get_available_dotnet_versions()
@@ -50,8 +51,10 @@ __CONSTANTS_SH_LOADED=1
 # 🔓 Optional Environment Variables
 # ======================
 
-[[ -z "${CLOUDFLARE_API_TOKEN+x}" ]] && declare -g CLOUDFLARE_API_TOKEN
-[[ -z "${UPCLOUD_API_TOKEN+x}" ]]    && declare -g UPCLOUD_API_TOKEN
-[[ -z "${GITHUB_API_TOKEN+x}" ]]     && declare -g GITHUB_API_TOKEN
-[[ -z "${SERVER_IPv4+x}" ]]          && declare -g SERVER_IPv4
-[[ -z "${SERVER_IPv6+x}" ]]          && declare -g SERVER_IPv6
+[[ -z "${CLOUDFLARE_API_TOKEN+x}" ]]    && declare -g CLOUDFLARE_API_TOKEN
+[[ -z "${UPCLOUD_API_TOKEN+x}" ]]       && declare -g UPCLOUD_API_TOKEN
+[[ -z "${DIGITALOCEAN_API_TOKEN+x}" ]] && declare -g DIGITALOCEAN_API_TOKEN
+[[ -z "${GITHUB_API_TOKEN+x}" ]]        && declare -g GITHUB_API_TOKEN
+[[ -z "${SERVER_IPv4+x}" ]]             && declare -g SERVER_IPv4
+[[ -z "${SERVER_IPv6+x}" ]]             && declare -g SERVER_IPv6
+[[ -z "${CLOUD_PROVIDER+x}" ]]          && declare -g CLOUD_PROVIDER

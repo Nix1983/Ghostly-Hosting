@@ -28,6 +28,8 @@ TESTS=(
   "commit_message_truncation_tests.sh"
   "build_tests.sh"
   "installer_tests.sh"
+  "test_provider_abstraction.sh"
+  "test_digitalocean_integration.sh"
 )
 
 FAILED_TESTS=()
