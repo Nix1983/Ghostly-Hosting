@@ -149,6 +149,11 @@ _extract_server_uuid_from_server_details() {
 }
 
 _get_upcloud_server_uuid_via_metadata_service() {
+  if [[ "${CLOUD_PROVIDER:-}" != "upcloud" ]]; then
+    declare -f _safe_log >/dev/null 2>&1 && _safe_log debug "_get_upcloud_server_uuid_via_metadata_service" "Skipped: CLOUD_PROVIDER is not upcloud"
+    return 1
+  fi
+
   local metadata_uuid=""
 
   metadata_uuid=$(curl -fsS --max-time 2 http://169.254.169.254/metadata/v1/instance_id 2>/dev/null | tr -d '[:space:]') || true
@@ -1101,6 +1106,10 @@ _get_upcloud_current_server_uuid_for_token_check() {
   if _is_valid_upcloud_uuid "${SERVER_UUID:-}"; then
     printf '%s\n' "$SERVER_UUID"
     return 0
+  fi
+
+  if [[ "${CLOUD_PROVIDER:-}" != "upcloud" ]]; then
+    return 1
   fi
 
   local metadata_uuid=""

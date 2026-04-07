@@ -116,9 +116,11 @@ init_and_load_env() {
   set -a && source "$ENV_FILE" 2>/dev/null || true && set +a
 
   # Backwards compatibility: if CLOUD_PROVIDER is not set but UPCLOUD_API_TOKEN
-  # exists and is valid, default to upcloud silently.
+  # exists and is valid, default to upcloud and inform the user.
   if [[ -z "${CLOUD_PROVIDER:-}" ]]; then
     if validate_upcloud_token "${UPCLOUD_API_TOKEN:-}" 2>/dev/null; then
+      echo -e "ℹ️  UpCloud token detected – defaulting to provider: upcloud"
+      echo -e "   To change provider, set CLOUD_PROVIDER in your config and restart."
       CLOUD_PROVIDER="upcloud"
       updated=true
     fi

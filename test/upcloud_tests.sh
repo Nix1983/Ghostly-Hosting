@@ -153,7 +153,9 @@ test_get_server_uuid_from_metadata_service() {
   SERVER_IPv4="212.147.228.206"
   SERVER_IPv6=""
   local saved_token="${UPCLOUD_API_TOKEN:-}"
+  local saved_provider="${CLOUD_PROVIDER:-}"
   UPCLOUD_API_TOKEN="mock_token"
+  CLOUD_PROVIDER="upcloud"
 
   curl() {
     if [[ "$*" == *"http://169.254.169.254/metadata/v1/instance_id"* ]]; then
@@ -167,12 +169,14 @@ test_get_server_uuid_from_metadata_service() {
     if [[ "$SERVER_UUID" == "00bf9504-a4cb-4839-88ff-124a2c95e169" ]]; then
       echo "✅ _get_upcloud_server_uuid_by_ip: UUID resolved via metadata service correctly"
       UPCLOUD_API_TOKEN="$saved_token"
+      CLOUD_PROVIDER="$saved_provider"
       unset -f curl
       unset SERVER_UUID
       return 0
     else
       echo "❌ _get_upcloud_server_uuid_by_ip: Wrong UUID resolved from metadata service: $SERVER_UUID"
       UPCLOUD_API_TOKEN="$saved_token"
+      CLOUD_PROVIDER="$saved_provider"
       unset -f curl
       unset SERVER_UUID
       return 1
@@ -180,6 +184,7 @@ test_get_server_uuid_from_metadata_service() {
   else
     echo "❌ _get_upcloud_server_uuid_by_ip: Failed to resolve UUID via metadata service"
     UPCLOUD_API_TOKEN="$saved_token"
+    CLOUD_PROVIDER="$saved_provider"
     unset -f curl
     unset SERVER_UUID
     return 1

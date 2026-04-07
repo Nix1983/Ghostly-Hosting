@@ -525,7 +525,7 @@ reset_server() {
   remove_ufw
   remove_swap
 
-  rm -rf "${APP_BASE_DIR:?}/"* "/var/${CLONE_BASE_DIR:?}"
+  rm -rf "${APP_BASE_DIR:?}/"* "/${CLONE_BASE_DIR:?}"
 
   echo -e "\n🌐 \e[1mResetting system timezone...\e[0m"
   timedatectl set-timezone UTC

@@ -119,6 +119,13 @@ load_github_repositories() {
 clone_repository() {
   local commit_hash="${1:-}"
 
+  local free_kb
+  free_kb=$(df -k / | awk 'NR==2 {print $4}')
+  if (( free_kb < 1048576 )); then
+    echo -e "\n❌ Insufficient disk space. At least 1 GB required, $(( free_kb / 1024 )) MB available." >&2
+    return 1
+  fi
+
   TMP_CLONE_DIR="/$CLONE_BASE_DIR/${SELECTED_REPO_NAME}"
   export TMP_CLONE_DIR
 
