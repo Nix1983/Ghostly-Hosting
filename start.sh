@@ -99,7 +99,7 @@ init_and_load_env() {
     echo -e "💡 Host unlimited .NET apps on your preferred cloud provider"
     echo -e "🔄 \e[1;33mGitHub-integrated deployments\e[0m — auto-update from your repo"
     echo -e "☁️ HTTPS, DNS & secure proxy via \e[38;5;117mCloudflare\e[0m (DDoS & caching included)"
-    echo -e "🛡️ Built-in firewall, PTR setup & uptime monitoring"
+    echo -e "🛡️ Built-in firewall & uptime monitoring"
     echo -e "🔁 One-command app updates & rollbacks (commit-based)"
     echo -e "💾 Minimal encrypted backups — fast, compact, restorable"
     echo -e "🔒 All credentials are \e[38;5;28msecurely stored\e[0m and stay on your server"
@@ -133,7 +133,6 @@ init_and_load_env() {
       echo -e "Choose your cloud infrastructure provider:\n"
       echo -e " 1) 🟣 \e[1mUpCloud\e[0m"
       echo -e "    • Managed firewall via API"
-      echo -e "    • Automatic PTR (reverse DNS) configuration"
       echo -e "    • \$3/month hosting\n"
       echo -e " 2) 🔵 \e[1mDigital Ocean\e[0m"
       echo -e "    • Managed firewall via API"
@@ -190,7 +189,6 @@ init_and_load_env() {
         print_double_line
         echo -e "🔧 Used to:"
         echo -e "   • Create and manage \e[1mfirewall rules\e[0m"
-        echo -e "   • Configure \e[1mPTR (reverse DNS)\e[0m records"
         echo -e "   • Identify your account for deployments"
         echo
         echo -e "💡 Recommended: Create an \e[1mAPI token\e[0m in your UpCloud dashboard"
