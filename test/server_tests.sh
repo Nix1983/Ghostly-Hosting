@@ -243,6 +243,48 @@ test_is_server_component_available_detects_nginx_from_family_package() {
   return 1
 }
 
+# Test 13: install_fail2ban must be defined (not the old typo intsall_fail2ban)
+test_install_fail2ban_function_name() {
+  echo "Running test_install_fail2ban_function_name"
+
+  if declare -f install_fail2ban >/dev/null 2>&1; then
+    echo "PASS install_fail2ban is correctly defined in fail2ban.sh"
+  else
+    echo "FAIL install_fail2ban is NOT defined – the typo intsall_fail2ban may still be present"
+    return 1
+  fi
+
+  if declare -f intsall_fail2ban >/dev/null 2>&1; then
+    echo "FAIL intsall_fail2ban (typo) is still defined in fail2ban.sh"
+    return 1
+  else
+    echo "PASS intsall_fail2ban (typo) is absent"
+  fi
+
+  return 0
+}
+
+# Test 14: init_server calls install_fail2ban (not the old typo)
+test_init_server_calls_correct_fail2ban_function() {
+  echo "Running test_init_server_calls_correct_fail2ban_function"
+
+  if grep -q "install_fail2ban" "$ROOT_DIR/lib/server.sh"; then
+    echo "PASS server.sh calls install_fail2ban (correct)"
+  else
+    echo "FAIL server.sh does not call install_fail2ban"
+    return 1
+  fi
+
+  if grep -q "intsall_fail2ban" "$ROOT_DIR/lib/server.sh"; then
+    echo "FAIL server.sh still calls intsall_fail2ban (typo)"
+    return 1
+  else
+    echo "PASS server.sh does not contain intsall_fail2ban (typo)"
+  fi
+
+  return 0
+}
+
 TESTS=(
   "test_server_script_exists"
   "test_server_script_sources"
@@ -256,6 +298,8 @@ TESTS=(
   "test_resolve_status_binary_path_supports_known_fallbacks"
   "test_pending_updates_include_package_supports_variants"
   "test_is_server_component_available_detects_nginx_from_family_package"
+  "test_install_fail2ban_function_name"
+  "test_init_server_calls_correct_fail2ban_function"
 )
 
 FAILED=0

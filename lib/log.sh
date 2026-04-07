@@ -5,6 +5,11 @@ set -e
 # Note: log.sh should NOT source common.sh to avoid circular dependency
 # log.sh provides logging functions that can be used by any module
 source ./lib/print.sh
+# Note: The following modules are sourced here because log.sh also hosts the
+# log viewer UI (show_log_menu) which displays app-level status (SSL certs,
+# Cloudflare DNS, GitHub metadata). If you only need the logging functions
+# (_safe_log, log_error, etc.) without the UI, source log.sh early before
+# these heavy dependencies are loaded.
 source ./lib/cloudflare.sh
 source ./lib/certbot.sh
 source ./lib/github.sh

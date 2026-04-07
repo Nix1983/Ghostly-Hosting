@@ -23,7 +23,7 @@ remove_fail2ban() {
   echo -e "🗑️ Removed Fail2Ban configuration, binaries and Python modules."
 }
 
-intsall_fail2ban(){
+install_fail2ban(){
     echo -e "\n🛡️ \e[1mInstalling Fail2Ban (security)...\e[0m"
   if ! command -v fail2ban-client >/dev/null 2>&1; then
     if apt-get install -y fail2ban >/dev/null 2>&1; then
@@ -49,7 +49,7 @@ intsall_fail2ban(){
   fi
 
   echo -e "\n🔐 \e[1mEnabling and starting Fail2Ban...\e[0m"
-  if systemctl enable fail2ban >/dev/null 2>&1 && systemctl start fail2ban >/dev/null 2>&1; then
+  if systemctl enable fail2ban >/dev/null 2>&1 && systemctl start fail2ban >/dev/null 2>&1 && systemctl is-active --quiet fail2ban; then
     echo "✅ Fail2Ban service is running."
   else
     echo -e "❌ \e[31mFailed to start or enable Fail2Ban.\e[0m"
@@ -71,6 +71,9 @@ configure_f2b() {
     echo "maxretry = 3"
     echo ""
 
+    # Note: nginx-http-auth is only useful when nginx is exposed directly to the
+    # internet. If you use Cloudflare as a proxy, all traffic comes through
+    # Cloudflare IPs and this jail will not trigger on real attacker IPs.
     echo "[nginx-http-auth]"
     echo "enabled = true"
     echo "filter = nginx-http-auth"
@@ -164,14 +167,16 @@ show_f2b_status() {
     "$wl_sshd" "$wl_nginx" "$wl_total"
   echo "──────────────────────────────────────────────────────────────────────"
 
-  echo -e "\n🔥 \e[1mPermanently Banned IPs (bantime = -1):\e[0m"
+  echo -e "\n🔥 \e[1mManually Banned IPs (via fail2ban-client):\e[0m"
   echo "──────────────────────────────────────────────────────────────────────"
-  local bl_global; bl_global=$(count_section_ips "DEFAULT" "bannedip")
-  local bl_sshd; bl_sshd=$(count_section_ips "sshd" "bannedip")
-  local bl_nginx; bl_nginx=$(count_section_ips "nginx-http-auth" "bannedip")
-  local bl_total=$((bl_global + bl_sshd + bl_nginx))
-  printf "🔴 %-22s %-18s %-18s %-18s\n" "Permanent blocklist:" \
-    "$bl_sshd" "$bl_nginx" "$bl_total"
+  local bl_sshd=0 bl_nginx=0
+  if command -v fail2ban-client >/dev/null 2>&1; then
+    bl_sshd=$(fail2ban-client status sshd 2>/dev/null | grep "Currently banned:" | awk '{print $NF}' || echo 0)
+    bl_nginx=$(fail2ban-client status nginx-http-auth 2>/dev/null | grep "Currently banned:" | awk '{print $NF}' || echo 0)
+  fi
+  local bl_total=$(( ${bl_sshd:-0} + ${bl_nginx:-0} ))
+  printf "🔴 %-22s %-18s %-18s %-18s\n" "Currently banned:" \
+    "${bl_sshd:-0}" "${bl_nginx:-0}" "$bl_total"
   echo "──────────────────────────────────────────────────────────────────────"
 }
 
@@ -188,7 +193,7 @@ show_whitelist_entrys() {
 }
 
 load_f2b_whitelist_entries() {
-  local result_map_name="$1"
+  declare -n _result_map="$1"
   local index=1
   local section=""
   local found_any=false
@@ -203,7 +208,7 @@ load_f2b_whitelist_entries() {
     elif [[ "$trimmed" =~ ^ignoreip[[:space:]]*=[[:space:]]*(.*) ]]; then
       for ip in ${BASH_REMATCH[1]}; do
         [[ -n "$ip" ]] || continue
-        eval "${result_map_name}[$index]=\"$ip|$section\""
+        _result_map[$index]="$ip|$section"
         found_any=true
         ((index++))
       done
@@ -331,7 +336,7 @@ remove_ip_from_whitelist() {
   echo -e "\n🧹 \e[1mRemove Whitelist Entry"
   echo "────────────────────────────────────────────────────────────"
 
-  declare -gA whitelist_map
+  declare -A whitelist_map
   if ! load_f2b_whitelist_entries whitelist_map; then
     echo -e "\n❌ No whitelist entries found."
     return 1
@@ -360,7 +365,7 @@ remove_ip_from_whitelist() {
     remove_ip_from_whitelist_by_ip "$ip_to_remove" "$section"
 
     echo -e "🔄 Restarting Fail2Ban..."
-    if sudo systemctl restart fail2ban; then
+    if systemctl restart fail2ban; then
       echo -e "✅ \e[1m$ip_to_remove successfully removed and Fail2Ban restarted.\e[0m"
     else
       echo -e "❌ Fail2Ban restart failed."
@@ -423,16 +428,16 @@ add_ip_to_whitelist() {
 
   if grep -q "^\[$SECTION\]" "$CONFIG_FILE"; then
     if grep -A 5 "^\[$SECTION\]" "$CONFIG_FILE" | grep -q "^ignoreip"; then
-      sudo sed -i "/^\[$SECTION\]/,/^\[.*\]/ s/^\(ignoreip *= *\)\(.*\)/\1\2 $IP/" "$CONFIG_FILE"
+      sed -i "/^\[$SECTION\]/,/^\[.*\]/ s/^\(ignoreip *= *\)\(.*\)/\1\2 $IP/" "$CONFIG_FILE"
     else
-      sudo sed -i "/^\[$SECTION\]/ a ignoreip = $IP" "$CONFIG_FILE"
+      sed -i "/^\[$SECTION\]/ a ignoreip = $IP" "$CONFIG_FILE"
     fi
   else
-    echo -e "\n[$SECTION]\nignoreip = $IP\n" | sudo tee -a "$CONFIG_FILE" > /dev/null
+    echo -e "\n[$SECTION]\nignoreip = $IP\n" | tee -a "$CONFIG_FILE" > /dev/null
   fi
 
   echo -e "\n🔄 Restarting Fail2Ban..."
-  if sudo systemctl restart fail2ban; then
+  if systemctl restart fail2ban; then
     echo -e "✅ \e[1mIP $IP successfully added to [\e[1m$SECTION\e[0m] whitelist.\e[0m"
   else
     echo -e "❌ Fail2Ban restart failed."
@@ -475,7 +480,7 @@ clear_fail2ban_whitelist() {
   done
 
   echo -e "\n🔄 Restarting Fail2Ban..."
-  if sudo systemctl restart fail2ban; then
+  if systemctl restart fail2ban; then
     echo -e "✅ \e[1mWhitelist cleared successfully and Fail2Ban restarted.\e[0m"
   else
     echo -e "❌ Fail2Ban restart failed."
@@ -528,128 +533,92 @@ show_f2b_whitelist_menu() {
 }
 
 load_f2b_blocklist_entries() {
-  local result_map_name="$1"
+  # Reads currently banned IPs from fail2ban-client (live data from the daemon).
+  # This replaces the old approach of writing a non-standard "bannedip" key
+  # to jail.local, which fail2ban silently ignored.
+  declare -n _result_map="$1"
   local index=1
-  local section=""
   local found_any=false
+  local jails=("sshd" "nginx-http-auth")
 
-  while IFS= read -r line; do
-    local trimmed
-    trimmed=$(echo "$line" | xargs)
-
-    if [[ "$trimmed" =~ ^\[.*\]$ ]]; then
-      section="${trimmed#[}"; section="${section%]}"
-    elif [[ "$trimmed" =~ ^bannedip[[:space:]]*=[[:space:]]*(.*) ]]; then
-      for ip in ${BASH_REMATCH[1]}; do
-        [[ -n "$ip" ]] || continue
-        eval "${result_map_name}[$index]=\"$ip|$section\""
-        found_any=true
-        ((index++))
-      done
+  for jail in "${jails[@]}"; do
+    local jail_status banned_list
+    if ! jail_status=$(fail2ban-client status "$jail" 2>/dev/null); then
+      continue
     fi
-  done < "$CONFIG_FILE"
+    banned_list=$(echo "$jail_status" | grep "Banned IP list:" | sed 's/.*Banned IP list:[[:space:]]*//')
+    for ip in $banned_list; do
+      [[ -n "$ip" ]] || continue
+      _result_map[$index]="$ip|$jail"
+      found_any=true
+      ((index++))
+    done
+  done
 
   $found_any
 }
 
 add_ip_to_blocklist() {
   clear
-  echo -e "\n➕ \e[1mAdd IP to Fail2Ban Blocklist"
+  echo -e "\n➕ \e[1mManually Ban IP via Fail2Ban"
   echo "────────────────────────────────────────────────────────────"
 
-  echo -n "Enter new IP address: "
+  echo -n "Enter IP address to ban: "
   read -rp "" IP
 
   if [[ "$IP" == "q" || "$IP" == "Q" ]]; then return 1; fi
   if [[ -z "$IP" ]]; then echo "❌ No IP entered."; return; fi
   if ! is_valid_ipv4 "$IP"; then echo "❌ Invalid IPv4 address: $IP"; return; fi
 
-  echo -e "\n🔧 \e[1mWhich jail should block this IP?\e[0m"
+  echo -e "\n🔧 \e[1mWhich jail should ban this IP?\e[0m"
   echo "────────────────────────────────────────────────────────────"
-  echo -e " 1) 🌍 Global (all jails)        2) 🔐 sshd"
-  echo -e " 3) 🌐 nginx-http-auth           $(print_back_to_menu)"
+  echo -e " 1) 🔐 sshd                      2) 🌐 nginx-http-auth"
+  echo -e " 3) 🌍 All jails                 $(print_back_to_menu)"
   echo "────────────────────────────────────────────────────────────"
   echo -n "Choose [1–3,q]: "
   IFS= read -rsn1 scope; echo
 
+  local jails_to_ban=()
   case $scope in
-    1) SECTION="DEFAULT" ;;
-    2) SECTION="sshd" ;;
-    3) SECTION="nginx-http-auth" ;;
+    1) jails_to_ban=("sshd") ;;
+    2) jails_to_ban=("nginx-http-auth") ;;
+    3) jails_to_ban=("sshd" "nginx-http-auth") ;;
     q|Q) return 1 ;;
     *) print_invalid_selection; return 1 ;;
   esac
 
-  local current_section
-  current_section=$(awk -v ip="$IP" 'BEGIN { section="" }
-    /^\[.*\]/ { section=$0 }
-    $0 ~ "bannedip" && $0 ~ ip { print section }' "$CONFIG_FILE" | head -1 | sed 's/\[//;s/\]//')
-
-  if [[ -n "$current_section" ]]; then
-    if [[ "$current_section" == "$SECTION" ]]; then
-      echo -e "ℹ️  IP \e[1;33m$IP\e[0m is already in [\e[1m$SECTION\e[0m]."
-      return 0
+  local any_success=false
+  for jail in "${jails_to_ban[@]}"; do
+    if fail2ban-client set "$jail" banip "$IP" >/dev/null 2>&1; then
+      echo -e "✅ \e[1mIP $IP banned in [$jail].\e[0m"
+      any_success=true
     else
-      echo -e "🔁 IP \e[1;33m$IP\e[0m is currently in [\e[1m$current_section\e[0m] – moving..."
-      remove_ip_from_blocklist_by_ip "$IP" "$current_section"
+      echo -e "❌ Failed to ban $IP in [$jail]."
     fi
-  fi
+  done
 
-  if grep -q "^\[$SECTION\]" "$CONFIG_FILE"; then
-    if grep -A 5 "^\[$SECTION\]" "$CONFIG_FILE" | grep -q "^bannedip"; then
-      sudo sed -i "/^\[$SECTION\]/,/^\[.*\]/ s/^\(bannedip *= *\)\(.*\)/\1\2 $IP/" "$CONFIG_FILE"
-    else
-      sudo sed -i "/^\[$SECTION\]/ a bannedip = $IP" "$CONFIG_FILE"
-    fi
-  else
-    echo -e "\n[$SECTION]\nbannedip = $IP\n" | sudo tee -a "$CONFIG_FILE" > /dev/null
-  fi
-
-  echo -e "\n🔄 Restarting Fail2Ban..."
-  if sudo systemctl restart fail2ban; then
-    echo -e "✅ \e[1mIP $IP successfully added to [\e[1m$SECTION\e[0m] blocklist.\e[0m"
-  else
-    echo -e "❌ Fail2Ban restart failed."
-  fi
+  $any_success
 }
 
 remove_ip_from_blocklist_by_ip() {
   local ip="$1"
-  local section="$2"
-  local temp_file
-  temp_file=$(mktemp)
-
-  awk -v section="$section" -v ip="$ip" '
-    BEGIN { in_section=0 }
-    /^\[.*\]/ { in_section = ($0 == "[" section "]") }
-    {
-      if (in_section && $0 ~ /^bannedip[[:space:]]*=/) {
-        split($0, parts, "=")
-        n = split(parts[2], ips, /[[:space:]]+/)
-        new_line = "bannedip ="
-        for (i = 1; i <= n; i++) {
-          if (ips[i] != "" && ips[i] != ip) {
-            new_line = new_line " " ips[i]
-          }
-        }
-        if (new_line != "bannedip =") print new_line
-        next
-      }
-    }
-    { print }
-  ' "$CONFIG_FILE" > "$temp_file"
-
-  mv "$temp_file" "$CONFIG_FILE"
+  local jail="$2"
+  if fail2ban-client set "$jail" unbanip "$ip" >/dev/null 2>&1; then
+    return 0
+  else
+    echo -e "⚠️  Could not unban \e[1;33m$ip\e[0m from [$jail] – may not be actively banned."
+    return 1
+  fi
 }
 
 remove_ip_from_blocklist() {
   clear
-  echo -e "\n🧹 \e[1mRemove Blocklist Entry"
+  echo -e "\n🧹 \e[1mUnban IP via Fail2Ban"
   echo "────────────────────────────────────────────────────────────"
 
-  declare -gA blocklist_map
+  declare -A blocklist_map
   if ! load_f2b_blocklist_entries blocklist_map; then
-    echo -e "\n❌ No blocklist entries found."
+    echo -e "\n❌ No actively banned IPs found."
     return 1
   fi
 
@@ -657,7 +626,7 @@ remove_ip_from_blocklist() {
   echo ""
   print_back_to_menu
   echo "────────────────────────────────────────────────────────────"
-  echo -n "Select the number of the IP to remove: "
+  echo -n "Select the number of the IP to unban: "
   IFS= read -r selection
   echo
 
@@ -667,19 +636,14 @@ remove_ip_from_blocklist() {
 
   if [[ "$selection" =~ ^[0-9]+$ && -n "${ip_index_map[$selection]}" ]]; then
     local id="${ip_index_map[$selection]}"
-    local ip_to_remove section
+    local ip_to_remove jail
     ip_to_remove=$(cut -d'|' -f1 <<< "${blocklist_map[$id]}")
-    section=$(cut -d'|' -f2 <<< "${blocklist_map[$id]}")
+    jail=$(cut -d'|' -f2 <<< "${blocklist_map[$id]}")
 
-    echo -e "\n🧹 Removing \e[1;33m$ip_to_remove\e[0m from [\e[1m$section\e[0m]..."
+    echo -e "\n🧹 Unbanning \e[1;33m$ip_to_remove\e[0m from [\e[1m$jail\e[0m]..."
 
-    remove_ip_from_blocklist_by_ip "$ip_to_remove" "$section"
-
-    echo -e "\n🔄 Restarting Fail2Ban..."
-    if sudo systemctl restart fail2ban; then
-      echo -e "✅ \e[1m$ip_to_remove successfully removed and Fail2Ban restarted.\e[0m"
-    else
-      echo -e "❌ Fail2Ban restart failed."
+    if remove_ip_from_blocklist_by_ip "$ip_to_remove" "$jail"; then
+      echo -e "✅ \e[1m$ip_to_remove successfully unbanned from [$jail].\e[0m"
     fi
     return 0
   else
@@ -691,18 +655,18 @@ remove_ip_from_blocklist() {
 
 clear_fail2ban_blocklist() {
   clear
-  echo -e "\n🧹 \e[1mClear Entire Blocklist"
+  echo -e "\n🧹 \e[1mUnban All Manually Banned IPs"
   echo "────────────────────────────────────────────────────────────"
 
   declare -a entries
   get_blocklist_entry_list entries
 
   if [[ ${#entries[@]} -eq 0 ]]; then
-    echo -e "\n⚠️  No entries found in blocklist."
+    echo -e "\n⚠️  No actively banned IPs found."
     return 1
   fi
 
-  echo -e "\n⚠️  This will remove \e[1m${#entries[@]}\e[0m entries from the blocklist."
+  echo -e "\n⚠️  This will unban \e[1m${#entries[@]}\e[0m IPs from Fail2Ban."
   read -rp " ❗  Are you sure you want to proceed? [y/N]: " confirm
 
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
@@ -713,36 +677,31 @@ clear_fail2ban_blocklist() {
   for entry in "${entries[@]}"; do
     ip=$(cut -d'|' -f1 <<< "$entry")
     jail=$(cut -d'|' -f2 <<< "$entry")
-    echo -e "❌ Removing \e[1;33m$ip\e[0m from [\e[1m$jail\e[0m]..."
-    remove_ip_from_blocklist_by_ip "$ip" "$jail"
+    echo -e "🧹 Unbanning \e[1;33m$ip\e[0m from [\e[1m$jail\e[0m]..."
+    remove_ip_from_blocklist_by_ip "$ip" "$jail" || true
   done
 
-  echo -e "\n🔄 Restarting Fail2Ban..."
-  if sudo systemctl restart fail2ban; then
-    echo -e "✅ \e[1mBlocklist cleared successfully and Fail2Ban restarted.\e[0m"
-  else
-    echo -e "❌ Fail2Ban restart failed."
-  fi
+  echo -e "\n✅ \e[1mAll manually banned IPs have been removed.\e[0m"
 }
 
 get_blocklist_entry_list() {
-  local ref_name="$1"
+  declare -n _bl_array="$1"
   declare -A map
-  eval "$ref_name=()"
+  _bl_array=()
 
   if ! load_f2b_blocklist_entries map; then
     return 1
   fi
 
   for i in $(printf "%s\n" "${!map[@]}" | sort -n); do
-    [[ -n "${map[$i]}" ]] && eval "$ref_name+=(\"\${map[\$i]}\")"
+    [[ -n "${map[$i]}" ]] && _bl_array+=("${map[$i]}")
   done
 }
 
 show_blocklist_entrys() {
   declare -A blocklist_map
   if ! load_f2b_blocklist_entries blocklist_map; then
-    echo -e "\n         🚫 Blocklist is currently empty."
+    echo -e "\n         🚫 No actively banned IPs found."
     return 0
   fi
 
@@ -752,13 +711,13 @@ show_blocklist_entrys() {
 show_f2b_blocklist_menu() {
   while true; do
     clear
-    echo -e "\n\e[1m🔥 Fail2Ban Blocklist Menu"
+    echo -e "\n\e[1m🔥 Fail2Ban Blocklist (Active Bans)"
     echo "────────────────────────────────────────────────────────────"
 
     show_blocklist_entrys
 
-    echo -e "\n 1) ➕ Add IP address               2) ❌ Remove IP address"
-    echo -e "\n 3) 🧼 Show raw blocklist entries   4) 💣 Clear entire blocklist"
+    echo -e "\n 1) ➕ Ban IP address               2) ❌ Unban IP address"
+    echo -e "\n 3) 🧾 Show live ban status         4) 💣 Unban all IPs"
     echo -e "\n $(print_back_to_menu)"
 
     read_menu_choice 4
@@ -777,7 +736,11 @@ show_f2b_blocklist_menu() {
         fi
         ;;
       3)
-        grep -RnE '^\s*bannedip\s*=' "$CONFIG_FILE" || echo -e "\n🚫 No bannedip entries found."
+        echo -e "\n🧾 \e[1mLive Fail2Ban Ban Status:\e[0m"
+        for jail in "sshd" "nginx-http-auth"; do
+          echo -e "\n[$jail]:"
+          fail2ban-client status "$jail" 2>/dev/null | grep "Banned IP list:" || echo "  (none)"
+        done
         echo ""
         print_press_any_key
         ;;

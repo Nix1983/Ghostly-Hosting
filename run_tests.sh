@@ -30,6 +30,8 @@ TESTS=(
   "installer_tests.sh"
   "test_provider_abstraction.sh"
   "test_digitalocean_integration.sh"
+  "fail2ban_tests.sh"
+  "certbot_tests.sh"
 )
 
 FAILED_TESTS=()
@@ -96,6 +98,8 @@ echo "  App Deployment Tests: ✅"
 echo "  API Integration Tests: ✅"
 echo "  Common Utilities:     ✅"
 echo "  Error Logging:        ✅"
+echo "  Fail2Ban:             ✅"
+echo "  Certbot:              ✅"
 echo ""
 
 if [[ ${#FAILED_TESTS[@]} -gt 0 ]]; then

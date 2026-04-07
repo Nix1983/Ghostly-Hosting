@@ -391,42 +391,7 @@ _get_upcloud_firewall_rules_response() {
   return 0
 }
 
-_read_secret_with_asterisks() {
-  local prompt="$1"
-  local result_var="$2"
-  local input="" char
-
-  printf '%s' "$prompt"
-
-  while IFS= read -rsn1 char; do
-    if [[ -z "$char" || "$char" == $'\n' ]]; then
-      printf '\n'
-      break
-    fi
-
-    if [[ "$char" == $'\x1b' ]]; then
-      # Drain any remaining bytes of an escape sequence (e.g. arrow keys)
-      local _esc_rest
-      IFS= read -rsn10 -t 0.05 _esc_rest 2>/dev/null || true
-      printf '\n'
-      printf -v "$result_var" '%s' $'\x1b'
-      return 0
-    fi
-
-    if [[ "$char" == $'\x7f' || "$char" == $'\x08' ]]; then
-      if [[ -n "$input" ]]; then
-        input="${input%?}"
-        printf '\b \b'
-      fi
-      continue
-    fi
-
-    input+="$char"
-    printf '*'
-  done
-
-  printf -v "$result_var" '%s' "$input"
-}
+# Note: _read_secret_with_asterisks is defined in common.sh and available here.
 
 _normalize_upcloud_firewall_rules_array() {
   jq -c '

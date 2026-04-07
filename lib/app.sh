@@ -55,15 +55,10 @@ _redeploy_blazor_app() {
 
 _load_dynamic_app_info() {
   local service="$1"
-  local exec_dir
-  exec_dir=$(resolve_exec_dir_from_service_name "$service")
 
   status=$(get_service_status_icon "$service")
-
   ram_size=$(get_service_ram_usage "$service")
-
   uptime=$(get_service_uptime "$service")
-
 }
 
 delete_app() {
