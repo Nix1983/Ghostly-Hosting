@@ -147,11 +147,7 @@ delete_app() {
 
   # Remove nginx-loglink timer if no other apps exist
   if [[ -z "$(find "$APP_BASE_DIR" -type f -name '*.dll' 2>/dev/null)" ]]; then
-    echo -e "\n🧹 \e[1mNo apps remaining – removing nginx log timer...\e[0m"
-    systemctl disable --now nginx-loglink.timer 2>/dev/null || true
-    rm -f /etc/systemd/system/nginx-loglink.timer
-    rm -f /etc/systemd/system/nginx-loglink.service
-    systemctl daemon-reload
+    remove_nginx_log_timer
   fi
 
   echo -e "\n✅ \e[1;32mApp $HOSTNAME_FQDN fully deleted.\e[0m"
