@@ -225,9 +225,9 @@ show_app_manager_menu() {
         add_new_app
         local exit_code=$?
 
-        if [[ "$exit_code" -ne 0 ]]; then
+        if [[ "$exit_code" -eq 1 ]]; then
           echo -e "\n❌ App deployment aborted."
-          [[ "$exit_code" -eq 1 ]] && rollback_app_deployment
+          rollback_app_deployment
           print_press_any_key
         fi
         ;;
