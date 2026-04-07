@@ -427,40 +427,6 @@ _configure_digitalocean_api_token() {
 # Admin Menu
 # =============================================================================
 
-_configure_digitalocean_ptr() {
-  local droplet_id
-  local ptr_hostname
-
-  echo -e "\n🔁 \e[1mConfigure Reverse DNS (PTR Record)\e[0m"
-  print_line
-
-  echo -e "\n Enter the Droplet ID (numeric):"
-  read -r droplet_id
-  if [[ ! "$droplet_id" =~ ^[0-9]+$ ]]; then
-    echo -e "❌ Invalid Droplet ID." >&2
-    return 1
-  fi
-
-  echo -e "\n Enter the hostname for the PTR record (e.g. srv1.example.com):"
-  read -r ptr_hostname
-  if [[ -z "$ptr_hostname" ]]; then
-    echo -e "❌ Hostname cannot be empty." >&2
-    return 1
-  fi
-
-  local payload
-  payload=$(printf '{"type":"rename","name":"%s"}' "$ptr_hostname")
-
-  local response_body response_status
-  if _digitalocean_api_request POST "droplets/${droplet_id}/actions" "$payload" response_body response_status; then
-    echo -e "\n✅ PTR record set to \e[36m${ptr_hostname}\e[0m for Droplet ${droplet_id}."
-  else
-    echo -e "\n❌ Failed to configure PTR record (HTTP ${response_status})." >&2
-    echo "$response_body" >&2
-    return 1
-  fi
-}
-
 show_digitalocean_menu() {
   while true; do
     clear
@@ -473,10 +439,9 @@ show_digitalocean_menu() {
     echo -e "\e[1m──────────────────────────────────────────────────────\e[0m"
     echo -e "\n 1) 📊 Show Firewall Status         2) 💣 Delete All Rules"
     echo -e "\n 3) 📦 Apply Server Rules           4) 🔑 Change API Token"
-    echo -e "\n 5) 🔁 Configure Reverse DNS (PTR)"
     echo -e "\n $(print_back_to_menu)"
     echo -e "\n─────────────────────────────────────────────────────────────"
-    print_select_prompt 5
+    print_select_prompt 4
 
     IFS= read -rsn1 choice
     echo
@@ -499,11 +464,6 @@ show_digitalocean_menu() {
         ;;
       4)
         _configure_digitalocean_api_token
-        echo ""
-        print_press_any_key
-        ;;
-      5)
-        _configure_digitalocean_ptr
         echo ""
         print_press_any_key
         ;;
