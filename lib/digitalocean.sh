@@ -381,16 +381,14 @@ _configure_digitalocean_ptr() {
   fi
 
   local payload
-  payload=$(printf '{"type":"ptr","data":"%s"}' "$ptr_hostname")
+  payload=$(printf '{"type":"rename","name":"%s"}' "$ptr_hostname")
 
-  local response
-  response=$(_digitalocean_api_request POST "/v2/droplets/${droplet_id}/actions" "$payload")
-
-  if echo "$response" | grep -q '"id"'; then
+  local response_body response_status
+  if _digitalocean_api_request POST "droplets/${droplet_id}/actions" "$payload" response_body response_status; then
     echo -e "\n✅ PTR record set to \e[36m${ptr_hostname}\e[0m for Droplet ${droplet_id}."
   else
-    echo -e "\n❌ Failed to configure PTR record." >&2
-    echo "$response" >&2
+    echo -e "\n❌ Failed to configure PTR record (HTTP ${response_status})." >&2
+    echo "$response_body" >&2
     return 1
   fi
 }
