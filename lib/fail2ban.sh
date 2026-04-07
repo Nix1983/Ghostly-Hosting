@@ -49,12 +49,19 @@ install_fail2ban(){
   fi
 
   echo -e "\n🔐 \e[1mEnabling and starting Fail2Ban...\e[0m"
-  if systemctl enable fail2ban >/dev/null 2>&1 && systemctl start fail2ban >/dev/null 2>&1 && systemctl is-active --quiet fail2ban; then
-    echo "✅ Fail2Ban service is running."
-  else
-    echo -e "❌ \e[31mFailed to start or enable Fail2Ban.\e[0m"
+  if ! systemctl enable fail2ban >/dev/null 2>&1; then
+    echo -e "❌ \e[31mFailed to enable Fail2Ban service.\e[0m"
     exit 1
   fi
+  if ! systemctl start fail2ban >/dev/null 2>&1; then
+    echo -e "❌ \e[31mFailed to start Fail2Ban service.\e[0m"
+    exit 1
+  fi
+  if ! systemctl is-active --quiet fail2ban; then
+    echo -e "❌ \e[31mFail2Ban service is not running after start.\e[0m"
+    exit 1
+  fi
+  echo "✅ Fail2Ban service is running."
 }
 
 configure_f2b() {
