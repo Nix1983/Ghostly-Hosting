@@ -26,7 +26,7 @@ show_manual_firewall_info() {
   echo -e "   🔐  Port \e[1m22\e[0m    (SSH)     – Remote server access"
   echo -e "   🌐  Port \e[1m80\e[0m    (HTTP)    – Web traffic & Let's Encrypt validation"
   echo -e "   🔒  Port \e[1m443\e[0m   (HTTPS)   – Secure web traffic (TLS/SSL)"
-  echo -e "   📡  Port \e[1m53\e[0m    (DNS)     – Outbound DNS resolution\n"
+  echo -e "   📡  Port \e[1m53\e[0m    (DNS)     – Outbound DNS queries\n"
   print_line
   echo -e "\n\e[1mRecommended firewall setup:\e[0m\n"
   echo -e "   • \e[2mDeny all incoming traffic by default\e[0m"
