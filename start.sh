@@ -153,7 +153,8 @@ init_and_load_env() {
       echo -e "    • No cloud provider API integration\n"
       print_line
       echo -en "Enter your choice [1-3]: "
-      IFS= read -r provider_choice
+      IFS= read -rsn1 provider_choice
+      echo
       case "$provider_choice" in
         1)
           CLOUD_PROVIDER="upcloud"
