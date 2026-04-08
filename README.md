@@ -1,6 +1,6 @@
 # GhostlyHosting — Blazor Server Hosting Made Easy
 
-> **The all-in-one, SEO-friendly hosting tool for Blazor Server, Blazor WebAssembly, and any .NET web application.**  
+> **The all-in-one, SEO-friendly hosting tool for Blazor Server, Razor Pages, ASP.NET Core, and any .NET web application.**  
 > Deploy, manage, and secure your apps on your own Ubuntu VPS — through an intuitive, user-friendly console application.
 
 GhostlyHosting is an interactive command-line tool that turns a fresh Ubuntu server into a fully configured, production-ready hosting environment for **Blazor Server** and other .NET applications. It automates SSL certificates, DNS management, GitHub-integrated deployments, reverse-proxy setup, and firewall configuration — all without writing a single config file.
@@ -13,7 +13,7 @@ GhostlyHosting is an interactive command-line tool that turns a fresh Ubuntu ser
 
 ## ✨ Features
 
-- 🚀 Deploy unlimited Blazor Server / .NET apps directly from GitHub repositories
+- 🚀 Deploy unlimited Blazor Server, Razor Pages, ASP.NET Core apps directly from GitHub repositories
 - 🔍 SEO-optimized hosting — server-side rendering ensures search engines can crawl your Blazor apps
 - 🖥️ Interactive, menu-driven console app — no config files required
 - 🔒 Automatic HTTPS via Let's Encrypt with Cloudflare DNS setup
@@ -54,7 +54,7 @@ Generate a token at [https://github.com/settings/tokens](https://github.com/sett
 ### Cloud Provider API Token
 
 - **UpCloud**: Create an API token in your [UpCloud control panel](https://signup.upcloud.com/?promo=AW9TF8)
-- **DigitalOcean**: Create a Personal Access Token (read & write) in your [DO dashboard](https://cloud.digitalocean.com/account/api/tokens)
+- **DigitalOcean**: Create a Personal Access Token (read & write) in your [DO dashboard](https://m.do.co/c/d4751d2c3854)
 - **Other**: You manage firewall rules manually (ports 22, 80, 443 must be open)
 
 ---
