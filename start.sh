@@ -9,6 +9,14 @@ source ./lib/digitalocean.sh
 source ./lib/firewall_provider.sh
 source ./lib/github.sh
 
+# Restore terminal state and exit cleanly on Ctrl-C or SIGTERM
+_handle_signal() {
+  tput cnorm 2>/dev/null || true
+  echo ""
+  exit 130
+}
+trap '_handle_signal' INT TERM
+
 get_required_system_package_for_tool() {
   local tool="$1"
 
@@ -145,7 +153,8 @@ init_and_load_env() {
       echo -e "    • No cloud provider API integration\n"
       print_line
       echo -en "Enter your choice [1-3]: "
-      IFS= read -r provider_choice
+      IFS= read -rsn1 provider_choice
+      echo
       case "$provider_choice" in
         1)
           CLOUD_PROVIDER="upcloud"

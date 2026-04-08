@@ -217,7 +217,6 @@ show_server_health() {
   # Updates
   local updates_output updates_count
   updates_output=$(apt list --upgradable 2>/dev/null || true)
-  updates_output=$(apt list --upgradable 2>/dev/null || true)
   updates_count=$(echo "$updates_output" | grep -vc "Listing...") || updates_count=0
 
   # Services
@@ -436,7 +435,7 @@ init_server() {
   print_double_line
 
   install_nginx
-  intsall_fail2ban
+  install_fail2ban
   install_certbot
   install_git
 

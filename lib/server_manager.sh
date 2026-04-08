@@ -16,6 +16,28 @@ source ./lib/version.sh
 export DISABLE_CLEAR=true
 
 
+show_manual_firewall_info() {
+  clear
+  echo -e "\n⚙️  \e[1;33mManual Firewall Configuration\e[0m"
+  print_double_line
+  echo -e "\nYour server is configured with \e[1mmanual\e[0m firewall management."
+  echo -e "No cloud provider API is used to manage firewall rules.\n"
+  echo -e "\e[1mRequired open ports for GhostlyHosting:\e[0m\n"
+  echo -e "   🔐  Port \e[1m22\e[0m    (SSH)     – Remote server access"
+  echo -e "   🌐  Port \e[1m80\e[0m    (HTTP)    – Web traffic & Let's Encrypt validation"
+  echo -e "   🔒  Port \e[1m443\e[0m   (HTTPS)   – Secure web traffic (TLS/SSL)"
+  echo -e "   📡  Port \e[1m53\e[0m    (DNS)     – Outbound DNS queries\n"
+  print_line
+  echo -e "\n\e[1mRecommended firewall setup:\e[0m\n"
+  echo -e "   • \e[2mDeny all incoming traffic by default\e[0m"
+  echo -e "   • \e[2mAllow incoming on ports 22, 80, 443\e[0m"
+  echo -e "   • \e[2mAllow outbound DNS (port 53 UDP/TCP)\e[0m"
+  echo -e "   • \e[2mAllow all outbound traffic (for package updates, API calls)\e[0m\n"
+  print_line
+  print_press_any_key
+}
+
+
 show_server_manager_menu() {
   if [[ -z "$SERVER_IPv4" ]]; then
     echo -e "\n❌ \e[1;31mSERVER_IPv4 is not set.\e[0m"
@@ -29,7 +51,9 @@ show_server_manager_menu() {
     print_double_line
 
     local provider_menu_text=""
-    if [[ "${CLOUD_PROVIDER:-}" != "other" && -n "${CLOUD_PROVIDER:-}" ]]; then
+    if [[ "${CLOUD_PROVIDER:-}" == "other" ]]; then
+      provider_menu_text="6) ⚙️  Firewall Info (Manual)"
+    elif [[ -n "${CLOUD_PROVIDER:-}" ]]; then
       local provider_name
       provider_name=$(get_provider_display_name)
       provider_menu_text="6) ☁️  ${provider_name} Admin"
@@ -59,7 +83,9 @@ show_server_manager_menu() {
          fi
          ;;
       6)
-         if [[ "${CLOUD_PROVIDER:-}" != "other" && -n "${CLOUD_PROVIDER:-}" ]]; then
+         if [[ "${CLOUD_PROVIDER:-}" == "other" ]]; then
+           show_manual_firewall_info
+         elif [[ -n "${CLOUD_PROVIDER:-}" ]]; then
            show_provider_menu
          fi
          ;;

@@ -203,6 +203,19 @@ clone_repository() {
 
   echo -e "\n✅ Repo cloned to \e[2m$TMP_CLONE_DIR\e[0m (including all submodules)"
 
+  # Strip the token from the git remote URL to prevent credential leak in
+  # the on-disk .git/config. The token was only needed for network access.
+  if [[ -d "$TMP_CLONE_DIR/.git" ]]; then
+    git -C "$TMP_CLONE_DIR" remote set-url origin \
+      "https://github.com/${SELECTED_REPO_OWNER}/${SELECTED_REPO_NAME}.git" 2>/dev/null || true
+  fi
+
+  # Also restore any .gitmodules files to non-tokenized form
+  find "$TMP_CLONE_DIR" -type f -name ".gitmodules" | while read -r modfile; do
+    sed -i -E "s#https://${SELECTED_REPO_OWNER}:${GITHUB_API_TOKEN}@github.com/#https://github.com/#g" \
+      "$modfile" 2>/dev/null || true
+  done
+
   if [[ -n "$commit_hash" ]]; then
     echo -e "🔖 \e[1mChecked out specific commit:\e[0m \e[36m$commit_hash\e[0m"
   fi

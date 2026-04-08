@@ -242,6 +242,11 @@ echo "==> Decrypting payload..."
 INSTALLER_HEADER_EOF
 
 # Add the encryption password to the installer
+# Security note: The password is embedded in the installer script itself.
+# This provides obfuscation, not strong security – the password and payload
+# are both in the same file. Do not store sensitive credentials inside the
+# hosted application payload. The installer is intended for convenient
+# distribution, not as a security boundary.
 {
   echo "ENCRYPTION_PASSWORD='$ENCRYPTION_PASSWORD'"
 } >>"$OUTPUT_FILE"
