@@ -1,11 +1,21 @@
-# GhostlyHosting
+# GhostlyHosting — Blazor Server Hosting Made Easy
 
-A self-hosted .NET deployment and management tool for Ubuntu servers.  
-Automates SSL, DNS, GitHub-integrated deployments, firewall configuration, and more — all through an interactive terminal UI.
+> **The all-in-one, SEO-friendly hosting tool for Blazor Server, Razor Pages, ASP.NET Core, and any .NET web application.**  
+> Deploy, manage, and secure your apps on your own Ubuntu VPS — through an intuitive, user-friendly console application.
+
+GhostlyHosting is an interactive command-line tool that turns a fresh Ubuntu server into a fully configured, production-ready hosting environment for **Blazor Server** and other .NET applications. It automates SSL certificates, DNS management, GitHub-integrated deployments, reverse-proxy setup, and firewall configuration — all without writing a single config file.
+
+### Why GhostlyHosting?
+
+- **Blazor Server & SSR Hosting** — Full support for Blazor Server-Side Rendering, ensuring your pages are **SEO-friendly** and indexable by search engines out of the box.
+- **User-Friendly Console App** — No YAML, no complex CLI flags. Just an interactive, menu-driven terminal UI that guides you step by step.
+- **Self-Hosted & Private** — You own your server, your data, and your deployments. No vendor lock-in.
 
 ## ✨ Features
 
-- 🚀 Deploy unlimited .NET apps directly from GitHub repositories
+- 🚀 Deploy unlimited Blazor Server, Razor Pages, ASP.NET Core apps directly from GitHub repositories
+- 🔍 SEO-optimized hosting — server-side rendering ensures search engines can crawl your Blazor apps
+- 🖥️ Interactive, menu-driven console app — no config files required
 - 🔒 Automatic HTTPS via Let's Encrypt with Cloudflare DNS setup
 - 🌩️ Cloudflare proxy integration (DDoS protection, CDN, HTTP/2)
 - 🛡️ Fail2Ban for SSH and nginx brute-force protection
@@ -44,7 +54,7 @@ Generate a token at [https://github.com/settings/tokens](https://github.com/sett
 ### Cloud Provider API Token
 
 - **UpCloud**: Create an API token in your [UpCloud control panel](https://signup.upcloud.com/?promo=AW9TF8)
-- **DigitalOcean**: Create a Personal Access Token (read & write) in your [DO dashboard](https://cloud.digitalocean.com/account/api/tokens)
+- **DigitalOcean**: Create a Personal Access Token (read & write) in your [DO dashboard](https://m.do.co/c/d4751d2c3854)
 - **Other**: You manage firewall rules manually (ports 22, 80, 443 must be open)
 
 ---
