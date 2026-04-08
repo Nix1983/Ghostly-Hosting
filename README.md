@@ -14,7 +14,7 @@ GhostlyHosting is an interactive command-line tool that turns a fresh Ubuntu ser
 ## ✨ Features
 
 - 🚀 Deploy unlimited Blazor Server / .NET apps directly from GitHub repositories
-- 🔍 SEO-optimised hosting — server-side rendering ensures search engines can crawl your Blazor apps
+- 🔍 SEO-optimized hosting — server-side rendering ensures search engines can crawl your Blazor apps
 - 🖥️ Interactive, menu-driven console app — no config files required
 - 🔒 Automatic HTTPS via Let's Encrypt with Cloudflare DNS setup
 - 🌩️ Cloudflare proxy integration (DDoS protection, CDN, HTTP/2)
