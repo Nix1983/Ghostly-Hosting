@@ -22,7 +22,7 @@ show_manual_firewall_info() {
   print_double_line
   echo -e "\nYour server is configured with \e[1mmanual\e[0m firewall management."
   echo -e "No cloud provider API is used to manage firewall rules.\n"
-  echo -e "\e[1mRequired open ports for Blazor hosting:\e[0m\n"
+  echo -e "\e[1mRequired open ports for GhostlyHosting:\e[0m\n"
   echo -e "   🔐  Port \e[1m22\e[0m    (SSH)     – Remote server access"
   echo -e "   🌐  Port \e[1m80\e[0m    (HTTP)    – Web traffic & Let's Encrypt validation"
   echo -e "   🔒  Port \e[1m443\e[0m   (HTTPS)   – Secure web traffic (TLS/SSL)"
@@ -34,7 +34,6 @@ show_manual_firewall_info() {
   echo -e "   • \e[2mAllow outbound DNS (port 53 UDP/TCP)\e[0m"
   echo -e "   • \e[2mAllow all outbound traffic (for package updates, API calls)\e[0m\n"
   print_line
-  echo -e "\n💡 \e[2mTo switch to a managed cloud provider, update CLOUD_PROVIDER in your .env file.\e[0m\n"
   print_press_any_key
 }
 

@@ -721,7 +721,7 @@ create_kestrel_service() {
 
   {
     echo "[Unit]"
-    echo "Description=Blazor App for $HOSTNAME_FQDN"
+    echo "Description=GhostlyHosting App for $HOSTNAME_FQDN"
     echo "After=network.target"
     echo
     echo "[Service]"

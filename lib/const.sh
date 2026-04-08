@@ -35,7 +35,7 @@ __CONSTANTS_SH_LOADED=1
 # Base directory for all deployed apps
 [[ -z "${APP_BASE_DIR+x}" ]] && declare -gr APP_BASE_DIR="/var/www"
 
-# Default subfolder structure for app-specific logs (used in Blazor deployment)
+# Default subfolder structure for app-specific logs (used in GhostlyHosting deployment)
 [[ -z "${LOGS_DIR+x}" ]]             && declare -gr LOGS_DIR="logs"
 [[ -z "${WEB_LOGS_ACCESS_DIR+x}" ]]  && declare -gr WEB_LOGS_ACCESS_DIR="webserver/access"
 [[ -z "${WEB_LOGS_ERROR_DIR+x}" ]]   && declare -gr WEB_LOGS_ERROR_DIR="webserver/error"

@@ -1,11 +1,11 @@
-# Blazor Hosting (GhostlyHosting)
+# GhostlyHosting
 
-A self-hosted .NET / Blazor deployment and management tool for Ubuntu servers.  
+A self-hosted .NET deployment and management tool for Ubuntu servers.  
 Automates SSL, DNS, GitHub-integrated deployments, firewall configuration, and more — all through an interactive terminal UI.
 
 ## ✨ Features
 
-- 🚀 Deploy unlimited .NET / Blazor apps directly from GitHub repositories
+- 🚀 Deploy unlimited .NET apps directly from GitHub repositories
 - 🔒 Automatic HTTPS via Let's Encrypt with Cloudflare DNS setup
 - 🌩️ Cloudflare proxy integration (DDoS protection, CDN, HTTP/2)
 - 🛡️ Fail2Ban for SSH and nginx brute-force protection

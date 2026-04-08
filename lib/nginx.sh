@@ -519,7 +519,7 @@ setup_nginx_for_blazor_app() {
   create_nginx_config || return 1
   setup_nginx_log_timer
 
-  echo -e "\n🌐 \033[1mBlazor App is now accessible at:\033[0m 🔗 \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
+  echo -e "\n🌐 \033[1mApp is now accessible at:\033[0m 🔗 \033[1;34mhttps://$HOSTNAME_FQDN\033[0m"
 }
 
 get_nginx_config_value() {
