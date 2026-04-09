@@ -1,5 +1,7 @@
 # GhostlyHosting — Blazor Server Hosting Made Easy
 
+🌐 **Website:** [https://ghostlyinc.com/en-us/tools/ghostly-hosting/](https://ghostlyinc.com/en-us/tools/ghostly-hosting/)
+
 > **The all-in-one, SEO-friendly hosting tool for Blazor Server, Razor Pages, ASP.NET Core, and any .NET web application.**  
 > Deploy, manage, and secure your apps on your own Ubuntu VPS — through an intuitive, user-friendly console application.
 
