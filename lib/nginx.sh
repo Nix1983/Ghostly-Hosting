@@ -3,6 +3,7 @@
 set -e
 
 source ./lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/nginx_cache.sh"
 
 is_executable_file_path() {
   local path="$1"
@@ -400,6 +401,8 @@ create_cloudflare_real_ip_conf() {
 }
 
 create_nginx_config() {
+  local cache_variable
+  cache_variable=$(nginx_cache_fallback_variable "$HOSTNAME_FQDN") || return 1
   local conf_path="/etc/nginx/sites-available/$HOSTNAME_FQDN"
   local conf_link="/etc/nginx/sites-enabled/$HOSTNAME_FQDN"
   local cert_path="/etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem"
@@ -425,6 +428,7 @@ create_nginx_config() {
   echo -e "\n⚙️ \033[1mCreating Nginx config for:\033[0m \033[36m$HOSTNAME_FQDN → localhost:$KESTREL_PORT\033[0m"
 
   {
+    write_nginx_cache_fallback_map "$cache_variable"
     echo "server {"
     echo "    listen 80;"
     echo "    listen [::]:80;"
@@ -465,7 +469,7 @@ create_nginx_config() {
     echo "        proxy_set_header X-Real-IP \$remote_addr;"
     echo "        proxy_cache_bypass \$http_upgrade;"
     echo "        proxy_set_header X-Forwarded-Server \$host;"
-    echo "        add_header Cache-Control \"no-store\";"
+    write_nginx_cache_fallback_header "$cache_variable"
     echo "    }"
     echo "}"
   } > "$conf_path"

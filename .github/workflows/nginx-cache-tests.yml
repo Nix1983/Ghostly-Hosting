@@ -1,0 +1,21 @@
+name: Nginx cache regression tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  nginx-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nginx and Python
+        run: sudo apt-get update && sudo apt-get install -y nginx python3
+      - name: Check shell syntax
+        run: bash -n lib/nginx.sh lib/nginx_cache.sh test/nginx_cache_tests.sh
+      - name: Run Nginx regression tests
+        run: bash test/nginx_tests.sh && bash test/nginx_cache_tests.sh
