@@ -32,6 +32,8 @@ TESTS=(
   "test_digitalocean_integration.sh"
   "fail2ban_tests.sh"
   "certbot_tests.sh"
+  "nginx_tests.sh"
+  "nginx_cache_tests.sh"
 )
 
 FAILED_TESTS=()
